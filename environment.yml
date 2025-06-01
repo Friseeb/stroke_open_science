@@ -1,0 +1,11 @@
+name: stroke_open_science
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - fireducks
+      - duckdb
+      - requests
+      - pandas
