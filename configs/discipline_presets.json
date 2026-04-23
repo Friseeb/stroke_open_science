@@ -1,0 +1,31 @@
+{
+  "stroke": [
+    "stroke",
+    "ischemic stroke",
+    "hemorrhagic stroke",
+    "transient ischemic attack",
+    "cerebrovascular accident",
+    "cerebral infarction"
+  ],
+  "neuroscience": [
+    "neuroscience",
+    "brain",
+    "neural",
+    "synaptic",
+    "neuroimaging"
+  ],
+  "neurology": [
+    "neurology",
+    "neurological disorder",
+    "epilepsy",
+    "movement disorder",
+    "multiple sclerosis"
+  ],
+  "cardiology": [
+    "cardiology",
+    "cardiovascular",
+    "myocardial infarction",
+    "heart failure",
+    "atrial fibrillation"
+  ]
+}

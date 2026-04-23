@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "Stroke Open-Science Pipeline"
+message: "If you use this software, please cite it using the metadata below."
+type: software
+authors:
+  - family-names: "Contributors"
+    given-names: "Stroke Open-Science"
+repository-code: "https://github.com/Friseeb/stroke_open_science"
+abstract: >-
+  Pipeline for OpenAlex and PubMed retrieval, open-science signal enrichment,
+  and benchmark-ready exports for stroke and related disciplines.
+license: MIT
+keywords:
+  - open science
+  - stroke
+  - bibliometrics
+  - openalex
+  - pubmed
+version: "0.1.0"
+date-released: "2026-04-13"
