@@ -66,7 +66,7 @@ jobs:
             ARGS="--disciplines $DISCIPLINES"
           fi
           if [ "$MAX_PER_QUERY" != "0" ]; then
-            ARGS="$ARGS --max-per-query $MAX_PER_QUERY"
+            ARGS="$ARGS --max-per-query $MAX_PER_QUERY --disable-api-enrich --disable-dataset-search"
           fi
           python scripts/run_discipline_benchmark.py $ARGS
 
