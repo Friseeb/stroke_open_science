@@ -1,5 +1,43 @@
+# Generated outputs (large; tracked in stroke_open_science_outputs repo)
+data/
 output/
+
+# Python
 *.pyc
+*.pyo
 __pycache__/
-*.db
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets and local config
 .env
+.env.local
+configs/.env
+configs/.env.local
+
+# Database and cache files
+*.db
+*.sqlite
+enrich_cache.json
+llm_cache.json
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Pytest
+.pytest_cache/
