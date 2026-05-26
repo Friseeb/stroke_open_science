@@ -70,9 +70,6 @@ jobs:
           fi
           python scripts/run_discipline_benchmark.py $ARGS
 
-      - name: Build dashboard
-        run: python scripts/build_discipline_dashboard.py
-
       - name: Prepare outputs archive manifest
         run: python scripts/prepare_outputs_archive.py
 
