@@ -17,7 +17,8 @@ on:
       dry_run:
         description: "Skip push to outputs repo"
         required: false
-        default: "false"
+        type: boolean
+        default: false
 
 jobs:
   extract:
@@ -77,7 +78,7 @@ jobs:
         run: python scripts/prepare_outputs_archive.py
 
       - name: Checkout outputs repo
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.dry_run != true }}
         uses: actions/checkout@v4
         with:
           repository: Friseeb/stroke_open_science_outputs
@@ -85,7 +86,7 @@ jobs:
           path: outputs_repo
 
       - name: Copy benchmark outputs to outputs repo
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.dry_run != true }}
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           DEST="outputs_repo/runs/${TIMESTAMP}"
@@ -104,7 +105,7 @@ jobs:
           echo "$TIMESTAMP" > outputs_repo/LATEST_RUN.txt
 
       - name: Commit and push to outputs repo
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.dry_run != true }}
         run: |
           cd outputs_repo
           git config user.name "github-actions[bot]"
