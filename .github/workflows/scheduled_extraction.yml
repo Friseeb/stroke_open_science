@@ -23,7 +23,7 @@ jobs:
   extract:
     name: Extract — ${{ matrix.discipline }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 300
     strategy:
       matrix:
         discipline: [stroke, neuroscience, neurology, cardiology]
