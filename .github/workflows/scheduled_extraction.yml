@@ -6,12 +6,12 @@ on:
     - cron: "0 2 1 1,7 *"
   workflow_dispatch:
     inputs:
-      disciplines:
-        description: "Space-separated discipline names to run (leave blank for all)"
+      start_year:
+        description: "Start year (default: 2015)"
         required: false
-        default: ""
+        default: "2015"
       max_per_query:
-        description: "Max articles per query (0 = unlimited, use 50 for a smoke test)"
+        description: "Max articles per query (0 = unlimited, 50 for smoke test)"
         required: false
         default: "0"
       dry_run:
@@ -21,8 +21,14 @@ on:
 
 jobs:
   extract:
+    name: Extract — ${{ matrix.discipline }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 180
+    strategy:
+      matrix:
+        discipline: [stroke, neuroscience, neurology, cardiology]
+      max-parallel: 2
+      fail-fast: false
 
     steps:
       - name: Checkout source repo
@@ -56,22 +62,89 @@ jobs:
           OPENAI_LLM_MODEL=gpt-4o-mini
           ENVEOF
 
-      - name: Run benchmark (all disciplines or specified subset)
+      - name: Run extraction for ${{ matrix.discipline }}
         env:
-          DISCIPLINES: ${{ github.event.inputs.disciplines }}
           MAX_PER_QUERY: ${{ github.event.inputs.max_per_query || '0' }}
+          START_YEAR: ${{ github.event.inputs.start_year || '2015' }}
         run: |
-          ARGS=""
-          if [ -n "$DISCIPLINES" ]; then
-            ARGS="--disciplines $DISCIPLINES"
-          fi
+          ARGS="--disciplines ${{ matrix.discipline }} --start-year $START_YEAR --skip-dashboard"
           if [ "$MAX_PER_QUERY" != "0" ]; then
             ARGS="$ARGS --max-per-query $MAX_PER_QUERY --disable-api-enrich"
           fi
           python scripts/run_discipline_benchmark.py $ARGS
 
+      - name: Upload discipline output
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-${{ matrix.discipline }}
+          path: data/benchmarks/${{ matrix.discipline }}/
+          if-no-files-found: warn
+          retention-days: 3
+
+  dashboard-and-push:
+    name: Dashboard and push
+    needs: extract
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: always()
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download all discipline outputs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: output-*
+          path: data/benchmarks/
+          merge-multiple: false
+
+      - name: Reorganize downloaded artifacts into discipline directories
+        run: |
+          for dir in data/benchmarks/output-*/; do
+            discipline=$(basename "$dir" | sed 's/^output-//')
+            mv "$dir" "data/benchmarks/$discipline"
+          done
+
+      - name: Build dashboard
+        run: |
+          INPUTS=""
+          for discipline in stroke neuroscience neurology cardiology; do
+            csv="data/benchmarks/$discipline/fully_enriched.csv"
+            if [ -f "$csv" ]; then
+              INPUTS="$INPUTS $discipline=$csv"
+            fi
+          done
+          if [ -n "$INPUTS" ]; then
+            python scripts/build_discipline_dashboard.py \
+              --inputs $INPUTS \
+              --out-dir data/benchmarks/dashboard
+          else
+            echo "No fully_enriched.csv files found; skipping dashboard."
+          fi
+
       - name: Prepare outputs archive manifest
         run: python scripts/prepare_outputs_archive.py
+
+      - name: Upload combined outputs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-outputs-${{ github.run_id }}
+          path: |
+            data/benchmarks/
+            outputs_archive/
+          retention-days: 30
+          if-no-files-found: warn
 
       - name: Checkout outputs repo
         if: ${{ github.event.inputs.dry_run != 'true' }}
@@ -87,17 +160,11 @@ jobs:
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           DEST="outputs_repo/runs/${TIMESTAMP}"
           mkdir -p "$DEST"
-
-          # Copy all CSVs and dashboards from data/benchmarks if they exist
           if [ -d "data/benchmarks" ]; then
             cp -r data/benchmarks/. "$DEST/"
           fi
-
-          # Copy the outputs_archive manifest
           cp outputs_archive/manifest.csv "$DEST/manifest.csv" 2>/dev/null || true
           cp outputs_archive/metadata.json "$DEST/metadata.json" 2>/dev/null || true
-
-          # Update the "latest" symlink-style pointer file
           echo "$TIMESTAMP" > outputs_repo/LATEST_RUN.txt
 
       - name: Commit and push to outputs repo
@@ -114,13 +181,3 @@ jobs:
             git commit -m "chore: automated benchmark run ${TIMESTAMP}"
             git push
           fi
-
-      - name: Upload outputs as workflow artifact (always)
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-outputs-${{ github.run_id }}
-          path: |
-            data/benchmarks/
-            outputs_archive/
-          retention-days: 30
-          if-no-files-found: warn
