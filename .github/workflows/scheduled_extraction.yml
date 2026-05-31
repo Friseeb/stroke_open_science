@@ -111,9 +111,17 @@ jobs:
 
       - name: Reorganize downloaded artifacts into discipline directories
         run: |
-          for dir in data/benchmarks/output-*/; do
-            discipline=$(basename "$dir" | sed 's/^output-//')
-            mv "$dir" "data/benchmarks/$discipline"
+          echo "=== Contents of data/benchmarks/ after download ==="
+          find data/benchmarks/ -maxdepth 2 -type d || echo "(nothing found)"
+          for discipline in stroke neuroscience neurology cardiology; do
+            src="data/benchmarks/output-${discipline}"
+            dst="data/benchmarks/${discipline}"
+            if [ -d "$src" ]; then
+              mv "$src" "$dst"
+              echo "Moved $src -> $dst"
+            else
+              echo "No artifact found for $discipline (skipping)"
+            fi
           done
 
       - name: Build dashboard
