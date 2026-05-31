@@ -67,7 +67,7 @@ jobs:
           MAX_PER_QUERY: ${{ github.event.inputs.max_per_query || '0' }}
           START_YEAR: ${{ github.event.inputs.start_year || '2015' }}
         run: |
-          ARGS="--disciplines ${{ matrix.discipline }} --start-year $START_YEAR --skip-dashboard"
+          ARGS="--disciplines ${{ matrix.discipline }} --start-year $START_YEAR --skip-dashboard --disable-dataset-search"
           if [ "$MAX_PER_QUERY" != "0" ]; then
             ARGS="$ARGS --max-per-query $MAX_PER_QUERY --disable-api-enrich"
           fi

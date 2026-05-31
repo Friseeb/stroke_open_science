@@ -122,6 +122,8 @@ def parse_args(script_root: Optional[Path] = None) -> argparse.Namespace:
     parser.add_argument("--fulltext-char-limit", type=int, default=12000)
     parser.add_argument("--llm-max-fulltext-fetch", type=int, default=200)
     parser.add_argument("--disable-api-enrich", action="store_true")
+    parser.add_argument("--disable-dataset-search", action="store_true",
+                        help="Skip DataCite/Dryad/Figshare dataset repository search")
     parser.add_argument("--resume", action="store_true", help="Skip discipline runs with existing fully_enriched.csv")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--skip-dashboard", action="store_true")
@@ -328,6 +330,8 @@ def main() -> int:
 
         if args.disable_api_enrich:
             cmd.append("--disable-api-enrich")
+        if args.disable_dataset_search:
+            cmd.append("--disable-dataset-search")
         if args.refresh_openalex:
             cmd.append("--refresh-openalex")
         if args.force:
