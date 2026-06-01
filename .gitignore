@@ -41,3 +41,5 @@ llm_cache.json
 
 # Pytest
 .pytest_cache/
+
+retrieval_slices/
