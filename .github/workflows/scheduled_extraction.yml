@@ -185,6 +185,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config http.postBuffer 524288000
+          echo "retrieval_slices/" >> .gitignore
+          sort -u .gitignore -o .gitignore
           git add -A
           if git diff --cached --quiet; then
             echo "No new outputs to commit."
