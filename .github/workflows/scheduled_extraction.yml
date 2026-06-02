@@ -165,23 +165,43 @@ jobs:
           token: ${{ secrets.OUTPUTS_REPO_PAT }}
           path: outputs_repo
 
-      - name: Copy benchmark outputs to outputs repo
+      - name: Upload fully_enriched CSVs to GitHub Release and copy summary files to git
         if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.OUTPUTS_REPO_PAT }}
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
+          TAG="run-${TIMESTAMP}"
+
+          # Upload fully_enriched.csv (250-315 MB each) as release assets
+          ASSETS=()
+          for discipline in stroke neuroscience neurology cardiology; do
+            csv="data/benchmarks/$discipline/fully_enriched.csv"
+            if [ -f "$csv" ]; then
+              ASSETS+=("$csv#${discipline}-fully_enriched.csv")
+            fi
+          done
+
+          if [ ${#ASSETS[@]} -gt 0 ]; then
+            gh release create "$TAG" \
+              --repo "Friseeb/stroke_open_science_outputs" \
+              --title "Benchmark Run ${TIMESTAMP}" \
+              --notes "Full enriched datasets (fully_enriched.csv) for all disciplines are attached as release assets. The git commit contains the high-impact subsets and dashboard." \
+              "${ASSETS[@]}"
+            echo "Release created: $TAG"
+          fi
+
+          # Copy only the files that fit in git (<100 MB each)
           DEST="outputs_repo/runs/${TIMESTAMP}"
           mkdir -p "$DEST"
-          if [ -d "data/benchmarks" ]; then
-            rsync -a \
-              --exclude='retrieval_slices/' \
-              --exclude='raw_openalex_articles.csv' \
-              --exclude='enriched_preview.csv' \
-              --exclude='enrich_cache.json' \
-              --exclude='llm_cache.json' \
-              data/benchmarks/. "$DEST/"
-            # Compress fully_enriched.csv per discipline (~300MB → ~60MB)
-            find "$DEST" -name "fully_enriched.csv" -exec gzip -9 {} \;
-          fi
+          rsync -a \
+            --exclude='retrieval_slices/' \
+            --exclude='raw_openalex_articles.csv' \
+            --exclude='enriched_preview.csv' \
+            --exclude='enrich_cache.json' \
+            --exclude='llm_cache.json' \
+            --exclude='fully_enriched.csv' \
+            data/benchmarks/. "$DEST/"
           cp outputs_archive/manifest.csv "$DEST/manifest.csv" 2>/dev/null || true
           cp outputs_archive/metadata.json "$DEST/metadata.json" 2>/dev/null || true
           echo "$TIMESTAMP" > outputs_repo/LATEST_RUN.txt
@@ -193,8 +213,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config http.postBuffer 524288000
-          echo "retrieval_slices/" >> .gitignore
-          sort -u .gitignore -o .gitignore
           git add -A
           if git diff --cached --quiet; then
             echo "No new outputs to commit."
