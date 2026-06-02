@@ -24,6 +24,8 @@ jobs:
     name: Extract — ${{ matrix.discipline }}
     runs-on: ubuntu-latest
     timeout-minutes: 600
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     strategy:
       matrix:
         discipline: [stroke, neuroscience, neurology, cardiology]
@@ -74,7 +76,7 @@ jobs:
           python scripts/run_discipline_benchmark.py $ARGS
 
       - name: Upload discipline output
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: output-${{ matrix.discipline }}
           path: |
@@ -89,6 +91,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: always()
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout source repo
@@ -105,7 +109,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Download all discipline outputs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v4
         with:
           pattern: output-*
           path: data/benchmarks/
@@ -147,7 +151,7 @@ jobs:
         run: python scripts/prepare_outputs_archive.py
 
       - name: Upload combined outputs as artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-outputs-${{ github.run_id }}
           path: |
