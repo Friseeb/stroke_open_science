@@ -173,12 +173,16 @@ jobs:
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           TAG="run-${TIMESTAMP}"
 
-          # Upload fully_enriched.csv (250-315 MB each) as release assets
+          # Upload fully_enriched.csv (250-315 MB each) as release assets.
+          # GitHub requires unique asset names within a release, so each file
+          # is copied to a discipline-prefixed name before uploading.
           ASSETS=()
           for discipline in stroke neuroscience neurology cardiology; do
             csv="data/benchmarks/$discipline/fully_enriched.csv"
             if [ -f "$csv" ]; then
-              ASSETS+=("$csv#${discipline}-fully_enriched.csv")
+              dest="/tmp/${discipline}-fully_enriched.csv"
+              cp "$csv" "$dest"
+              ASSETS+=("$dest")
             fi
           done
 
@@ -186,7 +190,7 @@ jobs:
             gh release create "$TAG" \
               --repo "Friseeb/stroke_open_science_outputs" \
               --title "Benchmark Run ${TIMESTAMP}" \
-              --notes "Full enriched datasets (fully_enriched.csv) for all disciplines are attached as release assets. The git commit contains the high-impact subsets and dashboard." \
+              --notes "Full enriched datasets for all disciplines are attached as release assets (e.g. stroke-fully_enriched.csv). The git commit contains high-impact subsets and dashboard." \
               "${ASSETS[@]}"
             echo "Release created: $TAG"
           fi
