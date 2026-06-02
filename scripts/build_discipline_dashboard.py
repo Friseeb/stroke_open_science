@@ -533,7 +533,7 @@ def build_narrative_summary(
     if focus_slopes:
         improving = [m for m, s in focus_slopes.items() if s is not None and s > 0.002]
         if improving:
-            names = [n for _, n in METRIC_SPECS if _ in improving][:3]
+            names = [n for m, n, *_ in METRIC_SPECS if m in improving][:3]
             if names:
                 sentences.append(
                     f"Positive trends over the most recent 5 years: {oxford_join(names)}."
