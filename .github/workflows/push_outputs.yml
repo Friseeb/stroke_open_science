@@ -83,13 +83,21 @@ jobs:
           token: ${{ secrets.OUTPUTS_REPO_PAT }}
           path: outputs_repo
 
-      - name: Copy outputs to outputs repo (excluding retrieval_slices)
+      - name: Copy outputs to outputs repo (excluding large intermediate files)
         if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           DEST="outputs_repo/runs/${TIMESTAMP}"
           mkdir -p "$DEST"
-          rsync -a --exclude='retrieval_slices/' data/benchmarks/. "$DEST/"
+          rsync -a \
+            --exclude='retrieval_slices/' \
+            --exclude='raw_openalex_articles.csv' \
+            --exclude='enriched_preview.csv' \
+            --exclude='enrich_cache.json' \
+            --exclude='llm_cache.json' \
+            data/benchmarks/. "$DEST/"
+          # Compress fully_enriched.csv per discipline (~300MB → ~60MB)
+          find "$DEST" -name "fully_enriched.csv" -exec gzip -9 {} \;
           cp outputs_archive/manifest.csv "$DEST/manifest.csv" 2>/dev/null || true
           cp outputs_archive/metadata.json "$DEST/metadata.json" 2>/dev/null || true
           echo "$TIMESTAMP" > outputs_repo/LATEST_RUN.txt
