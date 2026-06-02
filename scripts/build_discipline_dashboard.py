@@ -691,8 +691,8 @@ def build_heatmap_figure(overall_df: pd.DataFrame, palette: Dict[str, str]) -> o
         textfont={"size": 13, "color": "white", "family": "Arial, sans-serif"},
         colorscale="Viridis",
         showscale=True,
-        colorbar={"title": "Value", "thickness": 14, "len": 0.8,
-                  "tickfont": {"size": 10}, "titlefont": {"size": 11}},
+        colorbar={"title": {"text": "Value", "font": {"size": 11}},
+                  "thickness": 14, "len": 0.8, "tickfont": {"size": 10}},
         hovertemplate="%{y} · %{x}: %{text}<extra></extra>",
         zmin=0, zmax=100,
     ))
