@@ -128,6 +128,14 @@ jobs:
           cp outputs_archive/metadata.json "$DEST/metadata.json" 2>/dev/null || true
           echo "$TIMESTAMP" > outputs_repo/LATEST_RUN.txt
 
+          # Update GitHub Pages root so the dashboard is always at the repo's Pages URL
+          if [ -f "data/benchmarks/dashboard/discipline_dashboard.html" ]; then
+            mkdir -p outputs_repo/docs
+            cp data/benchmarks/dashboard/discipline_dashboard.html outputs_repo/docs/index.html
+            cp data/benchmarks/dashboard/discipline_overall_summary.csv outputs_repo/docs/ 2>/dev/null || true
+            cp data/benchmarks/dashboard/discipline_year_summary.csv outputs_repo/docs/ 2>/dev/null || true
+          fi
+
       - name: Commit and push to outputs repo
         if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
