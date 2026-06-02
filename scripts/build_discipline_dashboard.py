@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build cross-discipline, year-by-year comparison outputs and dashboard.
+Build cross-discipline, year-by-year comparison dashboard with rich insights.
 
 Input format:
   --inputs stroke=/path/to/stroke_fully_enriched.csv neurology=/path/to/neurology_fully_enriched.csv
@@ -12,51 +12,79 @@ import argparse
 import html
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
 
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
 VIRIDIS_HEXES = [
-    "#440154",
-    "#482878",
-    "#3E4989",
-    "#31688E",
-    "#26828E",
-    "#1F9E89",
-    "#35B779",
-    "#6DCD59",
-    "#B4DE2C",
-    "#FDE725",
+    "#440154", "#482878", "#3E4989", "#31688E",
+    "#26828E", "#1F9E89", "#35B779", "#6DCD59",
+    "#B4DE2C", "#FDE725",
 ]
+
+# Composite open-science index weights (sum to 1.0)
+COMPOSITE_WEIGHTS: Dict[str, float] = {
+    "oa_rate": 0.20,
+    "open_material_rate": 0.25,
+    "dataset_rate": 0.20,
+    "github_rate": 0.10,
+    "preregistered_rate": 0.15,
+    "preprint_rate": 0.10,
+}
 
 METRIC_SPECS = [
-    ("papers", "Publication volume", "count", "Annual retrieval volume, shown to keep denominators and field scale visible."),
-    (
-        "non_oa_open_signal_rate",
-        "Signals beyond OA",
-        "pct",
-        "Repository, preprint, or preregistration evidence, excluding plain open access.",
-    ),
-    ("oa_rate", "Open-access baseline", "pct", "Share flagged as open access, regardless of richer open-science signals."),
-    ("open_material_rate", "Repository and materials", "pct", "Share with repository, code, or data links."),
-    ("github_rate", "GitHub trace", "pct", "Share with a GitHub repository signal."),
-    ("dataset_rate", "Dataset repository", "pct", "Share with a dataset in a public repository (DataCite, Dryad, Figshare, Dataverse, etc.)."),
-    ("preregistered_rate", "Preregistration trace", "pct", "Share with preregistration evidence."),
-    ("high_impact_rate", "High-impact concentration", "pct", "Share meeting the benchmark high-impact definition."),
+    ("composite_index", "Open-science composite index (0–100)", "score",
+     "Weighted composite of OA, materials, dataset, GitHub, preregistration, and preprints. Higher = more open."),
+    ("non_oa_open_signal_rate", "Signals beyond open access", "pct",
+     "Repository, preprint, or preregistration evidence, excluding plain open access."),
+    ("oa_rate", "Open-access rate", "pct",
+     "Share flagged as open access, regardless of richer open-science signals."),
+    ("open_material_rate", "Repository and materials", "pct",
+     "Share with any repository, code, or data link."),
+    ("github_rate", "GitHub trace", "pct",
+     "Share with a GitHub repository signal."),
+    ("dataset_rate", "Dataset repository", "pct",
+     "Share with a dataset in a public repository (DataCite, Dryad, Figshare, Dataverse)."),
+    ("preregistered_rate", "Preregistration trace", "pct",
+     "Share with preregistration evidence."),
+    ("preprint_rate", "Preprint trace", "pct",
+     "Share with a preprint server URL or identifier."),
+]
+
+PLATFORM_METRICS = [
+    ("github_rate", "GitHub"),
+    ("zenodo_rate", "Zenodo"),
+    ("osf_rate", "OSF"),
+]
+
+GAP_METRICS = [
+    ("oa_rate", "Open access"),
+    ("open_material_rate", "Repository / materials"),
+    ("dataset_rate", "Dataset sharing"),
+    ("github_rate", "GitHub"),
+    ("preregistered_rate", "Preregistration"),
+    ("preprint_rate", "Preprint"),
+    ("composite_index_pct", "Composite index"),
 ]
 
 
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build discipline comparison dashboard from enriched CSV files.")
-    parser.add_argument(
-        "--inputs",
-        nargs="+",
-        required=True,
-        help="Discipline/path pairs like stroke=data/stroke/fully_enriched.csv",
-    )
-    parser.add_argument("--out-dir", default="data/dashboard", help="Output directory for summaries and HTML")
+    parser = argparse.ArgumentParser(description="Build discipline comparison dashboard.")
+    parser.add_argument("--inputs", nargs="+", required=True,
+                        help="Discipline/path pairs like stroke=data/stroke/fully_enriched.csv")
+    parser.add_argument("--out-dir", default="data/dashboard")
     parser.add_argument("--title", default="Open-Science Benchmark by Discipline")
+    parser.add_argument("--focus-discipline", default="stroke",
+                        help="Discipline to highlight in gap tracker (default: stroke)")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
 
@@ -80,6 +108,10 @@ def parse_input_pairs(items: List[str]) -> Dict[str, Path]:
     return pairs
 
 
+# ---------------------------------------------------------------------------
+# Data helpers
+# ---------------------------------------------------------------------------
+
 def to_bool_series(series: pd.Series) -> pd.Series:
     def _conv(value: object) -> bool:
         if pd.isna(value):
@@ -89,12 +121,7 @@ def to_bool_series(series: pd.Series) -> pd.Series:
         s = str(value).strip().lower()
         if s in {"", "none", "nan", "null", "<na>", "n/a"}:
             return False
-        if s in {"true", "t", "1", "yes", "y"}:
-            return True
-        if s in {"false", "f", "0", "no", "n"}:
-            return False
-        return False
-
+        return s in {"true", "t", "1", "yes", "y"}
     return series.map(_conv)
 
 
@@ -112,6 +139,99 @@ def infer_oa_series(df: pd.DataFrame) -> pd.Series:
     return explicit_oa | journal_oa | has_oa_url | has_oa_license
 
 
+def discipline_label(value: str) -> str:
+    return str(value).replace("_", " ").strip().title()
+
+
+def oxford_join(items: List[str]) -> str:
+    cleaned = [str(i).strip() for i in items if str(i).strip()]
+    if not cleaned:
+        return ""
+    if len(cleaned) == 1:
+        return cleaned[0]
+    if len(cleaned) == 2:
+        return f"{cleaned[0]} and {cleaned[1]}"
+    return f"{', '.join(cleaned[:-1])}, and {cleaned[-1]}"
+
+
+def format_int(value: object) -> str:
+    if pd.isna(value):
+        return "NA"
+    return f"{int(float(value)):,}"
+
+
+def format_percent(value: object, digits: int = 0) -> str:
+    if pd.isna(value):
+        return "NA"
+    return f"{float(value):.{digits}%}"
+
+
+def format_float(value: object, digits: int = 2) -> str:
+    if pd.isna(value):
+        return "NA"
+    return f"{float(value):,.{digits}f}"
+
+
+def percent_digits_for_series(series: pd.Series) -> int:
+    clean = pd.to_numeric(series, errors="coerce").dropna()
+    if clean.empty:
+        return 0
+    span = float(clean.max() - clean.min())
+    max_val = float(clean.max())
+    if max_val <= 0.02 or span <= 0.01:
+        return 2
+    if max_val <= 0.12 or span <= 0.05:
+        return 1
+    return 0
+
+
+def percent_tickformat(digits: int) -> str:
+    return f".{max(0, digits)}%"
+
+
+def compute_axis_range(series: pd.Series, metric_kind: str) -> Optional[List[float]]:
+    clean = pd.to_numeric(series, errors="coerce").dropna()
+    if clean.empty:
+        return None
+    min_v, max_v = float(clean.min()), float(clean.max())
+    if metric_kind == "pct":
+        span = max_v - min_v
+        pad = max(span * 0.22, 0.003 if max_v <= 0.05 else span * 0.12) if span > 0 else max(0.003, max_v * 0.18)
+        return [max(0.0, min_v - pad), min(1.0, max_v + pad)]
+    if metric_kind == "score":
+        span = max_v - min_v
+        pad = max(span * 0.15, 2.0) if span > 0 else max(2.0, max_v * 0.1)
+        return [max(0.0, min_v - pad), min(100.0, max_v + pad)]
+    span = max_v - min_v
+    pad = max(span * 0.18, abs(max_v) * 0.04) if span > 0 else max(1.0, abs(max_v) * 0.14)
+    return [max(0.0, min_v - pad), max_v + pad]
+
+
+def build_palette(disciplines: List[str]) -> Dict[str, str]:
+    if not disciplines:
+        return {}
+    if len(disciplines) == 1:
+        return {disciplines[0]: VIRIDIS_HEXES[5]}
+    max_idx = len(VIRIDIS_HEXES) - 1
+    positions = [round(i * max_idx / (len(disciplines) - 1)) for i in range(len(disciplines))]
+    return {d: VIRIDIS_HEXES[p] for d, p in zip(disciplines, positions)}
+
+
+def resolve_display_title(requested_title: str, disciplines: List[str]) -> str:
+    raw = str(requested_title or "").strip()
+    normalized = raw.lower()
+    generic = {"", "open-science benchmark by discipline", "stroke vs neuroscience vs neurology vs cardiology"}
+    if normalized in generic or " vs " in normalized:
+        if "stroke" in disciplines:
+            return "Open-Science Uptake Across Stroke and Adjacent Fields"
+        return "Open-Science Uptake Across Neighboring Disciplines"
+    return raw
+
+
+# ---------------------------------------------------------------------------
+# Panel computation
+# ---------------------------------------------------------------------------
+
 def prepare_discipline_panel(df: pd.DataFrame, discipline: str) -> pd.DataFrame:
     out = df.copy()
 
@@ -128,7 +248,6 @@ def prepare_discipline_panel(df: pd.DataFrame, discipline: str) -> pd.DataFrame:
     out["is_oa_bool"] = infer_oa_series(out)
     out["preregistered_bool"] = to_bool_series(out.get("preregistered", pd.Series(index=out.index, dtype=object)))
     out["high_impact_bool"] = to_bool_series(out.get("high_impact_flag", pd.Series(index=out.index, dtype=object)))
-
     out["has_github"] = nonblank(out.get("github", pd.Series(index=out.index, dtype=object)))
     out["has_zenodo"] = nonblank(out.get("zenodo", pd.Series(index=out.index, dtype=object)))
     out["has_osf"] = nonblank(out.get("osf", pd.Series(index=out.index, dtype=object)))
@@ -140,25 +259,17 @@ def prepare_discipline_panel(df: pd.DataFrame, discipline: str) -> pd.DataFrame:
         to_bool_series(out.get("has_public_dataset", pd.Series(index=out.index, dtype=object)))
         | nonblank(out.get("dataset_urls", pd.Series(index=out.index, dtype=object)))
     )
-
     out["has_open_material"] = (
-        out["has_github"]
-        | out["has_zenodo"]
-        | out["has_osf"]
-        | out["has_code_link"]
-        | out["has_data_link"]
-        | out["has_repo_links"]
-        | out["has_public_dataset"]
+        out["has_github"] | out["has_zenodo"] | out["has_osf"]
+        | out["has_code_link"] | out["has_data_link"]
+        | out["has_repo_links"] | out["has_public_dataset"]
     )
-
-    out["open_science_any"] = (
-        out["is_oa_bool"] | out["has_open_material"] | out["preregistered_bool"] | out["has_preprint"]
-    )
+    out["open_science_any"] = out["is_oa_bool"] | out["has_open_material"] | out["preregistered_bool"] | out["has_preprint"]
     out["non_oa_open_signal"] = out["has_open_material"] | out["preregistered_bool"] | out["has_preprint"]
-
     out["open_science_score"] = pd.to_numeric(out.get("open_science_score"), errors="coerce")
     out["cited_by_count"] = pd.to_numeric(out.get("cited_by_count"), errors="coerce")
 
+    # --- Full-cohort year aggregation ---
     grouped = (
         out.groupby(["discipline", "year"], as_index=False)
         .agg(
@@ -180,6 +291,38 @@ def prepare_discipline_panel(df: pd.DataFrame, discipline: str) -> pd.DataFrame:
         .sort_values(["discipline", "year"])
     )
 
+    # --- Composite index (0–100) per year ---
+    def _composite(row: pd.Series) -> float:
+        score = 0.0
+        for col, weight in COMPOSITE_WEIGHTS.items():
+            val = pd.to_numeric(row.get(col), errors="coerce")
+            if pd.notna(val):
+                score += float(val) * weight * 100
+        return round(score, 2)
+
+    grouped["composite_index"] = grouped.apply(_composite, axis=1)
+
+    # --- High-impact subset year aggregation ---
+    hi = out[out["high_impact_bool"]].copy()
+    if len(hi) > 0:
+        hi_grouped = (
+            hi.groupby(["discipline", "year"], as_index=False)
+            .agg(
+                hi_papers=("year", "size"),
+                hi_oa_rate=("is_oa_bool", "mean"),
+                hi_open_material_rate=("has_open_material", "mean"),
+                hi_github_rate=("has_github", "mean"),
+                hi_dataset_rate=("has_public_dataset", "mean"),
+                hi_preregistered_rate=("preregistered_bool", "mean"),
+                hi_preprint_rate=("has_preprint", "mean"),
+            )
+        )
+        grouped = grouped.merge(hi_grouped, on=["discipline", "year"], how="left")
+    else:
+        for col in ["hi_papers", "hi_oa_rate", "hi_open_material_rate",
+                    "hi_github_rate", "hi_dataset_rate", "hi_preregistered_rate", "hi_preprint_rate"]:
+            grouped[col] = pd.NA
+
     return grouped
 
 
@@ -187,186 +330,240 @@ def build_overall_summary(panel: pd.DataFrame) -> pd.DataFrame:
     if panel.empty:
         return panel
 
-    weighted = panel.copy()
     rate_cols = [
-        "oa_rate",
-        "open_material_rate",
-        "github_rate",
-        "zenodo_rate",
-        "osf_rate",
-        "dataset_rate",
-        "preregistered_rate",
-        "preprint_rate",
-        "high_impact_rate",
-        "non_oa_open_signal_rate",
-        "open_science_any_rate",
+        "oa_rate", "open_material_rate", "github_rate", "zenodo_rate", "osf_rate",
+        "dataset_rate", "preregistered_rate", "preprint_rate", "high_impact_rate",
+        "non_oa_open_signal_rate", "open_science_any_rate",
     ]
+    hi_cols = ["hi_oa_rate", "hi_open_material_rate", "hi_github_rate",
+               "hi_dataset_rate", "hi_preregistered_rate", "hi_preprint_rate"]
+
+    weighted = panel.copy()
+    for col in rate_cols:
+        if col in weighted.columns:
+            weighted[col + "_weighted"] = weighted[col] * weighted["papers"]
+
+    hi_available = all(c in panel.columns for c in hi_cols)
+    if hi_available:
+        for col in hi_cols:
+            hi_papers = weighted.get("hi_papers", pd.Series(dtype=float)).fillna(0)
+            weighted[col + "_weighted"] = weighted[col] * hi_papers
+
+    agg_dict: Dict[str, Tuple] = {
+        "papers": ("papers", "sum"),
+        "years_covered": ("year", "nunique"),
+        "mean_open_science_score": ("mean_open_science_score", "mean"),
+        "mean_citations": ("mean_citations", "mean"),
+        "composite_index": ("composite_index", "mean"),
+    }
+    if hi_available:
+        agg_dict["hi_papers_total"] = ("hi_papers", "sum")
 
     for col in rate_cols:
-        weighted[col + "_weighted"] = weighted[col] * weighted["papers"]
+        if col + "_weighted" in weighted.columns:
+            agg_dict[col + "_sum"] = (col + "_weighted", "sum")
 
-    grouped = weighted.groupby("discipline", as_index=False).agg(
-        papers=("papers", "sum"),
-        years_covered=("year", "nunique"),
-        mean_open_science_score=("mean_open_science_score", "mean"),
-        mean_citations=("mean_citations", "mean"),
-        oa_weighted=("oa_rate_weighted", "sum"),
-        open_material_weighted=("open_material_rate_weighted", "sum"),
-        github_weighted=("github_rate_weighted", "sum"),
-        zenodo_weighted=("zenodo_rate_weighted", "sum"),
-        osf_weighted=("osf_rate_weighted", "sum"),
-        prereg_weighted=("preregistered_rate_weighted", "sum"),
-        preprint_weighted=("preprint_rate_weighted", "sum"),
-        high_impact_weighted=("high_impact_rate_weighted", "sum"),
-        non_oa_open_signal_weighted=("non_oa_open_signal_rate_weighted", "sum"),
-        open_science_any_weighted=("open_science_any_rate_weighted", "sum"),
-    )
+    if hi_available:
+        for col in hi_cols:
+            agg_dict[col + "_sum"] = (col + "_weighted", "sum")
+
+    grouped = weighted.groupby("discipline", as_index=False).agg(**agg_dict)
 
     denom = grouped["papers"].replace(0, pd.NA)
-    grouped["oa_rate"] = grouped["oa_weighted"] / denom
-    grouped["open_material_rate"] = grouped["open_material_weighted"] / denom
-    grouped["github_rate"] = grouped["github_weighted"] / denom
-    grouped["zenodo_rate"] = grouped["zenodo_weighted"] / denom
-    grouped["osf_rate"] = grouped["osf_weighted"] / denom
-    grouped["preregistered_rate"] = grouped["prereg_weighted"] / denom
-    grouped["preprint_rate"] = grouped["preprint_weighted"] / denom
-    grouped["high_impact_rate"] = grouped["high_impact_weighted"] / denom
-    grouped["non_oa_open_signal_rate"] = grouped["non_oa_open_signal_weighted"] / denom
-    grouped["open_science_any_rate"] = grouped["open_science_any_weighted"] / denom
+    for col in rate_cols:
+        sum_col = col + "_sum"
+        if sum_col in grouped.columns:
+            grouped[col] = grouped[sum_col] / denom
 
-    keep_cols = [
-        "discipline",
-        "papers",
-        "years_covered",
-        "oa_rate",
-        "open_material_rate",
-        "github_rate",
-        "zenodo_rate",
-        "osf_rate",
-        "preregistered_rate",
-        "preprint_rate",
-        "high_impact_rate",
-        "non_oa_open_signal_rate",
-        "open_science_any_rate",
-        "mean_open_science_score",
-        "mean_citations",
-    ]
-    return grouped[keep_cols].sort_values("papers", ascending=False)
+    if hi_available:
+        hi_denom = grouped.get("hi_papers_total", pd.Series(dtype=float)).replace(0, pd.NA)
+        for col in hi_cols:
+            sum_col = col + "_sum"
+            if sum_col in grouped.columns:
+                grouped[col] = grouped[sum_col] / hi_denom
+
+    grouped["composite_index_pct"] = grouped["composite_index"] / 100.0
+
+    keep = ["discipline", "papers", "years_covered", "composite_index", "composite_index_pct",
+            "oa_rate", "open_material_rate", "github_rate", "zenodo_rate", "osf_rate",
+            "dataset_rate", "preregistered_rate", "preprint_rate", "high_impact_rate",
+            "non_oa_open_signal_rate", "open_science_any_rate",
+            "mean_open_science_score", "mean_citations"]
+    if hi_available:
+        keep += hi_cols
+
+    keep = [c for c in keep if c in grouped.columns]
+    return grouped[keep].sort_values("composite_index", ascending=False)
 
 
-def discipline_label(value: str) -> str:
-    return str(value).replace("_", " ").strip().title()
+# ---------------------------------------------------------------------------
+# Trend slopes
+# ---------------------------------------------------------------------------
 
-
-def oxford_join(items: List[str]) -> str:
-    cleaned = [str(item).strip() for item in items if str(item).strip()]
-    if not cleaned:
-        return ""
-    if len(cleaned) == 1:
-        return cleaned[0]
-    if len(cleaned) == 2:
-        return f"{cleaned[0]} and {cleaned[1]}"
-    return f"{', '.join(cleaned[:-1])}, and {cleaned[-1]}"
-
-
-def resolve_display_title(requested_title: str, disciplines: List[str]) -> str:
-    raw = str(requested_title or "").strip()
-    normalized = raw.lower()
-    generic = {
-        "",
-        "open-science benchmark by discipline",
-        "stroke vs neuroscience vs neurology vs cardiology",
-    }
-    if normalized in generic or " vs " in normalized:
-        if "stroke" in disciplines:
-            return "Open-Science Uptake Across Stroke and Adjacent Fields"
-        return "Open-Science Uptake Across Neighboring Disciplines"
-    return raw
-
-
-def format_int(value: object) -> str:
-    if pd.isna(value):
-        return "NA"
-    return f"{int(float(value)):,}"
-
-
-def format_float(value: object, digits: int = 2) -> str:
-    if pd.isna(value):
-        return "NA"
-    return f"{float(value):,.{digits}f}"
-
-
-def format_percent(value: object, digits: int = 0) -> str:
-    if pd.isna(value):
-        return "NA"
-    return f"{float(value):.{digits}%}"
-
-
-def percent_digits_for_series(series: pd.Series) -> int:
-    clean = pd.to_numeric(series, errors="coerce").dropna()
-    if clean.empty:
-        return 0
-    max_value = float(clean.max())
-    span = float(clean.max() - clean.min())
-    if max_value <= 0.02 or span <= 0.01:
-        return 2
-    if max_value <= 0.12 or span <= 0.05:
-        return 1
-    return 0
-
-
-def percent_tickformat(digits: int) -> str:
-    return f".{max(0, digits)}%"
-
-
-def format_metric_value(value: object, metric_kind: str, pct_digits: int = 0) -> str:
-    if metric_kind == "pct":
-        return format_percent(value, digits=pct_digits)
-    return format_float(value, 0)
-
-
-def compute_axis_range(series: pd.Series, metric_kind: str) -> List[float] | None:
-    clean = pd.to_numeric(series, errors="coerce").dropna()
-    if clean.empty:
-        return None
-
-    min_value = float(clean.min())
-    max_value = float(clean.max())
-
-    if metric_kind == "pct":
-        span = max_value - min_value
-        if span <= 0:
-            pad = max(0.003, max_value * 0.18, 0.003 if max_value <= 0.05 else 0.01)
-        else:
-            pad = max(span * 0.22, 0.003 if max_value <= 0.05 else span * 0.12)
-        lower = max(0.0, min_value - pad)
-        upper = min(1.0, max_value + pad)
-        if upper <= lower:
-            upper = min(1.0, lower + max(0.01, pad))
-        return [lower, upper]
-
-    span = max_value - min_value
-    if span <= 0:
-        pad = max(1.0, abs(max_value) * 0.14)
-    else:
-        pad = max(span * 0.18, abs(max_value) * 0.04)
-    lower = max(0.0, min_value - pad)
-    upper = max_value + pad
-    if upper <= lower:
-        upper = lower + max(1.0, pad)
-    return [lower, upper]
-
-
-def build_palette(disciplines: List[str]) -> Dict[str, str]:
-    if not disciplines:
+def compute_trend_slopes(panel_df: pd.DataFrame, n_years: int = 5) -> Dict[str, Dict[str, Optional[float]]]:
+    """Linear slope (pp/year) per discipline × metric over last n_years."""
+    try:
+        import numpy as np
+    except ImportError:
         return {}
-    if len(disciplines) == 1:
-        return {disciplines[0]: VIRIDIS_HEXES[5]}
 
-    max_idx = len(VIRIDIS_HEXES) - 1
-    positions = [round(i * max_idx / (len(disciplines) - 1)) for i in range(len(disciplines))]
-    return {discipline: VIRIDIS_HEXES[pos] for discipline, pos in zip(disciplines, positions)}
+    max_year = int(panel_df["year"].max())
+    recent = panel_df[panel_df["year"] >= max_year - n_years + 1].copy()
+    metrics = ["oa_rate", "open_material_rate", "github_rate", "dataset_rate",
+               "preregistered_rate", "preprint_rate", "non_oa_open_signal_rate", "composite_index"]
+    slopes: Dict[str, Dict[str, Optional[float]]] = {}
+    for discipline in panel_df["discipline"].unique():
+        sub = recent[recent["discipline"] == discipline].sort_values("year")
+        slopes[str(discipline)] = {}
+        for metric in metrics:
+            y = pd.to_numeric(sub.get(metric), errors="coerce").values
+            x = sub["year"].astype(float).values
+            valid = ~__import__("numpy").isnan(y)
+            if valid.sum() >= 2:
+                slope = float(__import__("numpy").polyfit(x[valid], y[valid], 1)[0])
+                slopes[str(discipline)][metric] = slope
+            else:
+                slopes[str(discipline)][metric] = None
+    return slopes
 
+
+# ---------------------------------------------------------------------------
+# Narrative auto-summary
+# ---------------------------------------------------------------------------
+
+def build_narrative_summary(
+    panel_df: pd.DataFrame,
+    overall_df: pd.DataFrame,
+    slopes: Dict[str, Dict[str, Optional[float]]],
+    focus: str = "stroke",
+) -> str:
+    if overall_df.empty:
+        return ""
+
+    focus = focus.lower()
+    disciplines = sorted(overall_df["discipline"].astype(str).unique().tolist())
+    has_focus = focus in disciplines
+
+    sentences: List[str] = []
+
+    # --- Total scope ---
+    total_papers = int(panel_df["papers"].sum())
+    min_yr = int(panel_df["year"].min())
+    max_yr = int(panel_df["year"].max())
+    n_disc = len(disciplines)
+    sentences.append(
+        f"This benchmark covers {total_papers:,} retrieved papers across "
+        f"{n_disc} discipline{'s' if n_disc != 1 else ''} ({oxford_join([discipline_label(d) for d in disciplines])}) "
+        f"from {min_yr} to {max_yr}."
+    )
+
+    # --- Composite index for focus discipline ---
+    if has_focus:
+        focus_row = overall_df[overall_df["discipline"] == focus]
+        if not focus_row.empty:
+            ci = focus_row["composite_index"].iloc[0]
+            best_row = overall_df.sort_values("composite_index", ascending=False).iloc[0]
+            best_d = str(best_row["discipline"])
+            best_ci = float(best_row["composite_index"])
+            rank = int(overall_df["composite_index"].rank(ascending=False).loc[focus_row.index[0]])
+            gap = best_ci - float(ci)
+            if best_d == focus:
+                sentences.append(
+                    f"{discipline_label(focus)} leads all disciplines with a composite open-science index "
+                    f"of {ci:.0f}/100."
+                )
+            else:
+                sentences.append(
+                    f"{discipline_label(focus)} ranks {rank}{_ordinal_suffix(rank)} of {n_disc} disciplines "
+                    f"with a composite open-science index of {ci:.0f}/100, "
+                    f"{gap:.0f} points behind {discipline_label(best_d)} ({best_ci:.0f}/100)."
+                )
+
+    # --- OA trend ---
+    if has_focus and "oa_rate" in panel_df.columns:
+        focus_years = panel_df[panel_df["discipline"] == focus].sort_values("year")
+        if len(focus_years) >= 2:
+            oa_start = focus_years.iloc[0]["oa_rate"]
+            oa_end = focus_years.iloc[-1]["oa_rate"]
+            yr_start = int(focus_years.iloc[0]["year"])
+            yr_end = int(focus_years.iloc[-1]["year"])
+            if pd.notna(oa_start) and pd.notna(oa_end):
+                change = (float(oa_end) - float(oa_start)) * 100
+                direction = "rose" if change >= 0 else "fell"
+                sentences.append(
+                    f"{discipline_label(focus)}'s open-access rate {direction} "
+                    f"from {float(oa_start):.0%} ({yr_start}) to {float(oa_end):.0%} ({yr_end}), "
+                    f"a {abs(change):.0f} pp {'gain' if change >= 0 else 'decline'} over {yr_end - yr_start} years."
+                )
+
+    # --- Data sharing leader ---
+    if "dataset_rate" in overall_df.columns:
+        best_data = overall_df.sort_values("dataset_rate", ascending=False).iloc[0]
+        best_data_d = str(best_data["discipline"])
+        best_data_r = float(best_data["dataset_rate"])
+        sentences.append(
+            f"{discipline_label(best_data_d)} leads in dataset sharing at {best_data_r:.0%}."
+        )
+
+    # --- Preregistration rarity ---
+    if "preregistered_rate" in overall_df.columns:
+        max_prereg = float(overall_df["preregistered_rate"].max())
+        if max_prereg < 0.05:
+            sentences.append(
+                f"Preregistration remains rare across all disciplines (peak {max_prereg:.1%}), "
+                f"representing the largest structural gap in open-science practice."
+            )
+
+    # --- High-impact vs all ---
+    if has_focus and "hi_dataset_rate" in overall_df.columns:
+        focus_row = overall_df[overall_df["discipline"] == focus]
+        if not focus_row.empty:
+            hi_dr = focus_row["hi_dataset_rate"].iloc[0]
+            all_dr = focus_row["dataset_rate"].iloc[0]
+            if pd.notna(hi_dr) and pd.notna(all_dr) and float(all_dr) > 0:
+                ratio = float(hi_dr) / float(all_dr)
+                sentences.append(
+                    f"In {discipline_label(focus)}, high-impact papers show "
+                    f"{float(hi_dr):.0%} dataset sharing vs {float(all_dr):.0%} for the full cohort "
+                    f"({ratio:.1f}× higher), suggesting a visibility gradient in data-sharing practice."
+                )
+
+    # --- Trend sentence ---
+    focus_slopes = slopes.get(focus, {})
+    if focus_slopes:
+        improving = [m for m, s in focus_slopes.items() if s is not None and s > 0.002]
+        if improving:
+            names = [n for _, n in METRIC_SPECS if _ in improving][:3]
+            if names:
+                sentences.append(
+                    f"Positive trends over the most recent 5 years: {oxford_join(names)}."
+                )
+
+    return " ".join(sentences)
+
+
+def _ordinal_suffix(n: int) -> str:
+    if 11 <= (n % 100) <= 13:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+
+
+# ---------------------------------------------------------------------------
+# Plotly helpers
+# ---------------------------------------------------------------------------
+
+def plotly_fragment(fig: object, include_plotlyjs: bool) -> str:
+    import plotly.io as pio
+    return pio.to_html(
+        fig, full_html=False,
+        include_plotlyjs="cdn" if include_plotlyjs else False,
+        config={"displayModeBar": False, "responsive": True},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Plotly figures
+# ---------------------------------------------------------------------------
 
 def build_metric_figure(
     panel: pd.DataFrame,
@@ -378,279 +575,437 @@ def build_metric_figure(
     import plotly.graph_objects as go
 
     fig = go.Figure()
-    ordered_disciplines = sorted(palette)
-    year_min = int(panel["year"].min()) if not panel.empty else 0
-    year_max = int(panel["year"].max()) if not panel.empty else 0
+    ordered = sorted(palette)
+    year_min = int(panel["year"].min()) if not panel.empty else 2015
+    year_max = int(panel["year"].max()) if not panel.empty else 2024
     metric_series = pd.to_numeric(panel.get(metric), errors="coerce")
     axis_range = compute_axis_range(metric_series, metric_kind)
     pct_digits = percent_digits_for_series(metric_series) if metric_kind == "pct" else 0
 
-    for discipline in ordered_disciplines:
+    for discipline in ordered:
         sub = panel[panel["discipline"] == discipline].sort_values("year")
         if sub.empty:
             continue
 
-        hovertemplate = (
-            f"%{{x}}: %{{y:{percent_tickformat(pct_digits)}}}<extra>" + discipline_label(discipline) + "</extra>"
-            if metric_kind == "pct"
-            else "%{x}: %{y:,.0f}<extra>" + discipline_label(discipline) + "</extra>"
-        )
+        if metric_kind == "pct":
+            hover = "%{x}: %{y:" + percent_tickformat(pct_digits) + "}<extra>" + discipline_label(discipline) + "</extra>"
+        elif metric_kind == "score":
+            hover = "%{x}: %{y:.1f}<extra>" + discipline_label(discipline) + "</extra>"
+        else:
+            hover = "%{x}: %{y:,.0f}<extra>" + discipline_label(discipline) + "</extra>"
 
-        fig.add_trace(
-            go.Scatter(
-                x=sub["year"],
-                y=sub[metric],
-                mode="lines+markers",
-                name=discipline_label(discipline),
-                line={"color": palette[discipline], "width": 2.8},
-                marker={"size": 7, "color": palette[discipline], "line": {"width": 1.2, "color": "rgba(255,255,255,0.9)"}},
-                hovertemplate=hovertemplate,
-            )
-        )
+        fig.add_trace(go.Scatter(
+            x=sub["year"], y=sub[metric],
+            mode="lines+markers",
+            name=discipline_label(discipline),
+            line={"color": palette[discipline], "width": 2.8},
+            marker={"size": 7, "color": palette[discipline], "line": {"width": 1.2, "color": "rgba(255,255,255,0.9)"}},
+            hovertemplate=hover,
+        ))
 
         last_row = sub.iloc[-1]
-        fig.add_trace(
-            go.Scatter(
-                x=[float(last_row["year"]) + 0.18],
-                y=[last_row[metric]],
-                mode="text",
-                text=[f"{discipline_label(discipline)} {format_metric_value(last_row[metric], metric_kind, pct_digits)}"],
-                textposition="middle right",
-                textfont={"size": 11, "color": palette[discipline], "family": "Arial, sans-serif"},
-                hoverinfo="skip",
-                showlegend=False,
-                cliponaxis=False,
-            )
-        )
+        if metric_kind == "pct":
+            label_val = format_percent(last_row[metric], pct_digits)
+        elif metric_kind == "score":
+            label_val = f"{float(last_row[metric]):.0f}" if pd.notna(last_row[metric]) else ""
+        else:
+            label_val = format_float(last_row[metric], 0)
 
-    yaxis = {
-        "title": None,
-        "showgrid": True,
-        "gridcolor": "rgba(17, 24, 39, 0.065)",
-        "gridwidth": 1,
-        "zeroline": False,
-        "ticks": "outside",
-        "ticklen": 4,
-        "tickcolor": "rgba(107, 114, 128, 0.75)",
-        "tickfont": {"size": 11, "color": "#4b5563"},
+        fig.add_trace(go.Scatter(
+            x=[float(last_row["year"]) + 0.18], y=[last_row[metric]],
+            mode="text",
+            text=[f"{discipline_label(discipline)} {label_val}"],
+            textposition="middle right",
+            textfont={"size": 10, "color": palette[discipline], "family": "Arial, sans-serif"},
+            hoverinfo="skip", showlegend=False, cliponaxis=False,
+        ))
+
+    yaxis: Dict = {
+        "title": None, "showgrid": True, "gridcolor": "rgba(17,24,39,0.065)",
+        "zeroline": False, "ticks": "outside", "ticklen": 4,
+        "tickcolor": "rgba(107,114,128,0.75)", "tickfont": {"size": 11, "color": "#4b5563"},
     }
     if metric_kind == "pct":
         yaxis["tickformat"] = percent_tickformat(pct_digits)
-    if axis_range is not None:
+    if axis_range:
         yaxis["range"] = axis_range
 
     fig.update_layout(
-        template="none",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin={"l": 36, "r": 118, "t": 6, "b": 34},
-        height=292,
-        hovermode="x unified",
-        showlegend=False,
-        font={"family": "Georgia, 'Iowan Old Style', 'Palatino Linotype', serif", "size": 12, "color": "#111827"},
+        template="none", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin={"l": 36, "r": 118, "t": 6, "b": 56},
+        height=310, hovermode="x unified", showlegend=False,
+        font={"family": "Georgia,'Iowan Old Style','Palatino Linotype',serif", "size": 12, "color": "#111827"},
     )
     fig.update_xaxes(
-        title=None,
-        showgrid=False,
-        ticks="outside",
-        ticklen=4,
-        tickcolor="rgba(107, 114, 128, 0.75)",
-        linecolor="rgba(156, 163, 175, 0.55)",
+        title=None, showgrid=False, ticks="outside", ticklen=4,
+        tickcolor="rgba(107,114,128,0.75)", linecolor="rgba(156,163,175,0.55)",
         tickfont={"size": 11, "color": "#4b5563"},
-        range=[year_min - 0.1, year_max + 0.65] if year_min and year_max else None,
-        showspikes=False,
+        range=[year_min - 0.1, year_max + 0.75],
+        rangeslider={"visible": True, "thickness": 0.08, "bgcolor": "rgba(17,24,39,0.04)"},
     )
     fig.update_yaxes(**yaxis)
     return fig
 
 
-def build_overall_rate_figure(overall_df: pd.DataFrame, palette: Dict[str, str]) -> object:
+def build_heatmap_figure(overall_df: pd.DataFrame, palette: Dict[str, str]) -> object:
     import plotly.graph_objects as go
 
-    fig = go.Figure()
-    ordered = overall_df.sort_values("non_oa_open_signal_rate", ascending=True).copy()
-    y_labels = [discipline_label(v) for v in ordered["discipline"].tolist()]
-    max_value = float(ordered["non_oa_open_signal_rate"].max()) if not ordered.empty else 0.0
+    metrics = [
+        ("composite_index", "Composite\nindex", "score"),
+        ("oa_rate", "Open\naccess", "pct"),
+        ("open_material_rate", "Repository\n& materials", "pct"),
+        ("dataset_rate", "Dataset\nsharing", "pct"),
+        ("github_rate", "GitHub", "pct"),
+        ("preregistered_rate", "Prereg.", "pct"),
+        ("preprint_rate", "Preprint", "pct"),
+    ]
 
-    for _, row in ordered.iterrows():
-        discipline = str(row["discipline"])
-        label = discipline_label(discipline)
-        value = float(row["non_oa_open_signal_rate"]) if not pd.isna(row["non_oa_open_signal_rate"]) else 0.0
-        color = palette.get(discipline, "#1F9E89")
+    disciplines = overall_df["discipline"].astype(str).tolist()
+    z_vals, text_vals = [], []
 
-        fig.add_trace(
-            go.Scatter(
-                x=[0, value],
-                y=[label, label],
-                mode="lines",
-                line={"color": color, "width": 2},
-                hoverinfo="skip",
-                showlegend=False,
-            )
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=[value],
-                y=[label],
-                mode="markers+text",
-                marker={"size": 10, "color": color, "line": {"width": 1.1, "color": "rgba(255,255,255,0.92)"}},
-                text=[format_percent(value)],
-                textposition="middle right",
-                textfont={"size": 11, "color": color, "family": "Arial, sans-serif"},
-                hovertemplate=f"{label}: %{{x:.0%}}<extra></extra>",
-                showlegend=False,
-            )
-        )
+    for _, row in overall_df.iterrows():
+        row_z, row_t = [], []
+        for col, _, kind in metrics:
+            val = pd.to_numeric(row.get(col), errors="coerce")
+            if pd.isna(val):
+                row_z.append(0.0)
+                row_t.append("—")
+            elif kind == "pct":
+                row_z.append(float(val) * 100)
+                row_t.append(f"{float(val):.0%}")
+            else:
+                row_z.append(float(val))
+                row_t.append(f"{float(val):.0f}")
+        z_vals.append(row_z)
+        text_vals.append(row_t)
+
+    col_labels = [label.replace("\n", "<br>") for _, label, _ in metrics]
+    row_labels = [discipline_label(d) for d in disciplines]
+
+    fig = go.Figure(go.Heatmap(
+        z=z_vals,
+        x=col_labels,
+        y=row_labels,
+        text=text_vals,
+        texttemplate="%{text}",
+        textfont={"size": 13, "color": "white", "family": "Arial, sans-serif"},
+        colorscale="Viridis",
+        showscale=True,
+        colorbar={"title": "Value", "thickness": 14, "len": 0.8,
+                  "tickfont": {"size": 10}, "titlefont": {"size": 11}},
+        hovertemplate="%{y} · %{x}: %{text}<extra></extra>",
+        zmin=0, zmax=100,
+    ))
 
     fig.update_layout(
-        template="none",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin={"l": 132, "r": 72, "t": 8, "b": 26},
-        height=max(210, 78 * max(1, len(y_labels))),
-        font={"family": "Georgia, 'Iowan Old Style', 'Palatino Linotype', serif", "size": 12, "color": "#111827"},
+        template="none", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin={"l": 10, "r": 80, "t": 10, "b": 10},
+        height=max(220, 80 * max(1, len(disciplines))),
+        font={"family": "Georgia,'Iowan Old Style','Palatino Linotype',serif", "color": "#111827"},
     )
-    fig.update_xaxes(
-        title=None,
-        tickformat=".0%",
-        range=[0, min(1.0, max(0.08, max_value * 1.35))],
-        showgrid=True,
-        gridcolor="rgba(17, 24, 39, 0.065)",
-        zeroline=False,
-        tickfont={"size": 11, "color": "#4b5563"},
-    )
-    fig.update_yaxes(
-        categoryorder="array",
-        categoryarray=y_labels,
-        showgrid=False,
-        title=None,
-        tickfont={"size": 12, "color": "#374151"},
-    )
+    fig.update_xaxes(side="top", tickfont={"size": 11, "color": "#374151"}, tickangle=0)
+    fig.update_yaxes(tickfont={"size": 12, "color": "#374151"})
     return fig
 
 
-def plotly_fragment(fig: object, include_plotlyjs: bool) -> str:
-    import plotly.io as pio
+def build_platform_figure(panel_df: pd.DataFrame, palette: Dict[str, str]) -> object:
+    import plotly.graph_objects as go
 
-    return pio.to_html(
-        fig,
-        full_html=False,
-        include_plotlyjs="cdn" if include_plotlyjs else False,
-        config={"displayModeBar": False, "responsive": True},
+    overall = (
+        panel_df.groupby("discipline", as_index=False)
+        .apply(lambda g: pd.Series({
+            col: float((g[col] * g["papers"]).sum()) / max(1, g["papers"].sum())
+            for col, _ in PLATFORM_METRICS if col in g.columns
+        }))
+        .reset_index(drop=True)
     )
+    if "discipline" not in overall.columns:
+        overall = panel_df.groupby("discipline", as_index=False)[[col for col, _ in PLATFORM_METRICS if col in panel_df.columns]].mean()
 
+    disciplines = sorted(palette.keys())
+    fig = go.Figure()
+
+    platform_colors = ["#31688E", "#1F9E89", "#6DCD59"]
+    for i, (col, label) in enumerate(PLATFORM_METRICS):
+        if col not in overall.columns:
+            continue
+        y_vals = [float(overall[overall["discipline"] == d][col].iloc[0])
+                  if len(overall[overall["discipline"] == d]) > 0 else 0.0
+                  for d in disciplines]
+        fig.add_trace(go.Bar(
+            name=label,
+            x=[discipline_label(d) for d in disciplines],
+            y=y_vals,
+            marker_color=platform_colors[i % len(platform_colors)],
+            text=[f"{v:.1%}" for v in y_vals],
+            textposition="outside",
+            textfont={"size": 10},
+            hovertemplate=f"{label}: %{{y:.1%}}<extra></extra>",
+        ))
+
+    fig.update_layout(
+        barmode="group", template="none",
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin={"l": 36, "r": 20, "t": 6, "b": 36},
+        height=280,
+        legend={"orientation": "h", "y": -0.18, "x": 0.5, "xanchor": "center",
+                "font": {"size": 11}},
+        font={"family": "Georgia,'Iowan Old Style','Palatino Linotype',serif", "color": "#111827"},
+    )
+    fig.update_yaxes(tickformat=".0%", showgrid=True, gridcolor="rgba(17,24,39,0.07)", zeroline=False)
+    fig.update_xaxes(showgrid=False)
+    return fig
+
+
+def build_highimpact_comparison_figure(overall_df: pd.DataFrame, palette: Dict[str, str]) -> object:
+    import plotly.graph_objects as go
+
+    hi_cols = ["hi_oa_rate", "hi_open_material_rate", "hi_dataset_rate",
+               "hi_github_rate", "hi_preregistered_rate"]
+    all_cols = ["oa_rate", "open_material_rate", "dataset_rate",
+                "github_rate", "preregistered_rate"]
+    labels = ["Open access", "Materials", "Dataset", "GitHub", "Prereg."]
+
+    has_hi = all(c in overall_df.columns for c in hi_cols)
+    disciplines = sorted(palette.keys())
+    fig = go.Figure()
+
+    for discipline in disciplines:
+        row = overall_df[overall_df["discipline"] == discipline]
+        if row.empty:
+            continue
+        row = row.iloc[0]
+
+        all_vals = [float(pd.to_numeric(row.get(c), errors="coerce") or 0) for c in all_cols]
+        fig.add_trace(go.Bar(
+            name=f"{discipline_label(discipline)} — All",
+            x=labels, y=all_vals,
+            marker_color=palette[discipline],
+            opacity=0.55,
+            text=[f"{v:.0%}" for v in all_vals],
+            textposition="outside", textfont={"size": 9},
+            hovertemplate="%{x}: %{y:.1%}<extra>" + discipline_label(discipline) + " (all)</extra>",
+        ))
+
+        if has_hi:
+            hi_vals = [float(pd.to_numeric(row.get(c), errors="coerce") or 0) for c in hi_cols]
+            fig.add_trace(go.Bar(
+                name=f"{discipline_label(discipline)} — High-impact",
+                x=labels, y=hi_vals,
+                marker_color=palette[discipline],
+                opacity=1.0,
+                marker_pattern_shape="/",
+                text=[f"{v:.0%}" for v in hi_vals],
+                textposition="outside", textfont={"size": 9},
+                hovertemplate="%{x}: %{y:.1%}<extra>" + discipline_label(discipline) + " (high-impact)</extra>",
+            ))
+
+    fig.update_layout(
+        barmode="group", template="none",
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin={"l": 36, "r": 20, "t": 6, "b": 36},
+        height=320,
+        legend={"orientation": "h", "y": -0.24, "x": 0.5, "xanchor": "center",
+                "font": {"size": 10}, "traceorder": "normal"},
+        font={"family": "Georgia,'Iowan Old Style','Palatino Linotype',serif", "color": "#111827"},
+    )
+    fig.update_yaxes(tickformat=".0%", showgrid=True, gridcolor="rgba(17,24,39,0.07)", zeroline=False)
+    fig.update_xaxes(showgrid=False)
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# HTML helpers
+# ---------------------------------------------------------------------------
 
 def build_legend_html(palette: Dict[str, str]) -> str:
     items: List[str] = []
     for discipline in sorted(palette):
         items.append(
-            (
-                '<div class="legend-item">'
-                f'<span class="legend-swatch" style="background:{palette[discipline]}"></span>'
-                f"<span>{html.escape(discipline_label(discipline))}</span>"
-                "</div>"
-            )
+            f'<div class="legend-item">'
+            f'<span class="legend-swatch" style="background:{palette[discipline]}"></span>'
+            f"<span>{html.escape(discipline_label(discipline))}</span>"
+            f"</div>"
         )
     return "".join(items)
 
 
-def build_key_stats_html(panel: pd.DataFrame, overall_df: pd.DataFrame) -> str:
+def build_key_stats_html(panel: pd.DataFrame, overall_df: pd.DataFrame,
+                          slopes: Dict, focus: str = "stroke") -> str:
     total_papers = int(panel["papers"].sum())
     disciplines = int(overall_df["discipline"].nunique())
     min_year = int(panel["year"].min())
     max_year = int(panel["year"].max())
-    top_rate_row = overall_df.sort_values("non_oa_open_signal_rate", ascending=False).iloc[0]
+
+    best_ci_row = overall_df.sort_values("composite_index", ascending=False).iloc[0]
+    best_ci_d = str(best_ci_row["discipline"])
+    best_ci_v = float(best_ci_row["composite_index"])
+
+    focus_row = overall_df[overall_df["discipline"] == focus.lower()]
+    focus_ci = float(focus_row["composite_index"].iloc[0]) if not focus_row.empty else None
+
+    slope_label = "—"
+    focus_slopes = slopes.get(focus.lower(), {})
+    ci_slope = focus_slopes.get("composite_index")
+    if ci_slope is not None:
+        sign = "+" if ci_slope >= 0 else ""
+        slope_label = f"{sign}{ci_slope:.1f} pts/yr ({discipline_label(focus)})"
 
     stats = [
-        ("Disciplines in scope", format_int(disciplines)),
         ("Retrieved papers", format_int(total_papers)),
-        ("Observation window", f"{min_year} to {max_year}"),
-        (
-            "Strongest non-OA signal",
-            f"{discipline_label(str(top_rate_row['discipline']))} ({format_percent(top_rate_row['non_oa_open_signal_rate'])})",
-        ),
+        ("Disciplines", format_int(disciplines)),
+        ("Observation window", f"{min_year}–{max_year}"),
+        ("Top composite index", f"{discipline_label(best_ci_d)} ({best_ci_v:.0f}/100)"),
+        (f"{discipline_label(focus)} index" if focus_ci else "Composite index",
+         f"{focus_ci:.0f}/100" if focus_ci else "NA"),
+        ("Recent index trend", slope_label),
     ]
 
     blocks = []
     for label, value in stats:
         blocks.append(
-            (
-                '<div class="stat-block">'
-                f'<div class="stat-value">{html.escape(value)}</div>'
-                f'<div class="stat-label">{html.escape(label)}</div>'
-                "</div>"
-            )
+            f'<div class="stat-block">'
+            f'<div class="stat-value">{html.escape(value)}</div>'
+            f'<div class="stat-label">{html.escape(label)}</div>'
+            f"</div>"
         )
     return "".join(blocks)
 
 
-def build_data_notes_html(panel: pd.DataFrame, overall_df: pd.DataFrame) -> str:
-    notes: List[str] = []
-    total_papers = int(panel["papers"].sum())
-    if total_papers <= 25:
-        notes.append(
-            f"Thin sample warning: the dashboard currently reflects {total_papers:,} paper"
-            + ("" if total_papers == 1 else "s")
-            + ". Treat rates as a pipeline check, not a field estimate."
-        )
-    if overall_df["discipline"].nunique() == 1:
-        notes.append("Single-discipline output: cross-discipline comparisons will only become informative once other cohorts finish.")
-    if panel["year"].nunique() <= 2:
-        notes.append("Year coverage is narrow, so trend lines are descriptive only.")
-
-    if not notes:
+def build_gap_tracker_html(overall_df: pd.DataFrame, palette: Dict[str, str],
+                            focus: str = "stroke") -> str:
+    focus = focus.lower()
+    focus_row = overall_df[overall_df["discipline"] == focus]
+    if focus_row.empty:
         return ""
 
-    note_items = "".join(f"<li>{html.escape(note)}</li>" for note in notes)
-    return f'<section class="callout"><h2>Reading Note</h2><ul>{note_items}</ul></section>'
+    focus_row = focus_row.iloc[0]
+    items: List[str] = []
+
+    for col, label in GAP_METRICS:
+        if col not in overall_df.columns:
+            continue
+        focus_val = pd.to_numeric(focus_row.get(col), errors="coerce")
+        if pd.isna(focus_val):
+            continue
+
+        all_vals = pd.to_numeric(overall_df[col], errors="coerce").dropna()
+        if all_vals.empty:
+            continue
+
+        best_val = float(all_vals.max())
+        focus_val = float(focus_val)
+        best_disc_row = overall_df.loc[all_vals.idxmax()]
+        best_disc = str(best_disc_row["discipline"])
+
+        if col == "composite_index":
+            focus_pct = focus_val / 100.0
+            best_pct = best_val / 100.0
+            focus_str = f"{focus_val:.0f}/100"
+            best_str = f"{best_val:.0f}/100"
+        else:
+            focus_pct = focus_val
+            best_pct = best_val
+            focus_str = f"{focus_val:.1%}"
+            best_str = f"{best_val:.1%}"
+
+        gap_pct = best_pct - focus_pct
+        bar_fill = focus_pct / best_pct if best_pct > 0 else 1.0
+        bar_fill = min(1.0, max(0.0, bar_fill))
+        focus_color = palette.get(focus, "#1F9E89")
+
+        is_leader = (best_disc == focus)
+        badge = (
+            '<span class="gap-badge gap-leader">Leader</span>'
+            if is_leader else
+            f'<span class="gap-badge">−{gap_pct:.1%} vs {discipline_label(best_disc)} ({best_str})</span>'
+        )
+
+        items.append(
+            f'<div class="gap-row">'
+            f'<div class="gap-label">{html.escape(label)}</div>'
+            f'<div class="gap-bar-wrap">'
+            f'<div class="gap-bar-fill" style="width:{bar_fill*100:.1f}%;background:{focus_color}"></div>'
+            f'</div>'
+            f'<div class="gap-value">{html.escape(focus_str)}</div>'
+            f'{badge}'
+            f'</div>'
+        )
+
+    if not items:
+        return ""
+
+    return (
+        f'<div class="gap-tracker">'
+        f'<h3>{html.escape(discipline_label(focus))} vs field leaders</h3>'
+        f'{"".join(items)}'
+        f'</div>'
+    )
 
 
 def build_summary_table_html(overall_df: pd.DataFrame, palette: Dict[str, str]) -> str:
-    ordered = overall_df.sort_values(["non_oa_open_signal_rate", "papers"], ascending=[False, False]).copy()
+    ordered = overall_df.sort_values("composite_index", ascending=False).copy()
     rows: List[str] = []
 
     for _, row in ordered.iterrows():
         discipline = str(row["discipline"])
         rows.append(
-            (
-                "<tr>"
-                '<td class="discipline-cell">'
-                f'<span class="table-swatch" style="background:{palette.get(discipline, "#1F9E89")}"></span>'
-                f"{html.escape(discipline_label(discipline))}"
-                "</td>"
-                f"<td>{format_int(row['papers'])}</td>"
-                f"<td>{format_int(row['years_covered'])}</td>"
-                f"<td>{format_percent(row['non_oa_open_signal_rate'])}</td>"
-                f"<td>{format_percent(row['oa_rate'])}</td>"
-                f"<td>{format_percent(row['open_material_rate'])}</td>"
-                f"<td>{format_percent(row['github_rate'])}</td>"
-                f"<td>{format_percent(row['preregistered_rate'])}</td>"
-                f"<td>{format_percent(row['high_impact_rate'])}</td>"
-                f"<td>{format_float(row['mean_citations'], 0)}</td>"
-                "</tr>"
-            )
+            "<tr>"
+            '<td class="discipline-cell">'
+            f'<span class="table-swatch" style="background:{palette.get(discipline, "#1F9E89")}"></span>'
+            f"{html.escape(discipline_label(discipline))}"
+            "</td>"
+            f"<td><strong>{format_int(row.get('composite_index'))} <span style='color:#9ca3af;font-weight:400'>/100</span></strong></td>"
+            f"<td>{format_int(row.get('papers'))}</td>"
+            f"<td>{format_percent(row.get('oa_rate'))}</td>"
+            f"<td>{format_percent(row.get('open_material_rate'))}</td>"
+            f"<td>{format_percent(row.get('dataset_rate'))}</td>"
+            f"<td>{format_percent(row.get('github_rate'))}</td>"
+            f"<td>{format_percent(row.get('preregistered_rate'))}</td>"
+            f"<td>{format_percent(row.get('preprint_rate'))}</td>"
+            f"<td>{format_float(row.get('mean_citations'), 0)}</td>"
+            "</tr>"
         )
 
     return (
         "<table>"
         "<thead><tr>"
-        "<th>Discipline</th>"
-        "<th>Papers</th>"
-        "<th>Years</th>"
-        "<th>Non-OA signal</th>"
-        "<th>OA</th>"
-        "<th>Materials</th>"
-        "<th>GitHub</th>"
-        "<th>Prereg.</th>"
-        "<th>High-impact</th>"
-        "<th>Mean cites</th>"
+        "<th>Discipline</th><th>Index</th><th>Papers</th>"
+        "<th>OA</th><th>Materials</th><th>Dataset</th>"
+        "<th>GitHub</th><th>Prereg.</th><th>Preprint</th><th>Mean cites</th>"
         "</tr></thead>"
         f"<tbody>{''.join(rows)}</tbody>"
         "</table>"
     )
 
 
-def build_dashboard_html(panel: pd.DataFrame, overall_df: pd.DataFrame, out_path: Path, title: str) -> None:
+def build_data_notes_html(panel: pd.DataFrame, overall_df: pd.DataFrame) -> str:
+    notes: List[str] = []
+    total_papers = int(panel["papers"].sum())
+    if total_papers <= 25:
+        notes.append(f"Thin sample: {total_papers:,} papers. Treat rates as pipeline checks, not field estimates.")
+    if overall_df["discipline"].nunique() == 1:
+        notes.append("Single-discipline mode — cross-field comparisons will only appear once other cohorts finish.")
+    if panel["year"].nunique() <= 2:
+        notes.append("Year coverage is narrow; trend lines are descriptive only.")
+    if not notes:
+        return ""
+    return (
+        '<section class="callout">'
+        "<h2>Reading note</h2>"
+        f"<ul>{''.join(f'<li>{html.escape(n)}</li>' for n in notes)}</ul>"
+        "</section>"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Main dashboard builder
+# ---------------------------------------------------------------------------
+
+def build_dashboard_html(
+    panel: pd.DataFrame, overall_df: pd.DataFrame,
+    out_path: Path, title: str, focus_discipline: str = "stroke",
+) -> None:
     try:
         import plotly  # noqa: F401
     except Exception as exc:
@@ -659,63 +1014,95 @@ def build_dashboard_html(panel: pd.DataFrame, overall_df: pd.DataFrame, out_path
 
     disciplines = sorted(panel["discipline"].dropna().astype(str).unique().tolist())
     palette = build_palette(disciplines)
+    slopes = compute_trend_slopes(panel)
     generated_at = pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC")
+    display_title = resolve_display_title(title, disciplines)
+    total_papers = int(panel["papers"].sum())
     min_year = int(panel["year"].min())
     max_year = int(panel["year"].max())
-    total_papers = int(panel["papers"].sum())
-    top_rate_row = overall_df.sort_values("non_oa_open_signal_rate", ascending=False).iloc[0]
-    display_title = resolve_display_title(title, disciplines)
-    discipline_phrase = oxford_join([discipline_label(discipline) for discipline in disciplines])
-    subtitle = (
-        f"{discipline_phrase}, {min_year} to {max_year}. "
-        f"{format_int(total_papers)} retrieved papers with non-OA signals emphasized over plain open access."
-    )
-    eyebrow = "Cross-discipline open-science benchmark"
-    lede = (
-        "Trend panels are scaled to the observed spread within each metric so separation is visible. "
-        "Use the comparative ledger for absolute cross-metric magnitude; use the charts for relative ordering and change."
-    )
-    header_note = (
-        f"Highest non-OA signal: {discipline_label(str(top_rate_row['discipline']))} "
-        f"at {format_percent(top_rate_row['non_oa_open_signal_rate'])}."
-    )
-    overview_figure = build_overall_rate_figure(overall_df, palette)
+    discipline_phrase = oxford_join([discipline_label(d) for d in disciplines])
 
-    figure_cards: List[str] = []
-    include_plotlyjs = True
-
-    overview_html = plotly_fragment(overview_figure, include_plotlyjs=include_plotlyjs)
-    include_plotlyjs = False
-    figure_cards.append(
-        (
-            '<section class="chart-card chart-card-wide">'
-            '<div class="chart-kicker">Ranked overview</div>'
-            "<h2>Where richer open signals concentrate</h2>"
-            "<p>Disciplines ordered by repository, preprint, or preregistration evidence, excluding plain OA.</p>"
-            f"{overview_html}"
-            "</section>"
-        )
-    )
-
-    for metric, metric_title, metric_kind, metric_note in METRIC_SPECS:
-        fig = build_metric_figure(panel, metric, metric_title, metric_kind, palette)
-        fig_html = plotly_fragment(fig, include_plotlyjs=include_plotlyjs)
-        include_plotlyjs = False
-        figure_cards.append(
-            (
-                '<section class="chart-card">'
-                '<div class="chart-kicker">Trend view</div>'
-                f"<h2>{html.escape(metric_title)}</h2>"
-                f"<p>{html.escape(metric_note)}</p>"
-                f"{fig_html}"
-                "</section>"
-            )
-        )
-
-    summary_table_markup = build_summary_table_html(overall_df, palette)
+    narrative = build_narrative_summary(panel, overall_df, slopes, focus=focus_discipline)
     callout_html = build_data_notes_html(panel, overall_df)
-    key_stats_html = build_key_stats_html(panel, overall_df)
+    key_stats_html = build_key_stats_html(panel, overall_df, slopes, focus=focus_discipline)
     legend_html = build_legend_html(palette)
+    gap_html = build_gap_tracker_html(overall_df, palette, focus=focus_discipline)
+    summary_table_markup = build_summary_table_html(overall_df, palette)
+
+    include_plotlyjs = True
+    figure_sections: List[str] = []
+
+    # --- Heatmap ---
+    heatmap_fig = build_heatmap_figure(overall_df, palette)
+    heatmap_html = plotly_fragment(heatmap_fig, include_plotlyjs=include_plotlyjs)
+    include_plotlyjs = False
+    figure_sections.append(
+        '<section class="section-block">'
+        '<div class="section-header"><div class="section-kicker">At a glance</div>'
+        '<h2>Cross-discipline open-science snapshot</h2>'
+        '<p>Full-period weighted averages per discipline. Composite index (0–100) combines OA, materials, data, GitHub, preregistration, and preprints.</p></div>'
+        f'<div class="chart-full">{heatmap_html}</div>'
+        '</section>'
+    )
+
+    # --- Platform breakdown + High-impact comparison ---
+    platform_fig = build_platform_figure(panel, palette)
+    platform_html = plotly_fragment(platform_fig, include_plotlyjs=False)
+
+    hi_fig = build_highimpact_comparison_figure(overall_df, palette)
+    hi_html = plotly_fragment(hi_fig, include_plotlyjs=False)
+
+    figure_sections.append(
+        '<section class="section-block">'
+        '<div class="section-header"><div class="section-kicker">Deep dives</div>'
+        '<h2>Repository platforms and high-impact papers</h2></div>'
+        '<div class="charts-2col">'
+        '<div class="chart-card">'
+        '<div class="chart-kicker">Platform breakdown</div>'
+        '<h3>Where researchers deposit code &amp; data</h3>'
+        f'<p>Share of papers with a GitHub, Zenodo, or OSF link.</p>{platform_html}</div>'
+        '<div class="chart-card">'
+        '<div class="chart-kicker">High-impact vs all papers</div>'
+        '<h3>Do high-impact papers share more?</h3>'
+        f'<p>Solid bars = all papers; hatched = high-impact subset (IF ≥ 10 or citation ≥ 90th pct).</p>{hi_html}</div>'
+        '</div></section>'
+    )
+
+    # --- Gap tracker ---
+    if gap_html:
+        figure_sections.append(
+            '<section class="section-block">'
+            '<div class="section-header"><div class="section-kicker">Positioning</div>'
+            f'<h2>{html.escape(discipline_label(focus_discipline))} vs field leaders</h2>'
+            '<p>Each bar shows where the focus discipline sits relative to the field-leading discipline on that metric.</p></div>'
+            f'{gap_html}'
+            '</section>'
+        )
+
+    # --- Trend charts ---
+    trend_cards: List[str] = []
+    for metric, metric_title, metric_kind, metric_note in METRIC_SPECS:
+        if metric not in panel.columns:
+            continue
+        fig = build_metric_figure(panel, metric, metric_title, metric_kind, palette)
+        fig_html = plotly_fragment(fig, include_plotlyjs=False)
+        trend_cards.append(
+            f'<div class="chart-card">'
+            f'<div class="chart-kicker">Trend · {html.escape(metric_title)}</div>'
+            f"<p>{html.escape(metric_note)}</p>"
+            f"{fig_html}"
+            f"</div>"
+        )
+
+    if trend_cards:
+        figure_sections.append(
+            '<section class="section-block">'
+            '<div class="section-header"><div class="section-kicker">Year-by-year trends</div>'
+            '<h2>How practices are changing over time</h2>'
+            '<p>Click legend entries to show/hide disciplines. Drag the range selector below each chart to zoom.</p></div>'
+            f'<div class="charts-grid">{"".join(trend_cards)}</div>'
+            '</section>'
+        )
 
     html_doc = f"""<!DOCTYPE html>
 <html lang="en">
@@ -726,114 +1113,96 @@ def build_dashboard_html(panel: pd.DataFrame, overall_df: pd.DataFrame, out_path
   <style>
     :root {{
       --bg: #f5f2e8;
-      --panel: rgba(255, 252, 246, 0.9);
+      --panel: rgba(255,252,246,0.92);
       --ink: #111827;
       --muted: #4b5563;
-      --rule: rgba(17, 24, 39, 0.14);
-      --soft-rule: rgba(17, 24, 39, 0.08);
-      --callout: rgba(31, 158, 137, 0.08);
+      --rule: rgba(17,24,39,0.14);
+      --soft-rule: rgba(17,24,39,0.07);
+      --accent: #31688e;
+      --callout-bg: rgba(31,158,137,0.07);
+      --callout-border: #1f9e89;
     }}
-    * {{ box-sizing: border-box; }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      margin: 0;
       color: var(--ink);
-      background:
-        radial-gradient(circle at top left, rgba(180, 222, 44, 0.11), transparent 28rem),
-        radial-gradient(circle at top right, rgba(49, 104, 142, 0.14), transparent 26rem),
-        linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
-      font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+      background: radial-gradient(circle at top left, rgba(180,222,44,0.10), transparent 28rem),
+                  radial-gradient(circle at top right, rgba(49,104,142,0.13), transparent 26rem),
+                  linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
+      font-family: Georgia,"Iowan Old Style","Palatino Linotype",serif;
       line-height: 1.55;
     }}
-    main {{
-      max-width: 1240px;
-      margin: 0 auto;
-      padding: 44px 28px 68px;
-    }}
-    header {{
-      display: grid;
-      grid-template-columns: minmax(0, 2.25fr) minmax(260px, 1fr);
-      gap: 28px;
-      align-items: start;
+    main {{ max-width: 1280px; margin: 0 auto; padding: 48px 28px 80px; }}
+
+    /* ── Hero ── */
+    .hero {{
       border-bottom: 1px solid var(--rule);
-      padding-bottom: 28px;
+      padding-bottom: 32px;
+      margin-bottom: 32px;
     }}
     .eyebrow {{
       display: inline-block;
-      margin-bottom: 12px;
-      font: 600 0.75rem/1.1 "Arial", sans-serif;
-      letter-spacing: 0.16em;
+      margin-bottom: 14px;
+      font: 600 0.72rem/1 "Arial",sans-serif;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: #31688e;
+      color: var(--accent);
     }}
     h1 {{
-      margin: 0 0 12px;
-      font-size: clamp(2.1rem, 4vw, 3.4rem);
-      line-height: 0.95;
+      font-size: clamp(2rem,4vw,3.2rem);
+      line-height: 1.0;
       letter-spacing: -0.03em;
-      font-weight: 600;
+      font-weight: 700;
+      margin-bottom: 16px;
     }}
-    h2 {{
-      margin: 0 0 6px;
-      font-size: 1.16rem;
-      line-height: 1.2;
-      font-weight: 600;
-    }}
-    p {{
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.96rem;
-    }}
-    .subtitle {{
-      font: 600 0.95rem/1.35 "Arial", sans-serif;
-      letter-spacing: 0.01em;
-      color: #1f2937;
-      margin-bottom: 10px;
-    }}
-    .lede {{
-      max-width: 62ch;
-      font-size: 1.03rem;
-    }}
-    .meta {{
+    .hero-meta {{
       display: grid;
-      gap: 8px;
-      justify-items: end;
-      font-size: 0.86rem;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: start;
+      margin-top: 12px;
+    }}
+    .narrative {{
+      font-size: 1.05rem;
+      color: #1f2937;
+      line-height: 1.65;
+      max-width: 80ch;
+    }}
+    .generated-at {{
+      font-size: 0.82rem;
       color: var(--muted);
-      text-align: right;
+      white-space: nowrap;
+      padding-top: 6px;
     }}
-    .meta-note {{
-      max-width: 28ch;
-      padding-top: 10px;
-      border-top: 1px solid var(--soft-rule);
-      font-size: 0.88rem;
-    }}
+
+    /* ── Key stats ── */
     .stats-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
       gap: 18px;
-      margin: 28px 0 18px;
+      margin: 28px 0;
     }}
     .stat-block {{
       border-top: 2px solid var(--rule);
       padding-top: 12px;
-      min-height: 76px;
     }}
     .stat-value {{
-      font-size: 1.16rem;
-      font-weight: 600;
+      font-size: 1.15rem;
+      font-weight: 700;
       color: var(--ink);
+      margin-bottom: 4px;
     }}
     .stat-label {{
-      font-size: 0.86rem;
+      font-size: 0.80rem;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-top: 4px;
+      letter-spacing: 0.07em;
     }}
+
+    /* ── Legend ── */
     .legend {{
       display: flex;
       flex-wrap: wrap;
-      gap: 12px 18px;
+      gap: 10px 16px;
       margin: 16px 0 0;
     }}
     .legend-item {{
@@ -841,44 +1210,75 @@ def build_dashboard_html(panel: pd.DataFrame, overall_df: pd.DataFrame, out_path
       align-items: center;
       gap: 8px;
       color: #374151;
-      font-size: 0.92rem;
-      padding: 6px 10px;
+      font-size: 0.90rem;
+      padding: 5px 10px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.52);
-      border: 1px solid rgba(17, 24, 39, 0.05);
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(17,24,39,0.06);
     }}
     .legend-swatch {{
-      width: 28px;
+      width: 26px;
       height: 4px;
       border-radius: 999px;
-      display: inline-block;
     }}
+
+    /* ── Callout ── */
     .callout {{
-      margin-top: 22px;
-      padding: 16px 18px;
-      background: var(--callout);
-      border-left: 3px solid #1f9e89;
+      margin: 20px 0;
+      padding: 14px 18px;
+      background: var(--callout-bg);
+      border-left: 3px solid var(--callout-border);
+      border-radius: 0 6px 6px 0;
     }}
-    .callout h2 {{
+    .callout h2 {{ font-size: 0.95rem; margin-bottom: 6px; }}
+    .callout ul {{ padding-left: 18px; color: var(--muted); font-size: 0.93rem; }}
+
+    /* ── Sections ── */
+    .section-block {{
+      margin-top: 52px;
+    }}
+    .section-header {{
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--soft-rule);
+      padding-bottom: 12px;
+    }}
+    .section-kicker {{
+      font: 600 0.70rem/1 "Arial",sans-serif;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
       margin-bottom: 8px;
     }}
-    .callout ul {{
-      margin: 0;
-      padding-left: 18px;
+    .section-header h2 {{
+      font-size: 1.55rem;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }}
+    .section-header p {{
+      font-size: 0.95rem;
       color: var(--muted);
+      max-width: 70ch;
+    }}
+
+    /* ── Chart containers ── */
+    .chart-full {{ width: 100%; }}
+    .charts-2col {{
+      display: grid;
+      grid-template-columns: repeat(2,minmax(0,1fr));
+      gap: 22px;
+      margin-top: 0;
     }}
     .charts-grid {{
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(2,minmax(0,1fr));
       gap: 22px;
-      margin-top: 30px;
     }}
     .chart-card {{
       background: var(--panel);
       border: 1px solid var(--soft-rule);
-      border-radius: 20px;
-      padding: 18px 18px 10px;
-      box-shadow: 0 14px 32px rgba(17, 24, 39, 0.035);
+      border-radius: 18px;
+      padding: 18px 18px 12px;
+      box-shadow: 0 12px 28px rgba(17,24,39,0.032);
       position: relative;
       overflow: hidden;
     }}
@@ -888,37 +1288,102 @@ def build_dashboard_html(panel: pd.DataFrame, overall_df: pd.DataFrame, out_path
       width: 100%;
       height: 2px;
       border-radius: 999px;
-      margin-bottom: 14px;
-      background: linear-gradient(90deg, #440154 0%, #1f9e89 52%, #fde725 100%);
-      opacity: 0.72;
+      margin-bottom: 12px;
+      background: linear-gradient(90deg,#440154 0%,#1f9e89 52%,#fde725 100%);
+      opacity: 0.65;
     }}
     .chart-kicker {{
-      margin-bottom: 8px;
-      font: 600 0.72rem/1.1 "Arial", sans-serif;
+      font: 600 0.68rem/1 "Arial",sans-serif;
       letter-spacing: 0.14em;
       text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }}
+    .chart-card h3 {{
+      font-size: 1.05rem;
+      margin-bottom: 4px;
+    }}
+    .chart-card p {{
+      font-size: 0.90rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+      max-width: 52ch;
+    }}
+
+    /* ── Gap tracker ── */
+    .gap-tracker {{ margin-top: 4px; }}
+    .gap-tracker h3 {{
+      font-size: 1.02rem;
+      margin-bottom: 16px;
+      color: var(--ink);
+    }}
+    .gap-row {{
+      display: grid;
+      grid-template-columns: 180px 1fr 70px 200px;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--soft-rule);
+    }}
+    .gap-label {{
+      font-size: 0.92rem;
+      color: #374151;
+      font-weight: 600;
+    }}
+    .gap-bar-wrap {{
+      height: 8px;
+      background: rgba(17,24,39,0.07);
+      border-radius: 999px;
+      overflow: hidden;
+    }}
+    .gap-bar-fill {{
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.3s;
+    }}
+    .gap-value {{
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--ink);
+      text-align: right;
+    }}
+    .gap-badge {{
+      font-size: 0.80rem;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(49,104,142,0.09);
       color: #31688e;
+      white-space: nowrap;
     }}
-    .chart-card-wide {{
-      grid-column: 1 / -1;
+    .gap-leader {{
+      background: rgba(31,158,137,0.12);
+      color: #1f9e89;
     }}
+
+    /* ── Summary table ── */
     .table-section {{
-      margin-top: 34px;
+      margin-top: 48px;
       padding-top: 24px;
       border-top: 1px solid var(--rule);
     }}
-    .table-wrap {{
-      overflow-x: auto;
+    .table-section h2 {{
+      font-size: 1.4rem;
+      margin-bottom: 6px;
     }}
-    table {{
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.95rem;
+    .table-section > p {{
+      font-size: 0.93rem;
+      color: var(--muted);
+      margin-bottom: 16px;
     }}
+    .table-wrap {{ overflow-x: auto; }}
+    table {{ width: 100%; border-collapse: collapse; font-size: 0.94rem; }}
     thead th {{
       text-align: left;
       color: var(--muted);
       font-weight: 600;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
       padding: 0 10px 10px 0;
       border-bottom: 1px solid var(--rule);
     }}
@@ -934,110 +1399,90 @@ def build_dashboard_html(panel: pd.DataFrame, overall_df: pd.DataFrame, out_path
       white-space: nowrap;
     }}
     .table-swatch {{
-      width: 10px;
-      height: 10px;
+      width: 10px; height: 10px;
       border-radius: 999px;
-      display: inline-block;
       flex: 0 0 auto;
     }}
     .footnote {{
-      margin-top: 18px;
+      margin-top: 16px;
       color: var(--muted);
-      font-size: 0.88rem;
+      font-size: 0.86rem;
     }}
-    @media (max-width: 980px) {{
-      header {{
-        grid-template-columns: 1fr;
-      }}
-      .meta {{
-        justify-items: start;
-        text-align: left;
-      }}
-      .charts-grid {{
-        grid-template-columns: 1fr;
-      }}
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {{
+      .charts-2col, .charts-grid {{ grid-template-columns: 1fr; }}
+      .hero-meta {{ grid-template-columns: 1fr; }}
+      .gap-row {{ grid-template-columns: 140px 1fr 60px; }}
+      .gap-badge {{ display: none; }}
     }}
   </style>
 </head>
 <body>
-  <main>
-    <header>
-      <section>
-        <div class="eyebrow">{html.escape(eyebrow)}</div>
-        <h1>{html.escape(display_title)}</h1>
-        <div class="subtitle">{html.escape(subtitle)}</div>
-        <p class="lede">{html.escape(lede)}</p>
-      </section>
-      <section class="meta">
-        <div>Generated {html.escape(generated_at)}</div>
-        <div class="meta-note">{html.escape(header_note)}</div>
-      </section>
-    </header>
+<main>
 
-    <section class="stats-grid">{key_stats_html}</section>
-    <section class="legend">{legend_html}</section>
-    {callout_html}
+  <header class="hero">
+    <div class="eyebrow">Cross-discipline open-science benchmark</div>
+    <h1>{html.escape(display_title)}</h1>
+    <div class="hero-meta">
+      <p class="narrative">{html.escape(narrative)}</p>
+      <div class="generated-at">Generated {html.escape(generated_at)}</div>
+    </div>
+  </header>
 
-    <section class="charts-grid">
-      {''.join(figure_cards)}
-    </section>
+  <div class="stats-grid">{key_stats_html}</div>
+  <div class="legend">{legend_html}</div>
+  {callout_html}
 
-    <section class="table-section">
-      <h2>Comparative ledger</h2>
-      <p>Weighted rates aggregate across the full observation window for each discipline.</p>
-      <div class="table-wrap">{summary_table_markup}</div>
-      <p class="footnote">Color encoding uses a viridis-derived palette. Non-OA signal excludes plain open access and counts repository, preprint, or preregistration evidence only.</p>
-    </section>
-  </main>
+  {''.join(figure_sections)}
+
+  <section class="table-section">
+    <h2>Comparative ledger</h2>
+    <p>Weighted rates across the full observation window, ranked by composite open-science index.</p>
+    <div class="table-wrap">{summary_table_markup}</div>
+    <p class="footnote">
+      Composite index = weighted average of OA (20%), repository/materials (25%), dataset sharing (20%),
+      GitHub (10%), preregistration (15%), and preprints (10%), scaled 0–100.
+      High-impact: IF ≥ 10 or citation ≥ 90th percentile within discipline-year.
+      Color palette: viridis-derived.
+    </p>
+  </section>
+
+</main>
 </body>
-</html>
-"""
+</html>"""
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html_doc, encoding="utf-8")
 
 
+# ---------------------------------------------------------------------------
+# Summary CSV schemas
+# ---------------------------------------------------------------------------
+
 def empty_year_summary_df() -> pd.DataFrame:
-    cols = [
-        "discipline",
-        "year",
-        "papers",
-        "oa_rate",
-        "open_material_rate",
-        "github_rate",
-        "zenodo_rate",
-        "osf_rate",
-        "preregistered_rate",
-        "preprint_rate",
-        "high_impact_rate",
-        "non_oa_open_signal_rate",
-        "open_science_any_rate",
-        "mean_open_science_score",
-        "mean_citations",
-    ]
-    return pd.DataFrame(columns=cols)
+    return pd.DataFrame(columns=[
+        "discipline", "year", "papers", "oa_rate", "open_material_rate",
+        "github_rate", "zenodo_rate", "osf_rate", "dataset_rate",
+        "preregistered_rate", "preprint_rate", "high_impact_rate",
+        "non_oa_open_signal_rate", "open_science_any_rate",
+        "mean_open_science_score", "mean_citations", "composite_index",
+    ])
 
 
 def empty_overall_summary_df() -> pd.DataFrame:
-    cols = [
-        "discipline",
-        "papers",
-        "years_covered",
-        "oa_rate",
-        "open_material_rate",
-        "github_rate",
-        "zenodo_rate",
-        "osf_rate",
-        "preregistered_rate",
-        "preprint_rate",
-        "high_impact_rate",
-        "non_oa_open_signal_rate",
-        "open_science_any_rate",
-        "mean_open_science_score",
-        "mean_citations",
-    ]
-    return pd.DataFrame(columns=cols)
+    return pd.DataFrame(columns=[
+        "discipline", "papers", "years_covered", "composite_index",
+        "oa_rate", "open_material_rate", "github_rate", "zenodo_rate",
+        "osf_rate", "dataset_rate", "preregistered_rate", "preprint_rate",
+        "high_impact_rate", "non_oa_open_signal_rate", "open_science_any_rate",
+        "mean_open_science_score", "mean_citations",
+    ])
 
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 def main() -> int:
     args = parse_args()
@@ -1061,15 +1506,12 @@ def main() -> int:
         panels.append(panel)
 
     if not panels:
-        logging.warning("No valid discipline inputs were loaded. Writing empty summary files.")
-        year_csv = out_dir / "discipline_year_summary.csv"
-        overall_csv = out_dir / "discipline_overall_summary.csv"
-        empty_year_summary_df().to_csv(year_csv, index=False)
-        empty_overall_summary_df().to_csv(overall_csv, index=False)
+        logging.warning("No valid discipline inputs. Writing empty summary files.")
+        empty_year_summary_df().to_csv(out_dir / "discipline_year_summary.csv", index=False)
+        empty_overall_summary_df().to_csv(out_dir / "discipline_overall_summary.csv", index=False)
         return 0
 
-    panel_df = pd.concat(panels, ignore_index=True)
-    panel_df = panel_df.sort_values(["discipline", "year"]).reset_index(drop=True)
+    panel_df = pd.concat(panels, ignore_index=True).sort_values(["discipline", "year"]).reset_index(drop=True)
 
     year_csv = out_dir / "discipline_year_summary.csv"
     panel_df.to_csv(year_csv, index=False)
@@ -1080,8 +1522,9 @@ def main() -> int:
     overall_df.to_csv(overall_csv, index=False)
     logging.info("Saved overall summary: %s", overall_csv)
 
+    focus = getattr(args, "focus_discipline", "stroke")
     dashboard_html = out_dir / "discipline_dashboard.html"
-    build_dashboard_html(panel_df, overall_df, dashboard_html, args.title)
+    build_dashboard_html(panel_df, overall_df, dashboard_html, args.title, focus_discipline=focus)
     if dashboard_html.exists():
         logging.info("Saved dashboard HTML: %s", dashboard_html)
 
