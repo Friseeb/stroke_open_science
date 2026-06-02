@@ -1,0 +1,111 @@
+name: push-outputs
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Run ID of the successful extraction (the number at the end of the Actions run URL)"
+        required: true
+      dry_run:
+        description: "Skip push to outputs repo (type true or false)"
+        required: false
+        default: "false"
+
+jobs:
+  push:
+    name: Push outputs to outputs repo
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download artifacts from extraction run
+        uses: actions/download-artifact@v5
+        with:
+          pattern: output-*
+          path: data/benchmarks/
+          run-id: ${{ github.event.inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          merge-multiple: false
+
+      - name: Reorganize downloaded artifacts into discipline directories
+        run: |
+          echo "=== Contents of data/benchmarks/ after download ==="
+          find data/benchmarks/ -maxdepth 2 -type d || echo "(nothing found)"
+          for discipline in stroke neuroscience neurology cardiology; do
+            src="data/benchmarks/output-${discipline}"
+            dst="data/benchmarks/${discipline}"
+            if [ -d "$src" ]; then
+              mv "$src" "$dst"
+              echo "Moved $src -> $dst"
+            else
+              echo "No artifact found for $discipline (skipping)"
+            fi
+          done
+
+      - name: Build dashboard
+        run: |
+          INPUTS=""
+          for discipline in stroke neuroscience neurology cardiology; do
+            csv="data/benchmarks/$discipline/fully_enriched.csv"
+            if [ -f "$csv" ]; then
+              INPUTS="$INPUTS $discipline=$csv"
+            fi
+          done
+          if [ -n "$INPUTS" ]; then
+            python scripts/build_discipline_dashboard.py \
+              --inputs $INPUTS \
+              --out-dir data/benchmarks/dashboard
+          else
+            echo "No fully_enriched.csv files found; skipping dashboard."
+          fi
+
+      - name: Prepare outputs archive manifest
+        run: python scripts/prepare_outputs_archive.py
+
+      - name: Checkout outputs repo
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: actions/checkout@v5
+        with:
+          repository: Friseeb/stroke_open_science_outputs
+          token: ${{ secrets.OUTPUTS_REPO_PAT }}
+          path: outputs_repo
+
+      - name: Copy outputs to outputs repo (excluding retrieval_slices)
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
+          DEST="outputs_repo/runs/${TIMESTAMP}"
+          mkdir -p "$DEST"
+          rsync -a --exclude='retrieval_slices/' data/benchmarks/. "$DEST/"
+          cp outputs_archive/manifest.csv "$DEST/manifest.csv" 2>/dev/null || true
+          cp outputs_archive/metadata.json "$DEST/metadata.json" 2>/dev/null || true
+          echo "$TIMESTAMP" > outputs_repo/LATEST_RUN.txt
+
+      - name: Commit and push to outputs repo
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          cd outputs_repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config http.postBuffer 524288000
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No new outputs to commit."
+          else
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
+            git commit -m "chore: benchmark outputs from run ${{ github.event.inputs.source_run_id }}"
+            git push
+          fi
