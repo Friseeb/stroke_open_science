@@ -214,6 +214,7 @@ def _paths(tmp_path: Path) -> Any:
         output_dir=tmp_path, raw_csv=tmp_path / "raw.csv", preview_csv=tmp_path / "p.csv", full_csv=tmp_path / "f.csv",
         high_impact_csv=tmp_path / "h.csv", enrich_cache=tmp_path / "e.json", llm_cache=tmp_path / "l.json",
         retrieval_slices_dir=tmp_path / "slices", openalex_metadata_cache=tmp_path / "openalex_metadata_cache.jsonl",
+        das_cache=tmp_path / "das_cache.jsonl",
     )
 
 
@@ -524,7 +525,6 @@ def test_run_das_audit_samples_per_year_fetches_and_caches(tmp_path, no_sleep):
     session = RoutingFakeSession(articles, xml)
     cfg = _cfg(tmp_path, das_audit_sample_per_year=5, das_audit_workers=2, das_audit_delay_seconds=0.0, das_audit_timeout_seconds=10)
     paths = _paths(tmp_path)
-    paths.das_cache = tmp_path / "das_cache.jsonl"
 
     out = pipeline.run_das_audit(df, cfg, paths, session)
 
