@@ -165,6 +165,41 @@ KEYWORD_SIGNAL_PATTERNS = [
     ("preprint", re.compile(r"\b(preprint|medrxiv|biorxiv|arxiv)\b", re.IGNORECASE), 2),
 ]
 
+# OpenAlex work-level metadata (work type, OA status, locations, authorship countries, funders).
+# ``funders`` is a valid ``select`` field on /works; ``grants`` is not.
+OPENALEX_WORK_SELECT_FIELDS = (
+    "id,doi,title,publication_year,type,open_access,best_oa_location,primary_location,locations,"
+    "authorships,ids,abstract_inverted_index,cited_by_count,is_retracted,has_fulltext,funders"
+)
+OPENALEX_METADATA_SELECT_FIELDS = (
+    "id,doi,publication_year,type,open_access,primary_location,locations,authorships,"
+    "is_retracted,has_fulltext,funders"
+)
+PREPRINT_SERVER_PATTERN = re.compile(
+    r"medrxiv|biorxiv|research square|ssrn|preprints\.org|preprints \(|arxiv|"
+    r"osf preprints|authorea|europe pmc preprints|chinaxiv|scielo preprints|"
+    r"jmir preprints|psyarxiv|sportrxiv|preprint",
+    re.IGNORECASE,
+)
+OPENALEX_METADATA_TEXT_COLS = [
+    "work_type",
+    "oa_status",
+    "primary_source_type",
+    "preprint_servers",
+    "first_author_country",
+    "countries",
+    "funders",
+]
+OPENALEX_METADATA_BOOL_COLS = [
+    "primary_source_is_in_doaj",
+    "has_preprint_version",
+    "is_preprint_record",
+    "is_retracted",
+    "has_fulltext",
+]
+OPENALEX_METADATA_COLS = OPENALEX_METADATA_TEXT_COLS + OPENALEX_METADATA_BOOL_COLS
+LIST_JOIN = "|"
+
 TEXT_COLS = [
     "id",
     "doi",
@@ -191,9 +226,17 @@ TEXT_COLS = [
     "high_impact_reason",
     "dataset_urls",
     "dataset_repos",
+    *OPENALEX_METADATA_TEXT_COLS,
 ]
 
-BOOL_COLS = ["is_oa", "journal_is_oa", "preregistered", "high_impact_flag", "has_public_dataset"]
+BOOL_COLS = [
+    "is_oa",
+    "journal_is_oa",
+    "preregistered",
+    "high_impact_flag",
+    "has_public_dataset",
+    *OPENALEX_METADATA_BOOL_COLS,
+]
 NUM_COLS = ["open_science_score", "cited_by_count", "journal_impact_factor"]
 
 CACHE_FIELDS = [
@@ -1556,6 +1599,68 @@ def fetch_pubmed_records(cfg: PipelineConfig, paths: PipelinePaths, session: req
     return all_records
 
 
+def flatten_openalex_work_metadata(work: Dict[str, Any]) -> Dict[str, Any]:
+    """Flatten the work-level OpenAlex fields into the metadata columns listed in
+    ``OPENALEX_METADATA_COLS``: work type, OA status, primary source type / DOAJ flag, preprint
+    locations, first-author / all countries, funders, retraction and full-text flags.
+
+    Works whose ``select`` did not include these fields (older retrieval slices) yield blanks /
+    None, which ``standardize_dataframe`` turns into "" and <NA>."""
+    open_access = work.get("open_access") or {}
+    primary_location = work.get("primary_location") or {}
+    primary_source = (primary_location.get("source") or {}) if isinstance(primary_location, dict) else {}
+    if not isinstance(primary_source, dict):
+        primary_source = {}
+
+    preprint_servers: List[str] = []
+    for location in work.get("locations") or []:
+        if not isinstance(location, dict):
+            continue
+        location_source = location.get("source") or {}
+        if not isinstance(location_source, dict):
+            continue
+        name = str(location_source.get("display_name") or "").strip()
+        if location_source.get("type") == "repository" and name and PREPRINT_SERVER_PATTERN.search(name):
+            preprint_servers.append(name)
+
+    work_type = str(work.get("type") or "").strip()
+    primary_source_name = str(primary_source.get("display_name") or "")
+    is_preprint_record = work_type == "preprint" or (
+        primary_source.get("type") == "repository" and bool(PREPRINT_SERVER_PATTERN.search(primary_source_name))
+    )
+
+    countries: List[str] = []
+    first_author_country = ""
+    for i, authorship in enumerate(work.get("authorships") or []):
+        if not isinstance(authorship, dict):
+            continue
+        author_countries = [str(c).strip() for c in (authorship.get("countries") or []) if str(c or "").strip()]
+        if i == 0 and author_countries:
+            first_author_country = author_countries[0]
+        countries.extend(author_countries)
+
+    funders = [
+        str(f.get("display_name")).strip()
+        for f in (work.get("funders") or [])
+        if isinstance(f, dict) and f.get("display_name")
+    ]
+
+    return {
+        "work_type": work_type,
+        "oa_status": str(open_access.get("oa_status") or "").strip(),
+        "primary_source_type": str(primary_source.get("type") or "").strip(),
+        "primary_source_is_in_doaj": primary_source.get("is_in_doaj"),
+        "has_preprint_version": bool(preprint_servers) and not is_preprint_record,
+        "is_preprint_record": bool(is_preprint_record),
+        "preprint_servers": LIST_JOIN.join(sorted(set(preprint_servers))),
+        "first_author_country": first_author_country,
+        "countries": LIST_JOIN.join(sorted(set(countries))),
+        "funders": LIST_JOIN.join(funders),
+        "is_retracted": work.get("is_retracted"),
+        "has_fulltext": work.get("has_fulltext"),
+    }
+
+
 def openalex_work_to_record(work: Dict[str, Any], term: str, discipline: str) -> Dict[str, Any]:
     open_access = work.get("open_access") or {}
     primary_location = work.get("primary_location") or {}
@@ -1601,6 +1706,7 @@ def openalex_work_to_record(work: Dict[str, Any], term: str, discipline: str) ->
         "high_impact_flag": False,
         "high_impact_reason": "",
     }
+    record.update(flatten_openalex_work_metadata(work))
     return record
 
 
@@ -1640,10 +1746,7 @@ def search_openalex_term_date_range(
         ),
         "per_page": 200,
         "cursor": "*",
-        "select": (
-            "id,doi,title,publication_year,open_access,best_oa_location,"
-            "primary_location,authorships,ids,abstract_inverted_index,cited_by_count"
-        ),
+        "select": OPENALEX_WORK_SELECT_FIELDS,
     }
     if mailto:
         params["mailto"] = mailto
