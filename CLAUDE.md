@@ -71,7 +71,16 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   browser sums and divides. Legacy CSVs without the new columns get `available.*=false` and the page hides
   those charts. `--enrichment-dir` left-joins `<discipline>_work_metadata.csv` by `doi_norm` (fills blank /
   missing fields only, then derives `in_article_corpus` via `apply_corpus_flag`; registration flags are
-  derived from title+abstract via `apply_registration_flags` when missing).
+  derived from title+abstract via `apply_registration_flags` when missing). Because the join is by DOI,
+  release rows without a DOI (e.g. the DOI-less ISC conference abstracts in *Stroke*) get no metadata and
+  are out of corpus (`corpus_rule` = `openalex_type_doi_only`); they are never counted as closed articles.
+- **One OA definition** (`build_discipline_dashboard.derive_open_access`, text in `OA_DEFINITION`): open =
+  OpenAlex `oa_status` known and not `closed`; the legacy `infer_oa_series` inference (`is_oa` / OA journal /
+  OA URL / licence) applies only where `oa_status` is unknown. Both the site `oa` count and the legacy report's
+  `oa_rate` use it, so OA rate = 1 − closed wherever `oa_status` is complete.
+- **Years**: `assemble_payload` marks `partial_years` (≥ run year − 1, shaded on the site) and
+  `default_year_range` = first year … last complete year (< run year). The site's year slider starts at that
+  default (2015–2025 for a 2026 run) and the partial years remain selectable.
 - GitHub Pages (outputs repo `docs/`): workflows copy `site/*` to `docs/` and the old report to `docs/legacy.html`.
 
 ## Pipeline stages (search_stroke_dois.py)
@@ -92,8 +101,11 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
 6. **Regex extraction** — GitHub/Zenodo/OSF/dataset-repo patterns from title+abstract+url fields; registration
    flags (`reg_trial_registry`, `reg_prospero`, `reg_preregistration_wording`, `registered_any`,
    `registration_signal`) from `REGISTRY_PATTERNS`; `in_article_corpus` / `corpus_rule` from
-   `apply_corpus_flag` (OpenAlex type + journal source, falling back to `NON_JOURNAL_SOURCE_PATTERN` on the
-   journal name when metadata is missing). Rows are never dropped; the dashboard filters on the flag.
+   `apply_corpus_flag`: when the frame has any OpenAlex metadata, in corpus = `work_type` article/review AND
+   `primary_source_type` journal AND non-blank DOI AND the row has metadata (`openalex_type_doi_only`; no
+   name-based fallback for unenriched rows). `NON_JOURNAL_SOURCE_PATTERN` on the journal name is used only
+   for legacy frames with no metadata at all (`source_name_fallback`). Rows are never dropped; the dashboard
+   filters on the flag.
 7. **API enrichment** — async Unpaywall/Zenodo/OSF/GitHub lookups with resumable JSON cache
 8. **Dataset repo search** — DataCite → Dryad → Figshare API chain, async with rate limiting
 9. **Embedding ranking** (optional) — SentenceTransformer cosine similarity to an open-science concept vector
@@ -162,8 +174,8 @@ python scripts/run_discipline_benchmark.py --disciplines stroke --force --skip-d
 | `is_retracted` / `has_fulltext` | boolean | OpenAlex flags |
 | `reg_trial_registry` / `reg_prospero` / `reg_preregistration_wording` | boolean | Regex registration signals over title+abstract |
 | `registered_any` / `registration_signal` | boolean | Any regex registration signal (identical) |
-| `in_article_corpus` | boolean | Journal article/review (OpenAlex type + journal source; journal-name fallback when metadata is missing) |
-| `corpus_rule` | str | `openalex_type` or `source_name_fallback` |
+| `in_article_corpus` | boolean | Journal article/review with a DOI and OpenAlex metadata (type article/review + journal source); rows without metadata/DOI are out. Journal-name fallback only for frames with no metadata at all |
+| `corpus_rule` | str | `openalex_type_doi_only` or `source_name_fallback` (one value per frame) |
 | `das_pmcid` | str | Europe PMC PMCID used for the DAS audit |
 | `das_available` | boolean | Full text fetched and parsed (article was audited) |
 | `das_has_statement` | boolean | A data-availability statement was found (audited rows only) |

@@ -221,8 +221,9 @@ REGISTRY_PATTERNS: Dict[str, "re.Pattern[str]"] = {
 }
 REGISTRATION_FLAG_COLS = [f"reg_{name}" for name in REGISTRY_PATTERNS] + ["registered_any", "registration_signal"]
 
-# Article corpus: OpenAlex journal articles / reviews. Rows without work metadata fall back to
-# the source name (anything that looks like a repository, preprint server or thesis is excluded).
+# Article corpus: OpenAlex journal articles / reviews with a DOI (metadata is joined by DOI, so rows
+# without metadata are excluded). The source-name pattern is used only for legacy frames that carry no
+# OpenAlex metadata at all (anything that looks like a repository, preprint server or thesis is excluded).
 ARTICLE_WORK_TYPES = {"article", "review"}
 NON_JOURNAL_SOURCE_PATTERN = re.compile(
     r"figshare|zenodo|research square|^pubmed|doaj|ssrn|medrxiv|biorxiv|arxiv|"
@@ -2988,31 +2989,54 @@ def apply_metadata_preprint_flag(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def apply_corpus_flag(df: pd.DataFrame) -> pd.DataFrame:
-    """``in_article_corpus``: journal articles / reviews per OpenAlex work metadata. Rows without
-    metadata keep the row (no drop) and are included unless the source name looks like a
-    repository / preprint server / thesis. ``corpus_rule`` records which rule applied."""
+    """``in_article_corpus``: journal articles / reviews per OpenAlex work metadata.
+
+    Rule ``openalex_type_doi_only`` (whenever the frame carries any OpenAlex work metadata, i.e. a
+    non-blank ``work_type`` on at least one row): a row is in the corpus only if it has metadata,
+    ``work_type`` is article/review, ``primary_source_type`` is ``journal`` and (when a ``doi`` column
+    exists) the DOI is non-blank. Rows without metadata are OUT of the corpus: metadata is joined by DOI,
+    so a missing DOI or a missing OpenAlex record means we cannot tell an article from, e.g., the
+    thousands of DOI-less conference abstracts the journal *Stroke* publishes. There is deliberately no
+    journal-name fallback for those rows (it inflated the closed-article count for *Stroke*).
+
+    Rule ``source_name_fallback`` (legacy frames with no metadata on any row): include unless the source
+    name looks like a repository / preprint server / thesis (``NON_JOURNAL_SOURCE_PATTERN``).
+
+    Rows are never dropped; ``corpus_rule`` records which rule applied to the frame."""
     if df.empty:
         if "in_article_corpus" not in df.columns:
             df["in_article_corpus"] = pd.Series(dtype="boolean")
         if "corpus_rule" not in df.columns:
             df["corpus_rule"] = pd.Series(dtype=object)
         return df
+    blank_tokens = {"nan": "", "none": "", "null": "", "<na>": ""}
     work_type = df.get("work_type", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().str.lower()
-    work_type = work_type.replace({"nan": "", "none": "", "<na>": ""})
+    work_type = work_type.replace(blank_tokens)
     source_type = df.get("primary_source_type", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().str.lower()
     journal = df.get("journal", pd.Series("", index=df.index)).fillna("").astype(str)
     has_metadata = work_type.ne("")
-    is_article = work_type.isin(ARTICLE_WORK_TYPES) & source_type.eq("journal")
-    journal_like = ~journal.str.contains(NON_JOURNAL_SOURCE_PATTERN, na=False)
-    df["in_article_corpus"] = (has_metadata & is_article) | (~has_metadata & journal_like)
-    df["corpus_rule"] = pd.Series("source_name_fallback", index=df.index).where(~has_metadata, "openalex_type")
-    logging.info(
-        "Article corpus flag: %d/%d rows in corpus (%d via OpenAlex type, %d via source-name fallback).",
-        int(df["in_article_corpus"].sum()),
-        len(df),
-        int(has_metadata.sum()),
-        int((~has_metadata).sum()),
-    )
+    if has_metadata.any():
+        is_article = work_type.isin(ARTICLE_WORK_TYPES) & source_type.eq("journal")
+        if "doi" in df.columns:
+            doi = df["doi"].fillna("").astype(str).str.strip().str.lower().replace(blank_tokens)
+            has_doi = doi.ne("")
+        else:
+            has_doi = pd.Series(True, index=df.index)
+        df["in_article_corpus"] = has_metadata & is_article & has_doi
+        df["corpus_rule"] = "openalex_type_doi_only"
+        logging.info(
+            "Article corpus flag (openalex_type_doi_only): %d/%d rows in corpus; %d rows without OpenAlex "
+            "metadata and %d without a DOI excluded.",
+            int(df["in_article_corpus"].sum()), len(df), int((~has_metadata).sum()), int((~has_doi).sum()),
+        )
+    else:
+        journal_like = ~journal.str.contains(NON_JOURNAL_SOURCE_PATTERN, na=False)
+        df["in_article_corpus"] = journal_like
+        df["corpus_rule"] = "source_name_fallback"
+        logging.info(
+            "Article corpus flag (source_name_fallback, no OpenAlex metadata in frame): %d/%d rows in corpus.",
+            int(df["in_article_corpus"].sum()), len(df),
+        )
     return df
 
 

@@ -296,8 +296,10 @@
   function resetState() {
     state.disciplines = DATA.disciplines.map((d) => d.key);
     state.focus = state.disciplines.includes("stroke") ? "stroke" : state.disciplines[0];
-    state.yearMin = DATA.years[0];
-    state.yearMax = DATA.years[DATA.years.length - 1];
+    // Default to the last complete year (run year - 1); later, partial years stay selectable on the slider.
+    const dflt = Array.isArray(DATA.default_year_range) && DATA.default_year_range.length === 2 ? DATA.default_year_range : DATA.years;
+    state.yearMin = dflt[0];
+    state.yearMax = dflt[dflt.length - 1];
     state.journal = ""; state.country = ""; state.funder = ""; state.hi = false; state.metric = "oa";
     $("hi-all").classList.add("is-active"); $("hi-all").setAttribute("aria-pressed", "true");
     $("hi-only").classList.remove("is-active"); $("hi-only").setAttribute("aria-pressed", "false");

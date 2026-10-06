@@ -102,8 +102,7 @@ NEEDED_COLS = {
 
 METRICS: List[Dict[str, str]] = [
     {"key": "oa", "label": "Open access", "short": "OA",
-     "definition": "Share of papers flagged open access: Unpaywall/OpenAlex is_oa, an OA journal, "
-                   "a best-OA-location URL or an Unpaywall licence."},
+     "definition": dash.OA_DEFINITION},
     {"key": "data", "label": "Data sharing", "short": "Data",
      "definition": "Share with a dataset in a public repository (DataCite, Dryad, Figshare, Dataverse) "
                    "or a data-repository link found in the title, abstract or metadata."},
@@ -123,19 +122,24 @@ METRICS: List[Dict[str, str]] = [
 METHODS_NOTES: List[str] = [
     "All sharing and registration signals are lower bounds: they are detected from titles, abstracts, "
     "URLs and bibliographic metadata, so practices not mentioned there are missed.",
-    "Rates are computed over journal articles and reviews only (in_article_corpus). Datasets, preprint "
-    "records, errata, book chapters and repository items are excluded from the denominator.",
+    "Rates are computed over journal articles and reviews only (in_article_corpus): OpenAlex type article/review "
+    "in a journal source, matched by DOI. Records without a DOI or without an OpenAlex record (for example the "
+    "DOI-less conference abstracts published in Stroke) are excluded, as are datasets, preprint records, errata, "
+    "book chapters and repository items.",
     "Data-availability statements (DAS) were audited only on the Europe PMC open-access full-text subset "
     "(a per-year sample), so DAS rates are optimistic relative to the whole corpus and refer to the "
     "audited papers, not to all papers.",
     "The most recent year is incomplete: indexing lag and embargoes mean counts and some rates (especially "
-    "green OA and preprint links) will change as records are updated.",
+    "green OA and preprint links) will change as records are updated. The year filter therefore defaults to "
+    "the last complete year (the year before the run year); later years are shaded and can be selected.",
     "Journals and first-author countries outside the per-discipline top lists are folded into “Other”. "
     "Journal names are normalised (case, whitespace) before ranking.",
     "Funders are multi-valued: a paper with three funders is counted once under each. Funder counts therefore "
     "do not sum to the paper total, and a funder filter cannot be combined with journal or country filters.",
-    "OA status (diamond, gold, hybrid, green, bronze, closed) is the OpenAlex classification; the OA rate "
-    "additionally uses Unpaywall and journal-level flags, so it is not identical to 1 − closed.",
+    "OA status (diamond, gold, hybrid, green, bronze, closed) is the OpenAlex classification and the OA rate "
+    "is derived from it (open = oa_status not closed), so OA rate and 1 − closed agree wherever oa_status is "
+    "known; the legacy is_oa / OA-journal / OA-URL / licence inference is used only for papers whose "
+    "oa_status is unknown.",
 ]
 
 ISO2_NAMES: Dict[str, str] = {
@@ -309,7 +313,9 @@ def row_flags(df: pd.DataFrame, discipline: str) -> Dict[str, Any]:
     corpus_rule = "all rows (no in_article_corpus column)"
     if "in_article_corpus" in out.columns:
         in_corpus = dash.to_bool_series(out["in_article_corpus"])
-        corpus_rule = "in_article_corpus (OpenAlex type article/review in a journal source; source-name fallback)"
+        rules = sorted(set(_clean_text(_series(out, "corpus_rule")).tolist()) - {""})
+        corpus_rule = "in_article_corpus (" + (", ".join(rules) if rules else
+                                               "OpenAlex type article/review in a journal source, DOI-matched") + ")"
         out = out[in_corpus].copy()
     kept_rows = len(out)
 
@@ -321,7 +327,7 @@ def row_flags(df: pd.DataFrame, discipline: str) -> Dict[str, Any]:
     flags["year"] = out["year"]
     flags["n"] = 1
     flags["hi"] = dash.to_bool_series(_series(out, "high_impact_flag")).astype(int)
-    flags["oa"] = dash.infer_oa_series(out).astype(int)
+    flags["oa"] = dash.derive_open_access(out).astype(int)
 
     oa_status = _clean_text(_series(out, "oa_status")).str.lower()
     for status in OA_STATUS_ORDER:
@@ -525,7 +531,13 @@ def assemble_payload(aggregates: List[Dict[str, Any]], *, run_date: Optional[str
         hi_settings.setdefault(key, value)
 
     run_year = int(run_date[:4])
+    # The run year is incomplete and the year before it is partial; both are shown (shaded) in the site.
+    # The year-range filter defaults to the last complete year, i.e. run_year - 1 (the data run in 2026
+    # defaults to 2015-2025 with 2026 selectable).
     partial_years = [y for y in all_years if y >= run_year - 1]
+    complete_years = [y for y in all_years if y < run_year]
+    default_year_range = ([complete_years[0], complete_years[-1]] if complete_years
+                          else ([all_years[0], all_years[-1]] if all_years else []))
     notes = list(METHODS_NOTES)
     if partial_years:
         notes[3] = (f"{', '.join(str(y) for y in partial_years)} " + ("is" if len(partial_years) == 1 else "are")
@@ -549,6 +561,7 @@ def assemble_payload(aggregates: List[Dict[str, Any]], *, run_date: Optional[str
         "methods_notes": notes,
         "years": all_years,
         "partial_years": partial_years,
+        "default_year_range": default_year_range,
         "top_n": top_n or {"journals": 40, "countries": 25, "funders": 25},
         "high_impact": {"settings": hi_settings, "description": dash.high_impact_description(hi_settings)},
         "corpus_rule": {a["discipline"]: a["corpus_rule"] for a in ordered},

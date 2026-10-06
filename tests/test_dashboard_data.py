@@ -85,7 +85,7 @@ def test_cell_totals_match_pandas():
     ref = corpus(df)
     totals = counts_dict(agg["cells"], len(bdd.CELL_KEYS))
     assert totals["n"] == len(ref)
-    assert totals["oa"] == int(dash.infer_oa_series(ref).sum())
+    assert totals["oa"] == int(dash.derive_open_access(ref).sum())
     assert totals["code"] == int(dash.nonblank(ref["github"]).sum())
     expected_data = int((dash.to_bool_series(ref["has_public_dataset"]) | dash.nonblank(ref["data_link"])).sum())
     assert totals["data"] == expected_data
@@ -163,7 +163,7 @@ def test_rates_recomputed_from_counts_match_pandas(hi_only):
     agg = bdd.aggregate_discipline(df, "stroke", top_journals=2, top_countries=3)
     ref = corpus(df)
     ref["hi"] = dash.to_bool_series(ref["high_impact_flag"])
-    ref["oa_bool"] = dash.infer_oa_series(ref)
+    ref["oa_bool"] = dash.derive_open_access(ref)
     ref["reg_bool"] = dash.to_bool_series(ref["registration_signal"])
     ref["abs_ok"] = dash.nonblank(ref["abstract"])
     journal_key = agg["journals"][0]["key"]
@@ -242,6 +242,79 @@ def test_partial_years_follow_run_date():
     payload = bdd.assemble_payload([agg], run_date="2022-03-01")
     assert payload["partial_years"] == [2021, 2022]
     assert "2021, 2022 are incomplete" in payload["methods_notes"][3]
+    # default filter ends at the last complete year (run year - 1); the run year stays selectable
+    assert payload["default_year_range"] == [2019, 2021]
+    assert payload["years"] == [2019, 2020, 2021, 2022]
+    later = bdd.assemble_payload([agg], run_date="2026-06-01")
+    assert later["partial_years"] == [] and later["default_year_range"] == [2019, 2022]
+
+
+# ---------------------------------------------------------------------------
+# One OA definition
+# ---------------------------------------------------------------------------
+
+def test_derive_open_access_prefers_oa_status_and_falls_back():
+    df = pd.DataFrame({
+        "oa_status": ["gold", "closed", "Hybrid", "", None, "closed", "green", "nan"],
+        "is_oa": [False, True, False, True, False, True, False, False],
+        "license_unpaywall": ["", "cc-by", "", "", "", "", "", "cc-by"],
+    })
+    out = dash.derive_open_access(df)
+    assert out.dtype == bool
+    # known oa_status wins (even when the legacy signals disagree); unknown -> legacy inference
+    assert out.tolist() == [True, False, True, True, False, False, True, True]
+    # no oa_status column at all -> pure legacy inference
+    legacy = df.drop(columns=["oa_status"])
+    assert dash.derive_open_access(legacy).tolist() == dash.infer_oa_series(legacy).tolist()
+
+
+def test_dashboard_json_oa_counts_match_helper():
+    df = make_frame(150)
+    agg = bdd.aggregate_discipline(df, "stroke")
+    payload = json.loads(json.dumps(bdd.assemble_payload([agg], run_date="2023-01-01")))
+    off = len(bdd.CELL_KEYS)
+    K = {k: i for i, k in enumerate(bdd.COUNT_KEYS)}
+    cells = payload["disciplines"][0]["cells"]
+    ref = corpus(df)
+    oa_expected = dash.derive_open_access(ref)
+    assert sum(r[off + K["oa"]] for r in cells) == int(oa_expected.sum())
+    # per year as well, and the OA count equals n - closed wherever oa_status is known
+    for year in sorted(ref["year"].unique()):
+        rows = [r for r in cells if r[0] == year]
+        sub = ref[ref["year"] == year]
+        assert sum(r[off + K["oa"]] for r in rows) == int(oa_expected[sub.index].sum())
+    known = ref["oa_status"].fillna("").ne("")
+    n_known = int(known.sum())
+    closed_known = int((ref.loc[known, "oa_status"] == "closed").sum())
+    assert int(oa_expected[known].sum()) == n_known - closed_known
+    assert "oa_status" in payload["metrics"][0]["definition"]
+
+
+def test_no_doi_conference_abstract_excluded_from_site_corpus(tmp_path):
+    """Release rows without a DOI never match the DOI-keyed enrichment CSV; they must be out of corpus and
+    not counted as closed journal articles."""
+    df = make_frame(30).drop(columns=["oa_status", "first_author_country", "funders", "has_preprint_version",
+                                      "in_article_corpus"])
+    abstracts = pd.DataFrame([{"doi": "", "title": f"Abstract WP{i}: ISC poster", "journal": "Stroke",
+                               "journal_norm": "stroke", "year": 2020, "is_oa": False, "abstract": ""}
+                              for i in range(12)])
+    df = pd.concat([df, abstracts], ignore_index=True)
+    meta = pd.DataFrame({
+        "doi_norm": [f"10.1000/{i}" for i in range(30)], "openalex_id": [f"W{i}" for i in range(30)],
+        "work_type": ["article"] * 30, "primary_source_type": ["journal"] * 30,
+        "oa_status": ["gold" if i % 2 else "closed" for i in range(30)],
+    })
+    meta.to_csv(tmp_path / "stroke_work_metadata.csv", index=False)
+    out = bdd.prepare_frame(df, "stroke", enrichment_dir=tmp_path)
+    assert int(out["in_article_corpus"].sum()) == 30
+    assert not out.loc[out["doi"].fillna("").eq(""), "in_article_corpus"].any()
+    agg = bdd.aggregate_discipline(out, "stroke")
+    assert agg["totals"]["in_corpus"] == 30 and agg["totals"]["dropped"] == 12
+    assert agg["corpus_rule"] == "in_article_corpus (openalex_type_doi_only)"
+    off = len(bdd.CELL_KEYS)
+    K = {k: i for i, k in enumerate(bdd.COUNT_KEYS)}
+    assert sum(r[off + K["oa"]] for r in agg["cells"]) == 15
+    assert sum(r[off + K["oa_closed"]] for r in agg["cells"]) == 15
 
 
 def test_enrichment_join_fills_missing_columns_and_corpus_flag(tmp_path):

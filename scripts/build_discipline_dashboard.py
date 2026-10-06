@@ -76,7 +76,8 @@ METRIC_SPECS = [
     ("non_oa_open_signal_rate", "Signals beyond open access", "pct",
      "Repository, preprint, or registration evidence, excluding plain open access."),
     ("oa_rate", "Open-access rate", "pct",
-     "Share flagged as open access, regardless of richer open-science signals."),
+     "Share open access: OpenAlex oa_status not 'closed' (legacy is_oa/OA-journal/OA-URL/licence inference "
+     "only where oa_status is unknown)."),
     ("open_material_rate", "Repository and materials", "pct",
      "Share with any repository, code, or data link (includes GitHub and dataset repositories)."),
     ("github_rate", "GitHub trace", "pct",
@@ -182,11 +183,35 @@ def nonblank(series: pd.Series) -> pd.Series:
 
 
 def infer_oa_series(df: pd.DataFrame) -> pd.Series:
+    """Legacy OA inference from release columns: Unpaywall/OpenAlex ``is_oa`` OR an OA journal OR a
+    best-OA-location URL OR an Unpaywall licence. Used only where ``oa_status`` is unknown; see
+    :func:`derive_open_access`."""
     explicit_oa = to_bool_series(df.get("is_oa", pd.Series(index=df.index, dtype=object)))
     journal_oa = to_bool_series(df.get("journal_is_oa", pd.Series(index=df.index, dtype=object)))
     has_oa_url = nonblank(df.get("best_oa_location_url", pd.Series(index=df.index, dtype=object)))
     has_oa_license = nonblank(df.get("license_unpaywall", pd.Series(index=df.index, dtype=object)))
     return explicit_oa | journal_oa | has_oa_url | has_oa_license
+
+
+OA_DEFINITION = (
+    "Open access = OpenAlex oa_status is known and is not 'closed' (diamond, gold, hybrid, green or bronze). "
+    "Only when oa_status is unknown for a paper does the legacy inference apply (Unpaywall/OpenAlex is_oa, "
+    "an OA journal, a best-OA-location URL or an Unpaywall licence). Every OA number on the site uses this "
+    "one rule, so the OA rate equals 1 - closed wherever oa_status is complete."
+)
+
+
+def derive_open_access(df: pd.DataFrame) -> pd.Series:
+    """The single OA definition used by every output (see ``OA_DEFINITION``).
+
+    Returns a boolean Series aligned to ``df``: ``oa_status`` known (non-blank) and not ``closed``;
+    where ``oa_status`` is unknown, falls back to :func:`infer_oa_series`."""
+    status = df.get("oa_status", pd.Series(index=df.index, dtype=object))
+    status = status.fillna("").astype(str).str.strip().str.lower()
+    status = status.replace({"nan": "", "none": "", "null": "", "<na>": ""})
+    known = status.ne("")
+    inferred = infer_oa_series(df).astype(bool)
+    return ((known & status.ne("closed")) | (~known & inferred)).astype(bool)
 
 
 def discipline_label(value: str) -> str:
@@ -369,7 +394,7 @@ def prepare_discipline_panel(df: pd.DataFrame, discipline: str) -> pd.DataFrame:
     out["year"] = pd.to_numeric(out.get("year"), errors="coerce").astype("Int64")
     out = out[out["year"].notna()].copy()
 
-    out["is_oa_bool"] = infer_oa_series(out)
+    out["is_oa_bool"] = derive_open_access(out)
     out["preregistered_bool"] = to_bool_series(out.get("preregistered", pd.Series(index=out.index, dtype=object)))
     out["high_impact_bool"] = to_bool_series(out.get("high_impact_flag", pd.Series(index=out.index, dtype=object)))
     out["has_github"] = nonblank(out.get("github", pd.Series(index=out.index, dtype=object)))

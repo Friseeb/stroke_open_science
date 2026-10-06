@@ -356,25 +356,54 @@ def test_metadata_preprint_flag_fills_only_blank_preprint():
 
 # ── in_article_corpus ──────────────────────────────────────────────────────────
 
-def test_in_article_corpus_rules():
+def test_in_article_corpus_rules_with_metadata_are_doi_only():
     df = pd.DataFrame([
-        {"journal": "Stroke", "work_type": "article", "primary_source_type": "journal"},
-        {"journal": "Lancet Neurology", "work_type": "review", "primary_source_type": "journal"},
-        {"journal": "medRxiv", "work_type": "preprint", "primary_source_type": "repository"},
-        {"journal": "Figshare", "work_type": "dataset", "primary_source_type": "repository"},
-        {"journal": "Stroke", "work_type": "erratum", "primary_source_type": "journal"},
-        {"journal": "Research Square", "work_type": "article", "primary_source_type": "repository"},
-        # no metadata: fall back to the source name
+        {"doi": "10.1/a", "journal": "Stroke", "work_type": "article", "primary_source_type": "journal"},
+        {"doi": "10.1/b", "journal": "Lancet Neurology", "work_type": "review", "primary_source_type": "journal"},
+        {"doi": "10.1/c", "journal": "medRxiv", "work_type": "preprint", "primary_source_type": "repository"},
+        {"doi": "10.1/d", "journal": "Figshare", "work_type": "dataset", "primary_source_type": "repository"},
+        {"doi": "10.1/e", "journal": "Stroke", "work_type": "erratum", "primary_source_type": "journal"},
+        {"doi": "10.1/f", "journal": "Research Square", "work_type": "article", "primary_source_type": "repository"},
+        # metadata says article, but no DOI -> out (metadata is DOI-matched; cannot be trusted)
+        {"doi": "", "journal": "Stroke", "work_type": "article", "primary_source_type": "journal"},
+        # no metadata at all: previously kept by the journal-name fallback, now out
+        {"doi": "10.1/g", "journal": "Journal of Stroke and Cerebrovascular Diseases", "work_type": "", "primary_source_type": ""},
+        {"doi": None, "journal": "Stroke", "work_type": None, "primary_source_type": None},
+    ])
+    out = pipeline.apply_corpus_flag(df)
+    assert out["in_article_corpus"].tolist() == [True, True, False, False, False, False, False, False, False]
+    assert out["corpus_rule"].unique().tolist() == ["openalex_type_doi_only"]
+    assert len(out) == len(df), "rows are flagged, never dropped"
+
+
+def test_no_doi_stroke_conference_abstract_is_out_of_corpus_when_frame_has_metadata():
+    """The journal Stroke publishes thousands of ISC abstracts without a DOI. They never receive OpenAlex
+    metadata (joined by DOI), so they must not be kept by the journal name and counted as closed articles."""
+    rows = [{"doi": f"10.1161/str.{i}", "journal": "Stroke", "year": 2015, "oa_status": "hybrid",
+             "work_type": "article", "primary_source_type": "journal"} for i in range(5)]
+    rows.append({"doi": "", "journal": "Stroke", "year": 2015, "title": "Abstract WP123: Thrombectomy outcomes",
+                 "is_oa": False, "oa_status": "", "work_type": "", "primary_source_type": ""})
+    rows.append({"doi": None, "journal": "Stroke", "year": 2015, "title": "Abstract TP45: Registry data",
+                 "is_oa": False, "work_type": None, "primary_source_type": None})
+    out = pipeline.apply_corpus_flag(pd.DataFrame(rows))
+    assert out["in_article_corpus"].tolist() == [True] * 5 + [False, False]
+    assert (out["corpus_rule"] == "openalex_type_doi_only").all()
+
+
+def test_in_article_corpus_legacy_frame_uses_source_name_fallback():
+    df = pd.DataFrame([
         {"journal": "Journal of Stroke and Cerebrovascular Diseases", "work_type": "", "primary_source_type": ""},
         {"journal": "Research Square (Research Square)", "work_type": "", "primary_source_type": ""},
         {"journal": "ProQuest Dissertations", "work_type": None, "primary_source_type": None},
         {"journal": "", "work_type": "", "primary_source_type": ""},
     ])
     out = pipeline.apply_corpus_flag(df)
-    assert out["in_article_corpus"].tolist() == [True, True, False, False, False, False, True, False, False, True]
-    assert out["corpus_rule"].tolist()[:6] == ["openalex_type"] * 6
-    assert out["corpus_rule"].tolist()[6:] == ["source_name_fallback"] * 4
-    assert len(out) == len(df), "rows are flagged, never dropped"
+    assert out["in_article_corpus"].tolist() == [True, False, False, True]
+    assert out["corpus_rule"].unique().tolist() == ["source_name_fallback"]
+    # a frame without the metadata columns at all is also legacy
+    out2 = pipeline.apply_corpus_flag(pd.DataFrame([{"journal": "Stroke"}, {"journal": "medRxiv"}]))
+    assert out2["in_article_corpus"].tolist() == [True, False]
+    assert (out2["corpus_rule"] == "source_name_fallback").all()
 
 
 def test_corpus_flag_survives_standardize_dataframe():
