@@ -44,3 +44,5 @@ llm_cache.json
 
 retrieval_slices/
 talk/outputs_test/
+.venv
+data

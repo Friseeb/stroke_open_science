@@ -8,7 +8,7 @@ Goal set by the speaker: leave the room with an agenda of incentives for open sc
 in stroke, grounded in the first stroke-specific measurement of these practices.
 
 Numbers below come from `talk/outputs/numbers.json` and `talk/outputs/tables/`
-(stroke corpus: OpenAlex journal articles and reviews, 2015-2025, n = 139,316) and from
+(stroke corpus: OpenAlex journal articles and reviews with a DOI, 2015-2025, n = 126,267; open access = any OpenAlex status other than closed) and from
 `talk/evidence_brief.md`. Items marked TODO wait on the comparator enrichment or the
 Europe PMC data-availability audit. Re-run `scripts/wsc2026_talk_analysis.py` and
 `scripts/audit_data_availability_europepmc.py classify` before finalising.
@@ -40,8 +40,9 @@ practice itself.
 ## 3. How we measured (1:45)
 
 - Living pipeline: OpenAlex title search, 2015 onward, stroke plus three comparator
-  fields (neurology, neuroscience, cardiology). About 200,000 stroke records, 139,000
-  journal articles and reviews after cleaning.
+  fields (neurology, neuroscience, cardiology). About 200,000 stroke records, 126,000
+  journal articles and reviews with a DOI after cleaning (no-DOI records are mostly
+  conference abstracts and are dropped).
 - Signals: open-access status (six OpenAlex categories), repository links for data and
   code, preprint versions, registration identifiers in abstracts.
 - Automated, re-runs every six months, code on GitHub, dashboard public. Figure: pipeline
@@ -54,10 +55,11 @@ details.
 
 ## 4. Finding 1: stroke went open access (2:45)
 
-Figure: `fig01_oa_trend` (stroke 42% in 2015 to 73% in 2024; comparators TODO).
+Figure: `fig01_oa_trend` (stroke 53% in 2015 to 75% in 2024; neurology 61% overall,
+  a few points behind stroke throughout).
 
-- Open access in stroke articles rose from 42% to 73% in ten years.
-- Comparators: TODO once neurology, neuroscience and cardiology enrichment finishes.
+- Open access in stroke articles rose from 53% to 75% in ten years.
+- Comparators: neurology runs a few points behind; neuroscience and cardiology TODO.
 
 Notes: This is the good news slide. Let it land, then turn it.
 
@@ -66,7 +68,8 @@ Notes: This is the good news slide. Let it land, then turn it.
 Figure: `fig02_stroke_oa_status`.
 
 - Of all stroke articles 2015-2025: gold 25%, diamond 15%, hybrid 9%, bronze 10%,
-  green 7%, closed 34%.
+  green 7%, closed 34%. The journal Stroke itself is 69% free to read, mostly bronze
+  after the 12-month embargo (43%) plus green (17%).
 - Gold and hybrid, the paid routes, grew the most. Green (repository) stayed flat near
   7%. Bronze (free to read, no licence) is 10% and can disappear.
 - Open access became a transaction between funders and publishers. It did not come with
@@ -81,10 +84,10 @@ Figure: `fig03_data_sharing_trend` and `fig04_code_sharing_trend` side by side, 
 high-impact chart `fig07`.
 
 - Data in a public repository, detectable from metadata: 0.2% of stroke articles in
-  2015, 0.2% in 2024. Peak 0.5% in 2020.
+  2015, 0.2% in 2024. Never above 0.5% in any year.
 - Code or repository link: under 0.1% every year.
 - Preprint version: 0.1%. Stroke did not adopt preprints even during COVID.
-- Registration identifier in the abstract: 2.4% in 2015, 5.9% in 2024. Rising, but
+- Registration identifier in the abstract: 2.9% in 2015, 6.0% in 2024. Rising, but
   that is trials and systematic reviews catching up with mandates from 2005 and 2011.
 
 Notes: Say the caveat out loud: these are lower bounds from abstracts. Then: "so we
@@ -94,8 +97,8 @@ read the full text."
 
 Figure: `fig07_high_impact_vs_rest`.
 
-- Top 10% cited or impact factor 10+: open access 67% vs 59%, registration 8.8% vs
-  3.7%, data in a repository 0.5% vs 0.3%, code 0.06% vs 0.07%.
+- Top 10% cited or impact factor 10+ (n = 21,816): open access 69% vs 65%, registration
+  8.9% vs 4.0%, data in a repository 0.5% vs 0.3%, code 0.06% vs 0.07%.
 - The papers we cite most are not the ones we can check most.
 
 ## 8. What data-availability statements actually say (6:45)
