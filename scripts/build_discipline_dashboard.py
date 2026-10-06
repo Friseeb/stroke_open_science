@@ -27,33 +27,68 @@ VIRIDIS_HEXES = [
     "#B4DE2C", "#FDE725",
 ]
 
-# Composite open-science index weights (sum to 1.0)
+# Composite open-science index weights. ``open_material_rate`` already includes GitHub and
+# dataset-repository signals, so those are not weighted again. Weights are renormalised over the
+# metrics actually available for a discipline-year (see ``composite_index_from_rates``).
 COMPOSITE_WEIGHTS: Dict[str, float] = {
-    "oa_rate": 0.20,
-    "open_material_rate": 0.25,
-    "dataset_rate": 0.20,
-    "github_rate": 0.10,
-    "preregistered_rate": 0.15,
-    "preprint_rate": 0.10,
+    "oa_rate": 0.30,
+    "open_material_rate": 0.30,
+    "registration_rate": 0.20,
+    "preprint_rate": 0.20,
+}
+# When a weighted metric is unavailable (legacy CSV), fall back to this column before dropping it.
+COMPOSITE_FALLBACKS: Dict[str, str] = {"registration_rate": "preregistered_rate"}
+COMPOSITE_LABELS: Dict[str, str] = {
+    "oa_rate": "open access",
+    "open_material_rate": "repository/materials (incl. GitHub and dataset repositories)",
+    "registration_rate": "registration signal",
+    "preregistered_rate": "preregistration (LLM)",
+    "preprint_rate": "preprint version",
+}
+
+# OpenAlex OA status: blues ramp for the open categories, grey for closed.
+OA_STATUS_ORDER = ["diamond", "gold", "hybrid", "green", "bronze", "closed"]
+OA_STATUS_COLORS = {
+    "diamond": "#08306b", "gold": "#2171b5", "hybrid": "#4292c6",
+    "green": "#6baed6", "bronze": "#c6dbef", "closed": "#bdbdbd",
+}
+# Data-availability-statement primary categories (see search_stroke_dois.DAS_CATEGORIES).
+DAS_ORDER = ["repository", "controlled_or_restricted", "on_request", "in_article",
+             "not_available_or_na", "other_or_unclear", "no_statement"]
+DAS_COLORS = {
+    "repository": "#08306b", "controlled_or_restricted": "#2171b5", "on_request": "#6baed6",
+    "in_article": "#c6dbef", "not_available_or_na": "#deebf7",
+    "other_or_unclear": "#d9d9d9", "no_statement": "#a6a6a6",
+}
+DAS_LABELS = {
+    "repository": "Public repository", "controlled_or_restricted": "Controlled / restricted",
+    "on_request": "On request", "in_article": "In article / supplement",
+    "not_available_or_na": "Not available / N/A", "other_or_unclear": "Other / unclear",
+    "no_statement": "No statement found",
 }
 
 METRIC_SPECS = [
     ("composite_index", "Open-science composite index (0–100)", "score",
-     "Weighted composite of OA, materials, dataset, GitHub, preregistration, and preprints. Higher = more open."),
+     "Weighted composite of open access, repository/materials, registration and preprint signals "
+     "(weights renormalised over available metrics). Higher = more open."),
     ("non_oa_open_signal_rate", "Signals beyond open access", "pct",
-     "Repository, preprint, or preregistration evidence, excluding plain open access."),
+     "Repository, preprint, or registration evidence, excluding plain open access."),
     ("oa_rate", "Open-access rate", "pct",
      "Share flagged as open access, regardless of richer open-science signals."),
     ("open_material_rate", "Repository and materials", "pct",
-     "Share with any repository, code, or data link."),
+     "Share with any repository, code, or data link (includes GitHub and dataset repositories)."),
     ("github_rate", "GitHub trace", "pct",
      "Share with a GitHub repository signal."),
     ("dataset_rate", "Dataset repository", "pct",
      "Share with a dataset in a public repository (DataCite, Dryad, Figshare, Dataverse)."),
-    ("preregistered_rate", "Preregistration trace", "pct",
-     "Share with preregistration evidence."),
-    ("preprint_rate", "Preprint trace", "pct",
-     "Share with a preprint server URL or identifier."),
+    ("registration_rate", "Registration signal", "pct",
+     "Share whose title or abstract cites a trial registry ID (NCT, ISRCTN, ChiCTR, ...), PROSPERO, "
+     "or preregistration wording (regex over all papers)."),
+    ("preregistered_rate", "Preregistration trace (LLM)", "pct",
+     "Share with preregistration evidence from the LLM extraction (candidate subset only)."),
+    ("preprint_rate", "Preprint version", "pct",
+     "Share with a preprint version on a preprint server (OpenAlex locations), falling back to a "
+     "preprint URL/identifier when metadata is missing."),
 ]
 
 PLATFORM_METRICS = [
@@ -67,10 +102,14 @@ GAP_METRICS = [
     ("open_material_rate", "Repository / materials"),
     ("dataset_rate", "Dataset sharing"),
     ("github_rate", "GitHub"),
-    ("preregistered_rate", "Preregistration"),
-    ("preprint_rate", "Preprint"),
+    ("registration_rate", "Registration signal"),
+    ("preregistered_rate", "Preregistration (LLM)"),
+    ("preprint_rate", "Preprint version"),
     ("composite_index_pct", "Composite index"),
 ]
+
+# Per-discipline corpus filter statistics, filled by prepare_discipline_panel for the data notes.
+CORPUS_FILTER_STATS: Dict[str, Dict[str, int]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +124,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--title", default="Open-Science Benchmark by Discipline")
     parser.add_argument("--focus-discipline", default="stroke",
                         help="Discipline to highlight in gap tracker (default: stroke)")
+    parser.add_argument("--impact-factor-threshold", type=float, default=10.0,
+                        help="Fallback for the footnote when high_impact_reason does not state the IF threshold")
+    parser.add_argument("--citation-percentile-threshold", type=float, default=90.0,
+                        help="Fallback for the footnote when high_impact_reason does not state the citation percentile")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
 
@@ -232,8 +275,82 @@ def resolve_display_title(requested_title: str, disciplines: List[str]) -> str:
 # Panel computation
 # ---------------------------------------------------------------------------
 
+def composite_index_from_rates(rates: Dict[str, object]) -> float:
+    """Weighted mean (0-100) of the ``COMPOSITE_WEIGHTS`` metrics present and non-NA in
+    ``rates``; a missing metric falls back to ``COMPOSITE_FALLBACKS`` or is dropped and the
+    remaining weights are renormalised so the index stays on a 0-100 scale."""
+    total_weight = 0.0
+    score = 0.0
+    for col, weight in COMPOSITE_WEIGHTS.items():
+        val = pd.to_numeric(rates.get(col), errors="coerce")
+        if pd.isna(val) and col in COMPOSITE_FALLBACKS:
+            val = pd.to_numeric(rates.get(COMPOSITE_FALLBACKS[col]), errors="coerce")
+        if pd.isna(val):
+            continue
+        score += float(val) * weight
+        total_weight += weight
+    if total_weight <= 0:
+        return float("nan")
+    return round(score / total_weight * 100.0, 2)
+
+
+def composite_description() -> str:
+    parts = [f"{COMPOSITE_LABELS.get(col, col)} ({weight:.0%})" for col, weight in COMPOSITE_WEIGHTS.items()]
+    fallbacks = "; ".join(
+        f"{COMPOSITE_LABELS.get(col, col)} falls back to {COMPOSITE_LABELS.get(alt, alt)} when unavailable"
+        for col, alt in COMPOSITE_FALLBACKS.items()
+    )
+    text = f"Composite index = weighted mean of {oxford_join(parts)}, scaled 0–100; weights are renormalised over the metrics available for each discipline-year."
+    if fallbacks:
+        text += f" {fallbacks[0].upper() + fallbacks[1:]}."
+    return text
+
+
+def infer_high_impact_settings(df: pd.DataFrame) -> Dict[str, float]:
+    """Recover the IF threshold and citation percentile from ``high_impact_reason`` strings
+    written by the pipeline (e.g. ``impact_factor>=10`` and ``cited_by_count>=57 (top 10.0%)``)."""
+    import re
+
+    out: Dict[str, float] = {}
+    if "high_impact_reason" not in df.columns:
+        return out
+    reasons = df["high_impact_reason"].dropna().astype(str)
+    reasons = reasons[reasons.str.strip().ne("")]
+    for reason in reasons.head(2000):
+        if "impact_factor_threshold" not in out:
+            m = re.search(r"impact_factor>=([0-9.]+)", reason)
+            if m:
+                out["impact_factor_threshold"] = float(m.group(1))
+        if "citation_percentile_threshold" not in out:
+            m = re.search(r"top ([0-9.]+)%", reason)
+            if m:
+                out["citation_percentile_threshold"] = round(100.0 - float(m.group(1)), 1)
+        if len(out) == 2:
+            break
+    return out
+
+
+def high_impact_description(settings: Dict[str, float]) -> str:
+    if_threshold = settings.get("impact_factor_threshold")
+    pct = settings.get("citation_percentile_threshold")
+    parts = []
+    if if_threshold is not None:
+        parts.append(f"journal IF ≥ {if_threshold:g}")
+    if pct is not None:
+        parts.append(f"citation count ≥ the {pct:g}th percentile of the discipline's papers, pooled across all years")
+    if not parts:
+        return "High-impact subset: see pipeline settings."
+    return "High-impact subset: " + " or ".join(parts) + "."
+
+
 def prepare_discipline_panel(df: pd.DataFrame, discipline: str) -> pd.DataFrame:
     out = df.copy()
+
+    if "in_article_corpus" in out.columns:
+        in_corpus = to_bool_series(out["in_article_corpus"])
+        CORPUS_FILTER_STATS[discipline] = {"kept": int(in_corpus.sum()), "dropped": int((~in_corpus).sum())}
+        logging.info("%s: keeping %d/%d rows flagged in_article_corpus", discipline, int(in_corpus.sum()), len(out))
+        out = out[in_corpus].copy()
 
     if "discipline" not in out.columns:
         out["discipline"] = discipline
@@ -254,7 +371,25 @@ def prepare_discipline_panel(df: pd.DataFrame, discipline: str) -> pd.DataFrame:
     out["has_code_link"] = nonblank(out.get("code_link", pd.Series(index=out.index, dtype=object)))
     out["has_data_link"] = nonblank(out.get("data_link", pd.Series(index=out.index, dtype=object)))
     out["has_repo_links"] = nonblank(out.get("repo_links", pd.Series(index=out.index, dtype=object)))
-    out["has_preprint"] = nonblank(out.get("preprint", pd.Series(index=out.index, dtype=object)))
+    has_preprint_text = nonblank(out.get("preprint", pd.Series(index=out.index, dtype=object)))
+    if "has_preprint_version" in out.columns and out["has_preprint_version"].notna().any():
+        # Metadata flag (OpenAlex preprint location) is available for every row.
+        out["has_preprint"] = to_bool_series(out["has_preprint_version"])
+    else:
+        out["has_preprint"] = has_preprint_text
+    if "registration_signal" in out.columns:
+        out["registration_bool"] = to_bool_series(out["registration_signal"])
+    else:
+        out["registration_bool"] = pd.Series(pd.NA, index=out.index, dtype="boolean")
+    oa_status = out.get("oa_status", pd.Series(index=out.index, dtype=object)).fillna("").astype(str).str.strip().str.lower()
+    for status in OA_STATUS_ORDER:
+        out[f"oa_status_{status}"] = oa_status.eq(status)
+    out["oa_status_known"] = oa_status.isin(OA_STATUS_ORDER)
+    das_available = to_bool_series(out.get("das_available", pd.Series(index=out.index, dtype=object)))
+    das_primary = out.get("das_primary", pd.Series(index=out.index, dtype=object)).fillna("").astype(str).str.strip().str.lower()
+    out["das_audited"] = das_available & das_primary.isin(DAS_ORDER)
+    for category in DAS_ORDER:
+        out[f"das_{category}"] = out["das_audited"] & das_primary.eq(category)
     out["has_public_dataset"] = (
         to_bool_series(out.get("has_public_dataset", pd.Series(index=out.index, dtype=object)))
         | nonblank(out.get("dataset_urls", pd.Series(index=out.index, dtype=object)))
@@ -264,8 +399,9 @@ def prepare_discipline_panel(df: pd.DataFrame, discipline: str) -> pd.DataFrame:
         | out["has_code_link"] | out["has_data_link"]
         | out["has_repo_links"] | out["has_public_dataset"]
     )
-    out["open_science_any"] = out["is_oa_bool"] | out["has_open_material"] | out["preregistered_bool"] | out["has_preprint"]
-    out["non_oa_open_signal"] = out["has_open_material"] | out["preregistered_bool"] | out["has_preprint"]
+    registration_any = out["registration_bool"].fillna(False).astype(bool) | out["preregistered_bool"]
+    out["open_science_any"] = out["is_oa_bool"] | out["has_open_material"] | registration_any | out["has_preprint"]
+    out["non_oa_open_signal"] = out["has_open_material"] | registration_any | out["has_preprint"]
     out["open_science_score"] = pd.to_numeric(out.get("open_science_score"), errors="coerce")
     out["cited_by_count"] = pd.to_numeric(out.get("cited_by_count"), errors="coerce")
 
@@ -281,26 +417,27 @@ def prepare_discipline_panel(df: pd.DataFrame, discipline: str) -> pd.DataFrame:
             osf_rate=("has_osf", "mean"),
             dataset_rate=("has_public_dataset", "mean"),
             preregistered_rate=("preregistered_bool", "mean"),
+            registration_rate=("registration_bool", "mean"),
             preprint_rate=("has_preprint", "mean"),
             high_impact_rate=("high_impact_bool", "mean"),
             non_oa_open_signal_rate=("non_oa_open_signal", "mean"),
             open_science_any_rate=("open_science_any", "mean"),
             mean_open_science_score=("open_science_score", "mean"),
             mean_citations=("cited_by_count", "mean"),
+            oa_status_known=("oa_status_known", "sum"),
+            das_audited=("das_audited", "sum"),
+            **{f"oa_status_{s}_count": (f"oa_status_{s}", "sum") for s in OA_STATUS_ORDER},
+            **{f"das_{c}_count": (f"das_{c}", "sum") for c in DAS_ORDER},
         )
         .sort_values(["discipline", "year"])
     )
+    grouped["registration_rate"] = pd.to_numeric(grouped["registration_rate"], errors="coerce")
+    if grouped.empty:
+        grouped["composite_index"] = pd.Series(dtype=float)
+        return grouped
 
-    # --- Composite index (0–100) per year ---
-    def _composite(row: pd.Series) -> float:
-        score = 0.0
-        for col, weight in COMPOSITE_WEIGHTS.items():
-            val = pd.to_numeric(row.get(col), errors="coerce")
-            if pd.notna(val):
-                score += float(val) * weight * 100
-        return round(score, 2)
-
-    grouped["composite_index"] = grouped.apply(_composite, axis=1)
+    # --- Composite index (0–100) per year, weights renormalised over available metrics ---
+    grouped["composite_index"] = grouped.apply(lambda row: composite_index_from_rates(row.to_dict()), axis=1)
 
     # --- High-impact subset year aggregation ---
     hi = out[out["high_impact_bool"]].copy()
@@ -332,16 +469,21 @@ def build_overall_summary(panel: pd.DataFrame) -> pd.DataFrame:
 
     rate_cols = [
         "oa_rate", "open_material_rate", "github_rate", "zenodo_rate", "osf_rate",
-        "dataset_rate", "preregistered_rate", "preprint_rate", "high_impact_rate",
+        "dataset_rate", "preregistered_rate", "registration_rate", "preprint_rate", "high_impact_rate",
         "non_oa_open_signal_rate", "open_science_any_rate",
     ]
+    count_cols = [c for c in panel.columns if c.endswith("_count") or c in {"oa_status_known", "das_audited"}]
     hi_cols = ["hi_oa_rate", "hi_open_material_rate", "hi_github_rate",
                "hi_dataset_rate", "hi_preregistered_rate", "hi_preprint_rate"]
 
     weighted = panel.copy()
     for col in rate_cols:
         if col in weighted.columns:
-            weighted[col + "_weighted"] = weighted[col] * weighted["papers"]
+            rate = pd.to_numeric(weighted[col], errors="coerce")
+            weighted[col + "_weighted"] = rate * weighted["papers"]
+            # Denominator counts only discipline-years where the rate is known, so a metric that
+            # is unavailable (legacy CSV) stays NA instead of collapsing to 0.
+            weighted[col + "_denom"] = weighted["papers"].where(rate.notna(), 0)
 
     hi_available = all(c in panel.columns for c in hi_cols)
     if hi_available:
@@ -358,10 +500,13 @@ def build_overall_summary(panel: pd.DataFrame) -> pd.DataFrame:
     }
     if hi_available:
         agg_dict["hi_papers_total"] = ("hi_papers", "sum")
+    for col in count_cols:
+        agg_dict[col] = (col, "sum")
 
     for col in rate_cols:
         if col + "_weighted" in weighted.columns:
             agg_dict[col + "_sum"] = (col + "_weighted", "sum")
+            agg_dict[col + "_denom"] = (col + "_denom", "sum")
 
     if hi_available:
         for col in hi_cols:
@@ -369,11 +514,11 @@ def build_overall_summary(panel: pd.DataFrame) -> pd.DataFrame:
 
     grouped = weighted.groupby("discipline", as_index=False).agg(**agg_dict)
 
-    denom = grouped["papers"].replace(0, pd.NA)
     for col in rate_cols:
         sum_col = col + "_sum"
         if sum_col in grouped.columns:
-            grouped[col] = grouped[sum_col] / denom
+            denom = pd.to_numeric(grouped[col + "_denom"], errors="coerce").replace(0, pd.NA)
+            grouped[col] = pd.to_numeric(grouped[sum_col] / denom, errors="coerce")
 
     if hi_available:
         hi_denom = grouped.get("hi_papers_total", pd.Series(dtype=float)).replace(0, pd.NA)
@@ -382,13 +527,29 @@ def build_overall_summary(panel: pd.DataFrame) -> pd.DataFrame:
             if sum_col in grouped.columns:
                 grouped[col] = grouped[sum_col] / hi_denom
 
+    # Full-period composite from the weighted rates (same weights/renormalisation as per year).
+    grouped["composite_index"] = grouped.apply(lambda row: composite_index_from_rates(row.to_dict()), axis=1)
     grouped["composite_index_pct"] = grouped["composite_index"] / 100.0
+
+    share_cols: List[str] = []
+    if "oa_status_known" in grouped.columns:
+        known = grouped["oa_status_known"].replace(0, pd.NA)
+        for status in OA_STATUS_ORDER:
+            grouped[f"oa_status_{status}_share"] = grouped[f"oa_status_{status}_count"] / known
+            share_cols.append(f"oa_status_{status}_share")
+        share_cols.append("oa_status_known")
+    if "das_audited" in grouped.columns:
+        audited = grouped["das_audited"].replace(0, pd.NA)
+        for category in DAS_ORDER:
+            grouped[f"das_{category}_share"] = grouped[f"das_{category}_count"] / audited
+            share_cols.append(f"das_{category}_share")
+        share_cols.append("das_audited")
 
     keep = ["discipline", "papers", "years_covered", "composite_index", "composite_index_pct",
             "oa_rate", "open_material_rate", "github_rate", "zenodo_rate", "osf_rate",
-            "dataset_rate", "preregistered_rate", "preprint_rate", "high_impact_rate",
+            "dataset_rate", "preregistered_rate", "registration_rate", "preprint_rate", "high_impact_rate",
             "non_oa_open_signal_rate", "open_science_any_rate",
-            "mean_open_science_score", "mean_citations"]
+            "mean_open_science_score", "mean_citations"] + share_cols
     if hi_available:
         keep += hi_cols
 
@@ -410,7 +571,7 @@ def compute_trend_slopes(panel_df: pd.DataFrame, n_years: int = 5) -> Dict[str, 
     max_year = int(panel_df["year"].max())
     recent = panel_df[panel_df["year"] >= max_year - n_years + 1].copy()
     metrics = ["oa_rate", "open_material_rate", "github_rate", "dataset_rate",
-               "preregistered_rate", "preprint_rate", "non_oa_open_signal_rate", "composite_index"]
+               "preregistered_rate", "registration_rate", "preprint_rate", "non_oa_open_signal_rate", "composite_index"]
     slopes: Dict[str, Dict[str, Optional[float]]] = {}
     for discipline in panel_df["discipline"].unique():
         sub = recent[recent["discipline"] == discipline].sort_values("year")
@@ -505,14 +666,25 @@ def build_narrative_summary(
             f"{discipline_label(best_data_d)} leads in dataset sharing at {best_data_r:.0%}."
         )
 
-    # --- Preregistration rarity ---
-    if "preregistered_rate" in overall_df.columns:
-        max_prereg = float(overall_df["preregistered_rate"].max())
-        if max_prereg < 0.05:
+    # --- Registration rarity ---
+    reg_col = "registration_rate" if "registration_rate" in overall_df.columns and overall_df["registration_rate"].notna().any() else "preregistered_rate"
+    if reg_col in overall_df.columns and overall_df[reg_col].notna().any():
+        max_reg = float(overall_df[reg_col].max())
+        if max_reg < 0.05:
+            label = "Registration signals remain" if reg_col == "registration_rate" else "Preregistration remains"
             sentences.append(
-                f"Preregistration remains rare across all disciplines (peak {max_prereg:.1%}), "
+                f"{label} rare across all disciplines (peak {max_reg:.1%}), "
                 f"representing the largest structural gap in open-science practice."
             )
+
+    # --- Data-availability statements ---
+    if "das_audited" in overall_df.columns and overall_df["das_audited"].fillna(0).sum() > 0:
+        audited = overall_df[overall_df["das_audited"].fillna(0) > 0]
+        best = audited.sort_values("das_repository_share", ascending=False).iloc[0]
+        sentences.append(
+            f"Among {int(audited['das_audited'].sum()):,} open-access full texts audited for a data-availability statement, "
+            f"{discipline_label(str(best['discipline']))} most often points to a public repository ({float(best['das_repository_share']):.0%})."
+        )
 
     # --- High-impact vs all ---
     if has_focus and "hi_dataset_rate" in overall_df.columns:
@@ -656,9 +828,11 @@ def build_heatmap_figure(overall_df: pd.DataFrame, palette: Dict[str, str]) -> o
         ("open_material_rate", "Repository\n& materials", "pct"),
         ("dataset_rate", "Dataset\nsharing", "pct"),
         ("github_rate", "GitHub", "pct"),
-        ("preregistered_rate", "Prereg.", "pct"),
+        ("registration_rate", "Registration", "pct"),
+        ("preregistered_rate", "Prereg.\n(LLM)", "pct"),
         ("preprint_rate", "Preprint", "pct"),
     ]
+    metrics = [m for m in metrics if m[0] in overall_df.columns and overall_df[m[0]].notna().any()]
 
     disciplines = overall_df["discipline"].astype(str).tolist()
     z_vals, text_vals = [], []
@@ -755,6 +929,63 @@ def build_platform_figure(panel_df: pd.DataFrame, palette: Dict[str, str]) -> ob
     fig.update_yaxes(tickformat=".0%", showgrid=True, gridcolor="rgba(17,24,39,0.07)", zeroline=False)
     fig.update_xaxes(showgrid=False)
     return fig
+
+
+def _stacked_share_figure(
+    overall_df: pd.DataFrame,
+    categories: List[str],
+    colors: Dict[str, str],
+    labels: Dict[str, str],
+    share_suffix: str,
+    prefix: str,
+    n_col: str,
+    n_label: str,
+) -> object:
+    import plotly.graph_objects as go
+
+    rows = overall_df[overall_df[n_col].fillna(0) > 0].sort_values("discipline") if n_col in overall_df.columns else overall_df.iloc[0:0]
+    fig = go.Figure()
+    y_labels = [f"{discipline_label(d)}<br><span style='font-size:10px;color:#6b7280'>{n_label} {int(n):,}</span>"
+                for d, n in zip(rows["discipline"], rows[n_col])]
+    for category in categories:
+        col = f"{prefix}{category}{share_suffix}"
+        vals = pd.to_numeric(rows.get(col), errors="coerce").fillna(0.0) if col in rows.columns else pd.Series(0.0, index=rows.index)
+        fig.add_trace(go.Bar(
+            name=labels.get(category, category),
+            y=y_labels, x=vals.tolist(), orientation="h",
+            marker_color=colors.get(category, "#9ca3af"),
+            marker_line={"width": 1, "color": "rgba(255,255,255,0.9)"},
+            text=[f"{v:.0%}" if v >= 0.06 else "" for v in vals],
+            textposition="inside", insidetextanchor="middle",
+            textfont={"size": 10, "color": "white" if category in categories[:3] else "#111827"},
+            hovertemplate="%{y}<br>" + labels.get(category, category) + ": %{x:.1%}<extra></extra>",
+        ))
+    fig.update_layout(
+        barmode="stack", template="none",
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin={"l": 10, "r": 20, "t": 6, "b": 40},
+        height=max(220, 70 * max(1, len(rows)) + 80),
+        legend={"orientation": "h", "y": -0.22, "x": 0.5, "xanchor": "center", "font": {"size": 10}, "traceorder": "normal"},
+        font={"family": "Georgia,'Iowan Old Style','Palatino Linotype',serif", "color": "#111827"},
+    )
+    fig.update_xaxes(tickformat=".0%", range=[0, 1], showgrid=True, gridcolor="rgba(17,24,39,0.07)", zeroline=False)
+    fig.update_yaxes(showgrid=False, autorange="reversed")
+    return fig
+
+
+def build_oa_status_figure(overall_df: pd.DataFrame) -> object:
+    """Stacked share of OpenAlex OA status (diamond/gold/hybrid/green/bronze/closed) per discipline."""
+    return _stacked_share_figure(
+        overall_df, OA_STATUS_ORDER, OA_STATUS_COLORS, {s: s.title() for s in OA_STATUS_ORDER},
+        "_share", "oa_status_", "oa_status_known", "n =",
+    )
+
+
+def build_das_figure(overall_df: pd.DataFrame) -> object:
+    """Stacked share of data-availability-statement categories among audited full texts."""
+    return _stacked_share_figure(
+        overall_df, DAS_ORDER, DAS_COLORS, DAS_LABELS, "_share", "das_", "das_audited", "audited",
+    )
 
 
 def build_highimpact_comparison_figure(overall_df: pd.DataFrame, palette: Dict[str, str]) -> object:
@@ -961,6 +1192,7 @@ def build_summary_table_html(overall_df: pd.DataFrame, palette: Dict[str, str]) 
             f"<td>{format_percent(row.get('open_material_rate'))}</td>"
             f"<td>{format_percent(row.get('dataset_rate'))}</td>"
             f"<td>{format_percent(row.get('github_rate'))}</td>"
+            f"<td>{format_percent(row.get('registration_rate'))}</td>"
             f"<td>{format_percent(row.get('preregistered_rate'))}</td>"
             f"<td>{format_percent(row.get('preprint_rate'))}</td>"
             f"<td>{format_float(row.get('mean_citations'), 0)}</td>"
@@ -972,7 +1204,7 @@ def build_summary_table_html(overall_df: pd.DataFrame, palette: Dict[str, str]) 
         "<thead><tr>"
         "<th>Discipline</th><th>Index</th><th>Papers</th>"
         "<th>OA</th><th>Materials</th><th>Dataset</th>"
-        "<th>GitHub</th><th>Prereg.</th><th>Preprint</th><th>Mean cites</th>"
+        "<th>GitHub</th><th>Registration</th><th>Prereg. (LLM)</th><th>Preprint</th><th>Mean cites</th>"
         "</tr></thead>"
         f"<tbody>{''.join(rows)}</tbody>"
         "</table>"
@@ -988,6 +1220,14 @@ def build_data_notes_html(panel: pd.DataFrame, overall_df: pd.DataFrame) -> str:
         notes.append("Single-discipline mode — cross-field comparisons will only appear once other cohorts finish.")
     if panel["year"].nunique() <= 2:
         notes.append("Year coverage is narrow; trend lines are descriptive only.")
+    filtered = {d: s for d, s in CORPUS_FILTER_STATS.items() if d in set(overall_df["discipline"].astype(str))}
+    if filtered:
+        dropped = sum(s["dropped"] for s in filtered.values())
+        kept = sum(s["kept"] for s in filtered.values())
+        notes.append(
+            f"Rates are computed over journal articles and reviews only (in_article_corpus): {kept:,} kept, "
+            f"{dropped:,} records (datasets, preprint records, errata, repository items) excluded."
+        )
     if not notes:
         return ""
     return (
@@ -1005,6 +1245,7 @@ def build_data_notes_html(panel: pd.DataFrame, overall_df: pd.DataFrame) -> str:
 def build_dashboard_html(
     panel: pd.DataFrame, overall_df: pd.DataFrame,
     out_path: Path, title: str, focus_discipline: str = "stroke",
+    high_impact_settings: Optional[Dict[str, float]] = None,
 ) -> None:
     try:
         import plotly  # noqa: F401
@@ -1040,10 +1281,44 @@ def build_dashboard_html(
         '<section class="section-block">'
         '<div class="section-header"><div class="section-kicker">At a glance</div>'
         '<h2>Cross-discipline open-science snapshot</h2>'
-        '<p>Full-period weighted averages per discipline. Composite index (0–100) combines OA, materials, data, GitHub, preregistration, and preprints.</p></div>'
+        f'<p>Full-period weighted averages per discipline. {html.escape(composite_description())}</p></div>'
         f'<div class="chart-full">{heatmap_html}</div>'
         '</section>'
     )
+
+    # --- OA status + data-availability statements ---
+    has_oa_status = "oa_status_known" in overall_df.columns and overall_df["oa_status_known"].fillna(0).sum() > 0
+    has_das = "das_audited" in overall_df.columns and overall_df["das_audited"].fillna(0).sum() > 0
+    if has_oa_status or has_das:
+        cards: List[str] = []
+        if has_oa_status:
+            oa_html = plotly_fragment(build_oa_status_figure(overall_df), include_plotlyjs=False)
+            cards.append(
+                '<div class="chart-card">'
+                '<div class="chart-kicker">Open-access route</div>'
+                '<h3>How papers are open</h3>'
+                '<p>OpenAlex OA status among papers with known status: diamond and gold (fully OA journals), '
+                'hybrid, green (repository copy), bronze (free to read, no licence), closed.</p>'
+                f'{oa_html}</div>'
+            )
+        if has_das:
+            das_html = plotly_fragment(build_das_figure(overall_df), include_plotlyjs=False)
+            cards.append(
+                '<div class="chart-card">'
+                '<div class="chart-kicker">Data-availability statements</div>'
+                '<h3>What the statements actually say</h3>'
+                '<p>Regex classification of the data-availability section in a per-year sample of open-access '
+                'full texts from Europe PMC (one primary label per article). Open-access full text only, so '
+                'rates are optimistic relative to all articles.</p>'
+                f'{das_html}</div>'
+            )
+        figure_sections.append(
+            '<section class="section-block">'
+            '<div class="section-header"><div class="section-kicker">Access and data</div>'
+            '<h2>Open-access routes and data-availability statements</h2></div>'
+            f'<div class="{"charts-2col" if len(cards) == 2 else "chart-full"}">{"".join(cards)}</div>'
+            '</section>'
+        )
 
     # --- Platform breakdown + High-impact comparison ---
     platform_fig = build_platform_figure(panel, palette)
@@ -1064,7 +1339,7 @@ def build_dashboard_html(
         '<div class="chart-card">'
         '<div class="chart-kicker">High-impact vs all papers</div>'
         '<h3>Do high-impact papers share more?</h3>'
-        f'<p>Solid bars = all papers; hatched = high-impact subset (IF ≥ 10 or citation ≥ 90th pct).</p>{hi_html}</div>'
+        f'<p>Solid bars = all papers; hatched = high-impact subset. {html.escape(high_impact_description(high_impact_settings or {}))}</p>{hi_html}</div>'
         '</div></section>'
     )
 
@@ -1441,9 +1716,8 @@ def build_dashboard_html(
     <p>Weighted rates across the full observation window, ranked by composite open-science index.</p>
     <div class="table-wrap">{summary_table_markup}</div>
     <p class="footnote">
-      Composite index = weighted average of OA (20%), repository/materials (25%), dataset sharing (20%),
-      GitHub (10%), preregistration (15%), and preprints (10%), scaled 0–100.
-      High-impact: IF ≥ 10 or citation ≥ 90th percentile within discipline-year.
+      {html.escape(composite_description())}
+      {html.escape(high_impact_description(high_impact_settings or {}))}
       Color palette: viridis-derived.
     </p>
   </section>
@@ -1464,7 +1738,7 @@ def empty_year_summary_df() -> pd.DataFrame:
     return pd.DataFrame(columns=[
         "discipline", "year", "papers", "oa_rate", "open_material_rate",
         "github_rate", "zenodo_rate", "osf_rate", "dataset_rate",
-        "preregistered_rate", "preprint_rate", "high_impact_rate",
+        "preregistered_rate", "registration_rate", "preprint_rate", "high_impact_rate",
         "non_oa_open_signal_rate", "open_science_any_rate",
         "mean_open_science_score", "mean_citations", "composite_index",
     ])
@@ -1474,7 +1748,7 @@ def empty_overall_summary_df() -> pd.DataFrame:
     return pd.DataFrame(columns=[
         "discipline", "papers", "years_covered", "composite_index",
         "oa_rate", "open_material_rate", "github_rate", "zenodo_rate",
-        "osf_rate", "dataset_rate", "preregistered_rate", "preprint_rate",
+        "osf_rate", "dataset_rate", "preregistered_rate", "registration_rate", "preprint_rate",
         "high_impact_rate", "non_oa_open_signal_rate", "open_science_any_rate",
         "mean_open_science_score", "mean_citations",
     ])
@@ -1493,12 +1767,15 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     panels: List[pd.DataFrame] = []
+    high_impact_settings: Dict[str, float] = {}
     for discipline, path in inputs.items():
         if not path.exists():
             logging.warning("Missing input CSV for %s: %s", discipline, path)
             continue
         logging.info("Loading %s: %s", discipline, path)
         df = pd.read_csv(path, low_memory=False)
+        for key, value in infer_high_impact_settings(df).items():
+            high_impact_settings.setdefault(key, value)
         panel = prepare_discipline_panel(df, discipline)
         if panel.empty:
             logging.warning("No usable rows for %s after preprocessing.", discipline)
@@ -1523,8 +1800,13 @@ def main() -> int:
     logging.info("Saved overall summary: %s", overall_csv)
 
     focus = getattr(args, "focus_discipline", "stroke")
+    high_impact_settings.setdefault("impact_factor_threshold", float(args.impact_factor_threshold))
+    high_impact_settings.setdefault("citation_percentile_threshold", float(args.citation_percentile_threshold))
     dashboard_html = out_dir / "discipline_dashboard.html"
-    build_dashboard_html(panel_df, overall_df, dashboard_html, args.title, focus_discipline=focus)
+    build_dashboard_html(
+        panel_df, overall_df, dashboard_html, args.title,
+        focus_discipline=focus, high_impact_settings=high_impact_settings,
+    )
     if dashboard_html.exists():
         logging.info("Saved dashboard HTML: %s", dashboard_html)
 
