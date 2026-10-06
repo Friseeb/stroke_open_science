@@ -356,6 +356,15 @@
 
   // ------------------------------------------------------------------ renderers
   function renderAll() {
+    // Decide card visibility first so chart widths are measured against the final grid layout.
+    const d = focusDisc();
+    $("das-card").hidden = !d.available.das;
+    $("country-card").hidden = !d.available.country;
+    $("funder-card").hidden = !d.available.funders;
+    for (const grid of document.querySelectorAll(".grid-2")) {
+      const visible = [...grid.children].filter((c) => !c.hidden).length;
+      grid.classList.toggle("is-single", visible <= 1);
+    }
     renderTiles();
     renderTrend();
     renderOaStatus();
@@ -363,10 +372,6 @@
     renderJournals();
     renderCountries();
     renderFunders();
-    for (const grid of document.querySelectorAll(".grid-2")) {
-      const visible = [...grid.children].filter((c) => !c.hidden).length;
-      grid.classList.toggle("is-single", visible <= 1);
-    }
   }
 
   function renderTiles() {
