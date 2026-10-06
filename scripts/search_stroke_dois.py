@@ -26,7 +26,7 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import quote
@@ -268,6 +268,7 @@ class PipelinePaths:
     enrich_cache: Path
     llm_cache: Path
     retrieval_slices_dir: Path
+    openalex_metadata_cache: Path = Path("openalex_metadata_cache.jsonl")
 
 
 @dataclass
@@ -322,6 +323,8 @@ class PipelineConfig:
     citation_percentile_threshold: float
     verbose: bool
     openalex_budget_wait_max_hours: float = 30.0
+    backfill_openalex_metadata: bool = False
+    openalex_metadata_min_budget_remaining: int = 150
 
 
 def parse_dotenv_file(path: Path) -> Dict[str, str]:
@@ -468,6 +471,25 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
     parser.add_argument("--max-per-query", type=int, default=0, help="0 means unlimited")
     parser.add_argument("--refresh-openalex", action="store_true")
     parser.add_argument("--force", action="store_true", help="Overwrite existing full output")
+    parser.add_argument(
+        "--backfill-openalex-metadata",
+        action="store_true",
+        help=(
+            "For an existing retrieval dataset that predates the work-metadata columns (work_type, "
+            "oa_status, locations, countries, funders), look the DOIs up on OpenAlex in batches of 50 "
+            "(filter=doi:a|b|...). Results are cached in openalex_metadata_cache.jsonl and the run is "
+            "resumable. New retrievals capture these fields directly and do not need this flag."
+        ),
+    )
+    parser.add_argument(
+        "--openalex-metadata-min-budget-remaining",
+        type=int,
+        default=150,
+        help=(
+            "During the metadata backfill, pause for the daily budget reset once X-RateLimit-Remaining "
+            "drops below this many requests (keeps headroom for other OpenAlex jobs)."
+        ),
+    )
 
     parser.add_argument(
         "--unpaywall-snapshot",
@@ -531,6 +553,7 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
         enrich_cache=output_dir / args.enrich_cache,
         llm_cache=output_dir / args.llm_cache,
         retrieval_slices_dir=output_dir / "retrieval_slices",
+        openalex_metadata_cache=output_dir / "openalex_metadata_cache.jsonl",
     )
 
     cfg = PipelineConfig(
@@ -555,6 +578,8 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
         openalex_max_failures_per_query=max(1, args.openalex_max_failures_per_query),
         openalex_max_retry_after_seconds=max(5, args.openalex_max_retry_after_seconds),
         openalex_budget_wait_max_hours=max(0.0, args.openalex_budget_wait_max_hours),
+        backfill_openalex_metadata=bool(args.backfill_openalex_metadata),
+        openalex_metadata_min_budget_remaining=max(0, args.openalex_metadata_min_budget_remaining),
         max_per_query=max(0, args.max_per_query),
         refresh_openalex=args.refresh_openalex,
         force=args.force,
@@ -1832,6 +1857,316 @@ def search_openalex_term_date_range(
         f" ({budget_waits} budget wait(s))" if budget_waits else "",
     )
     return OpenAlexSliceResult(records, complete=True, pages=pages)
+
+
+# ---------------------------------------------------------------------------
+# OpenAlex work-metadata backfill (batched DOI lookups, resumable JSONL cache)
+# ---------------------------------------------------------------------------
+
+OPENALEX_METADATA_BATCH_SIZE = 50
+OPENALEX_METADATA_MISSING_KEY = "_missing"
+OPENALEX_FILTER_UNSAFE_CHARS = (",", "|")
+
+
+@dataclass
+class OpenAlexDoiBatchResult:
+    """Outcome of one batched ``filter=doi:a|b|...`` request."""
+
+    status: str  # "ok" | "bad_request" | "failed" | "stop"
+    works: List[Dict[str, Any]] = field(default_factory=list)
+    rate_limit: Dict[str, Any] = field(default_factory=dict)
+
+
+def load_openalex_metadata_cache(path: Path) -> Dict[str, Optional[Dict[str, Any]]]:
+    """Read the JSONL cache: DOI -> flattened metadata record, or None when OpenAlex had no work
+    for that DOI (recorded as ``{"_missing": [...]}`` lines so they are not re-requested)."""
+    cache: Dict[str, Optional[Dict[str, Any]]] = {}
+    if not path.exists():
+        return cache
+    with path.open("r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(rec, dict):
+                continue
+            for missing_doi in rec.get(OPENALEX_METADATA_MISSING_KEY) or []:
+                key = normalize_doi(missing_doi)
+                if key:
+                    cache.setdefault(key, None)
+            doi = normalize_doi(rec.get("doi_norm") or rec.get("doi") or "")
+            if doi and OPENALEX_METADATA_MISSING_KEY not in rec:
+                cache[doi] = rec
+    return cache
+
+
+def append_openalex_metadata_cache(path: Path, records: Sequence[Dict[str, Any]], missing: Sequence[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        for rec in records:
+            handle.write(json.dumps(make_json_safe(rec), ensure_ascii=False) + "\n")
+        if missing:
+            handle.write(json.dumps({OPENALEX_METADATA_MISSING_KEY: list(missing)}) + "\n")
+        handle.flush()
+
+
+def _doi_norm_series(df: pd.DataFrame) -> pd.Series:
+    if "doi_norm" in df.columns:
+        return df["doi_norm"].fillna("").astype(str).map(normalize_doi)
+    return df.get("doi", pd.Series("", index=df.index)).fillna("").astype(str).map(normalize_doi)
+
+
+def _metadata_missing_mask(df: pd.DataFrame) -> pd.Series:
+    if "work_type" not in df.columns:
+        return pd.Series(True, index=df.index)
+    return df["work_type"].fillna("").astype(str).str.strip().replace({"nan": "", "None": "", "<NA>": ""}).eq("")
+
+
+def apply_openalex_metadata_cache(df: pd.DataFrame, cache: Dict[str, Optional[Dict[str, Any]]]) -> pd.DataFrame:
+    """Fill ``OPENALEX_METADATA_COLS`` for rows whose metadata is blank and whose DOI is cached."""
+    if df.empty:
+        return df
+    for col in OPENALEX_METADATA_TEXT_COLS:
+        if col not in df.columns:
+            df[col] = ""
+    for col in OPENALEX_METADATA_BOOL_COLS:
+        if col not in df.columns:
+            df[col] = pd.Series([pd.NA] * len(df), index=df.index, dtype="boolean")
+    found = {doi: rec for doi, rec in cache.items() if isinstance(rec, dict)}
+    if not found:
+        return df
+    doi_norm = _doi_norm_series(df)
+    mask = _metadata_missing_mask(df) & doi_norm.isin(found.keys())
+    if not mask.any():
+        return df
+    meta = pd.DataFrame.from_dict(found, orient="index")
+    aligned = meta.reindex(doi_norm[mask].to_numpy())
+    for col in OPENALEX_METADATA_TEXT_COLS:
+        values = aligned[col] if col in aligned.columns else pd.Series("", index=aligned.index)
+        df.loc[mask, col] = values.fillna("").astype(str).replace({"nan": "", "None": ""}).to_numpy()
+    for col in OPENALEX_METADATA_BOOL_COLS:
+        values = aligned[col] if col in aligned.columns else pd.Series(pd.NA, index=aligned.index)
+        df[col] = coerce_nullable_bool(df[col])
+        df.loc[mask, col] = coerce_nullable_bool(values.reset_index(drop=True)).to_numpy()
+    logging.info("Applied cached OpenAlex work metadata to %d rows.", int(mask.sum()))
+    return df
+
+
+def fetch_openalex_works_by_doi(
+    session: requests.Session,
+    dois: Sequence[str],
+    mailto: str,
+    api_key: str,
+    timeout_seconds: int,
+    max_attempts: int,
+    max_retry_after_seconds: int,
+    budget_wait_max_hours: float,
+    context: str = "metadata backfill",
+) -> OpenAlexDoiBatchResult:
+    """One ``filter=doi:a|b|...`` lookup (<= 50 DOIs). On a keyed 429 that signals budget
+    exhaustion the key is kept and the call sleeps until the reset (bounded by
+    ``budget_wait_max_hours``) before retrying the same batch; ``status="stop"`` means the wait
+    exceeded the cap and the caller should stop and resume on a later run."""
+    url = "https://api.openalex.org/works"
+    params: Dict[str, Any] = {
+        "filter": "doi:" + "|".join(dois),
+        "per_page": max(1, min(OPENALEX_METADATA_BATCH_SIZE, len(dois))),
+        "select": OPENALEX_METADATA_SELECT_FIELDS,
+    }
+    if mailto:
+        params["mailto"] = mailto
+    active_api_key = str(api_key or "").strip()
+    if active_api_key:
+        params["api_key"] = active_api_key
+
+    rate_limit: Dict[str, Any] = {}
+    attempt = 0
+    while attempt < max(1, max_attempts):
+        try:
+            resp = session.get(url, params=params, timeout=timeout_seconds)
+        except Exception:
+            attempt += 1
+            logging.warning("Request exception on OpenAlex %s (attempt %d/%d)", context, attempt, max_attempts)
+            time.sleep(min(30.0, 2.0 ** attempt))
+            continue
+        rate_limit = parse_openalex_rate_limit_headers(getattr(resp, "headers", None)) or rate_limit
+        status = resp.status_code
+        if status == 200:
+            try:
+                payload = resp.json()
+            except Exception:
+                attempt += 1
+                continue
+            works = payload.get("results") if isinstance(payload, dict) else None
+            return OpenAlexDoiBatchResult("ok", list(works or []), rate_limit)
+        if status == 429:
+            remaining = openalex_requests_remaining(rate_limit)
+            if active_api_key and remaining is None:
+                probed = inspect_openalex_rate_limit(session, active_api_key, timeout_seconds)
+                if probed:
+                    rate_limit = {**rate_limit, **probed}
+                    remaining = openalex_requests_remaining(rate_limit)
+            if active_api_key and remaining is not None and remaining <= 0:
+                if wait_for_openalex_budget_reset(rate_limit, budget_wait_max_hours, context=context):
+                    continue  # same batch, same key
+                return OpenAlexDoiBatchResult("stop", [], rate_limit)
+            attempt += 1
+            retry_after = _coerce_float(resp.headers.get("Retry-After")) if getattr(resp, "headers", None) else None
+            sleep_s = retry_after if retry_after is not None else min(30.0, 5.0 + 3.0 * attempt)
+            sleep_s = min(sleep_s, float(max_retry_after_seconds))
+            logging.warning("Rate limited on OpenAlex %s (attempt %d/%d); sleeping %.1fs", context, attempt, max_attempts, sleep_s)
+            time.sleep(sleep_s)
+            continue
+        if status == 400:
+            return OpenAlexDoiBatchResult("bad_request", [], rate_limit)
+        if status >= 500:
+            attempt += 1
+            logging.warning("Server error %s on OpenAlex %s (attempt %d/%d)", status, context, attempt, max_attempts)
+            time.sleep(min(30.0, 2.0 ** attempt))
+            continue
+        logging.warning("HTTP %s on OpenAlex %s (not retrying).", status, context)
+        return OpenAlexDoiBatchResult("failed", [], rate_limit)
+    return OpenAlexDoiBatchResult("failed", [], rate_limit)
+
+
+def run_openalex_metadata_backfill(
+    df: pd.DataFrame,
+    cfg: PipelineConfig,
+    paths: PipelinePaths,
+    session: requests.Session,
+) -> Tuple[pd.DataFrame, bool]:
+    """Backfill stage: fill the work-metadata columns for rows that lack them.
+
+    The JSONL cache is always applied when present. Network lookups run only with
+    ``--backfill-openalex-metadata``; they are batched 50 DOIs per request, cached after every
+    batch (resumable), never drop the API key, and sleep through budget resets or stop early when
+    the wait exceeds ``--openalex-budget-wait-max-hours``. Returns ``(df, complete)``."""
+    cache = load_openalex_metadata_cache(paths.openalex_metadata_cache)
+    if cache:
+        df = apply_openalex_metadata_cache(df, cache)
+    if not cfg.backfill_openalex_metadata:
+        return df, True
+
+    doi_norm = _doi_norm_series(df)
+    needed = sorted({d for d in doi_norm[_metadata_missing_mask(df) & doi_norm.ne("")].unique() if d})
+    unsafe = [d for d in needed if any(ch in d for ch in OPENALEX_FILTER_UNSAFE_CHARS)]
+    if unsafe:
+        logging.info("Skipping %d DOIs with characters OpenAlex filters cannot encode.", len(unsafe))
+    todo = [d for d in needed if d not in cache and d not in set(unsafe)]
+    n_batches = (len(todo) + OPENALEX_METADATA_BATCH_SIZE - 1) // OPENALEX_METADATA_BATCH_SIZE
+    logging.info(
+        "OpenAlex metadata backfill: %d DOIs lack metadata, %d cached, %d to fetch (~%d requests, ~$%.2f).",
+        len(needed),
+        len(needed) - len(todo) - len(unsafe),
+        len(todo),
+        n_batches,
+        0.0001 * n_batches,
+    )
+    if not todo:
+        return df, True
+    if not cfg.openalex_api_key:
+        logging.warning("No OPENALEX_API_KEY configured; the metadata backfill will be heavily throttled.")
+    else:
+        ensure_openalex_budget_available(cfg, session)
+
+    def _fetch(batch: Sequence[str]) -> OpenAlexDoiBatchResult:
+        return fetch_openalex_works_by_doi(
+            session,
+            batch,
+            cfg.openalex_mailto,
+            cfg.openalex_api_key,
+            cfg.openalex_timeout_seconds,
+            cfg.openalex_max_attempts,
+            cfg.openalex_max_retry_after_seconds,
+            cfg.openalex_budget_wait_max_hours,
+        )
+
+    stopped = False
+    stop_reason = ""
+    consecutive_failures = 0
+    n_requests = 0
+    n_found = 0
+    for start in tqdm(range(0, len(todo), OPENALEX_METADATA_BATCH_SIZE), desc="OpenAlex metadata"):
+        batch = todo[start : start + OPENALEX_METADATA_BATCH_SIZE]
+        result = _fetch(batch)
+        n_requests += 1
+        if result.status == "stop":
+            stopped, stop_reason = True, "budget_wait_exceeded"
+            break
+        if result.status == "failed":
+            consecutive_failures += 1
+            if consecutive_failures >= cfg.openalex_max_failures_per_query:
+                stopped, stop_reason = True, "max_failures"
+                break
+            continue
+        consecutive_failures = 0
+        works = result.works
+        if result.status == "bad_request":
+            # Usually one malformed DOI in the batch: retry them one at a time.
+            works = []
+            for doi in batch:
+                single = _fetch([doi])
+                n_requests += 1
+                if single.status == "stop":
+                    stopped, stop_reason = True, "budget_wait_exceeded"
+                    break
+                if single.status == "ok":
+                    works.extend(single.works)
+                if cfg.openalex_delay_seconds > 0:
+                    time.sleep(cfg.openalex_delay_seconds)
+            if stopped:
+                break
+        records: List[Dict[str, Any]] = []
+        found: set = set()
+        for work in works:
+            if not isinstance(work, dict):
+                continue
+            doi = normalize_doi(work.get("doi") or "")
+            if not doi:
+                continue
+            rec = {"doi_norm": doi, "openalex_id": str(work.get("id") or ""), **flatten_openalex_work_metadata(work)}
+            records.append(rec)
+            found.add(doi)
+            cache[doi] = rec
+        missing = [d for d in batch if d not in found]
+        for d in missing:
+            cache[d] = None
+        append_openalex_metadata_cache(paths.openalex_metadata_cache, records, missing)
+        n_found += len(found)
+
+        remaining = openalex_requests_remaining(result.rate_limit)
+        if cfg.openalex_api_key and remaining is not None and remaining < cfg.openalex_metadata_min_budget_remaining:
+            logging.warning(
+                "OpenAlex budget headroom reached (remaining=%d < %d); waiting for the daily reset before continuing.",
+                remaining,
+                cfg.openalex_metadata_min_budget_remaining,
+            )
+            if not wait_for_openalex_budget_reset(result.rate_limit, cfg.openalex_budget_wait_max_hours, context="metadata backfill headroom"):
+                stopped, stop_reason = True, "budget_wait_exceeded"
+                break
+        if n_requests % 50 == 0:
+            logging.info("OpenAlex metadata backfill: %d requests, %d/%d DOIs processed, %d works found, remaining=%s", n_requests, min(start + OPENALEX_METADATA_BATCH_SIZE, len(todo)), len(todo), n_found, remaining)
+        if cfg.openalex_delay_seconds > 0:
+            time.sleep(cfg.openalex_delay_seconds)
+
+    df = apply_openalex_metadata_cache(df, cache)
+    if stopped:
+        logging.warning(
+            "OpenAlex metadata backfill stopped early (%s) after %d requests; %d works cached so far in %s. "
+            "Re-run with --backfill-openalex-metadata to resume; rows without metadata fall back to the "
+            "journal-name corpus rule.",
+            stop_reason,
+            n_requests,
+            n_found,
+            paths.openalex_metadata_cache,
+        )
+        return df, False
+    logging.info("OpenAlex metadata backfill complete: %d requests, %d works found.", n_requests, n_found)
+    return df, True
 
 
 def read_csv_if_exists(path: Path) -> Optional[pd.DataFrame]:
@@ -3855,6 +4190,12 @@ def main() -> int:
     df = fetch_or_load_openalex(cfg, paths, session)
     df = standardize_dataframe(df)
     df = ensure_discipline(df, cfg.discipline)
+
+    df, backfill_complete = run_openalex_metadata_backfill(df, cfg, paths, session)
+    if cfg.backfill_openalex_metadata and backfill_complete:
+        # Persist the metadata into the retrieval dataset so later runs need no backfill.
+        write_csv_atomic(df, paths.raw_csv)
+        logging.info("Rewrote retrieval dataset with OpenAlex work metadata: %s", paths.raw_csv)
 
     df = apply_snapshots(df, cfg)
     df = standardize_dataframe(df)

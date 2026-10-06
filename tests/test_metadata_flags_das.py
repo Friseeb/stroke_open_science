@@ -138,3 +138,170 @@ def test_standardize_dataframe_adds_metadata_columns_for_legacy_rows():
     assert out.loc[0, "work_type"] == ""
     assert pd.isna(out.loc[0, "has_preprint_version"])
     assert str(out["has_preprint_version"].dtype) == "boolean"
+
+
+# ── OpenAlex metadata backfill (batched DOI lookups, resumable cache) ──────────
+
+class FakeResponse:
+    def __init__(self, status_code: int, payload=None, headers=None):
+        self.status_code = status_code
+        self._payload = payload if payload is not None else {}
+        self.headers = headers or {}
+
+    def json(self):
+        return self._payload
+
+
+class FakeSession:
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.calls = []
+
+    def get(self, url, params=None, timeout=None):
+        self.calls.append({"url": url, "params": dict(params or {})})
+        if not self._responses:
+            raise AssertionError("FakeSession ran out of scripted responses")
+        return self._responses.pop(0)
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    slept = []
+    monkeypatch.setattr(pipeline.time, "sleep", lambda s: slept.append(s))
+    return slept
+
+
+def _meta_work(doi: str, work_type: str = "article", oa_status: str = "gold", preprint: bool = False) -> Dict[str, Any]:
+    locations = [{"source": _journal_source("J")}]
+    if preprint:
+        locations.append({"source": _repository_source("medRxiv (Cold Spring Harbor Laboratory)")})
+    return {
+        "id": f"https://openalex.org/W-{doi}",
+        "doi": f"https://doi.org/{doi}",
+        "type": work_type,
+        "open_access": {"oa_status": oa_status},
+        "primary_location": {"source": _journal_source("J")},
+        "locations": locations,
+        "authorships": [{"countries": ["GB"]}],
+        "funders": [],
+    }
+
+
+def _cfg(tmp_path: Path, **overrides) -> Any:
+    import dataclasses
+
+    fields = {f.name: None for f in dataclasses.fields(pipeline.PipelineConfig)}
+    fields.update(
+        discipline="stroke", terms=["stroke"], years=[2020], query_window_months=12, include_pubmed=False,
+        pubmed_email="", pubmed_api_key="", pubmed_tool="t", pubmed_delay_seconds=0, pubmed_timeout_seconds=5,
+        pubmed_max_attempts=1, pubmed_batch_size=1, openalex_mailto="me@example.org", openalex_api_key="secret-key",
+        openalex_workers=1, openalex_delay_seconds=0.0, openalex_timeout_seconds=5, openalex_max_attempts=2,
+        openalex_max_failures_per_query=2, openalex_max_retry_after_seconds=5, max_per_query=0,
+        refresh_openalex=False, force=False, unpaywall_snapshot="", crossref_relations="", disable_api_enrich=True,
+        disable_dataset_search=True, api_concurrency=1, api_delay_seconds=0, max_api_lookups=0, cache_flush_every=1,
+        embedding_top_k=0, embedding_model="", embedding_batch_size=1, embedding_device="cpu", llm_provider="openai",
+        llm_max_items=0, llm_model="", llm_temperature=0.0, ollama_base_url="", ollama_model="", llm_use_fulltext=False,
+        fulltext_char_limit=1000, llm_max_fulltext_fetch=0, preview_rows=0, journal_metrics_csv="",
+        impact_factor_threshold=10.0, citation_percentile_threshold=90.0, verbose=False,
+        openalex_budget_wait_max_hours=30.0, backfill_openalex_metadata=True, openalex_metadata_min_budget_remaining=0,
+    )
+    fields.update(overrides)
+    return pipeline.PipelineConfig(**fields)
+
+
+def _paths(tmp_path: Path) -> Any:
+    return pipeline.PipelinePaths(
+        output_dir=tmp_path, raw_csv=tmp_path / "raw.csv", preview_csv=tmp_path / "p.csv", full_csv=tmp_path / "f.csv",
+        high_impact_csv=tmp_path / "h.csv", enrich_cache=tmp_path / "e.json", llm_cache=tmp_path / "l.json",
+        retrieval_slices_dir=tmp_path / "slices", openalex_metadata_cache=tmp_path / "openalex_metadata_cache.jsonl",
+    )
+
+
+def _legacy_df(dois):
+    return pipeline.standardize_dataframe(pd.DataFrame([{"doi": d, "title": f"paper {d}", "journal": "J", "year": 2020} for d in dois]))
+
+
+def test_backfill_waits_on_budget_429_keeps_key_and_caches(tmp_path, no_sleep, monkeypatch):
+    monkeypatch.setattr(pipeline, "ensure_openalex_budget_available", lambda cfg, session: None)
+    dois = [f"10.1/{i}" for i in range(60)]  # two batches of 50 + 10
+    batch1 = sorted(dois)[:50]
+    batch2 = sorted(dois)[50:]
+    session = FakeSession([
+        FakeResponse(200, {"results": [_meta_work(d, preprint=(d == batch1[0])) for d in batch1[:-1]]},
+                     headers={"X-RateLimit-Remaining": "5000"}),
+        FakeResponse(429, headers={"x-ratelimit-remaining": "0", "x-ratelimit-reset": "120"}),
+        FakeResponse(200, {"results": [_meta_work(d, work_type="review", oa_status="closed") for d in batch2]},
+                     headers={"X-RateLimit-Remaining": "4998"}),
+    ])
+    df = _legacy_df(dois)
+    out, complete = pipeline.run_openalex_metadata_backfill(df, _cfg(tmp_path), _paths(tmp_path), session)
+    assert complete is True
+    assert len(session.calls) == 3
+    assert all(c["params"].get("api_key") == "secret-key" for c in session.calls), "key must never be dropped"
+    assert session.calls[1]["params"]["filter"] == session.calls[2]["params"]["filter"], "429'd batch is retried"
+    assert all("select" in c["params"] and "funders" in c["params"]["select"] for c in session.calls)
+    assert sum(no_sleep) == pytest.approx(180.0)  # 120 s reset + 60 s margin
+
+    by_doi = out.set_index("doi")
+    assert by_doi.loc[batch1[0], "has_preprint_version"] is True or bool(by_doi.loc[batch1[0], "has_preprint_version"])
+    assert by_doi.loc[batch1[0], "preprint_servers"] == "medRxiv (Cold Spring Harbor Laboratory)"
+    assert by_doi.loc[batch2[0], "work_type"] == "review"
+    assert by_doi.loc[batch2[0], "oa_status"] == "closed"
+    assert by_doi.loc[batch1[-1], "work_type"] == ""  # not returned by OpenAlex -> stays blank
+    assert (out["first_author_country"] == "GB").sum() == 59
+
+    cache = pipeline.load_openalex_metadata_cache(tmp_path / "openalex_metadata_cache.jsonl")
+    assert cache[batch1[-1]] is None, "missing DOIs are recorded so they are not re-requested"
+    assert cache[batch2[0]]["work_type"] == "review"
+    assert len(cache) == 60
+
+
+def test_backfill_resumes_from_cache_without_requests(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "ensure_openalex_budget_available", lambda cfg, session: None)
+    path = tmp_path / "openalex_metadata_cache.jsonl"
+    pipeline.append_openalex_metadata_cache(
+        path,
+        [{"doi_norm": "10.1/a", **pipeline.flatten_openalex_work_metadata(_meta_work("10.1/a"))}],
+        ["10.1/b"],
+    )
+    session = FakeSession([])
+    out, complete = pipeline.run_openalex_metadata_backfill(_legacy_df(["10.1/a", "10.1/b"]), _cfg(tmp_path), _paths(tmp_path), session)
+    assert complete is True
+    assert session.calls == []
+    assert out.loc[out["doi"] == "10.1/a", "work_type"].iloc[0] == "article"
+    assert out.loc[out["doi"] == "10.1/b", "work_type"].iloc[0] == ""
+
+
+def test_backfill_cache_is_applied_even_without_the_flag(tmp_path):
+    path = tmp_path / "openalex_metadata_cache.jsonl"
+    pipeline.append_openalex_metadata_cache(path, [{"doi_norm": "10.1/a", **pipeline.flatten_openalex_work_metadata(_meta_work("10.1/a", oa_status="hybrid"))}], [])
+    out, complete = pipeline.run_openalex_metadata_backfill(
+        _legacy_df(["10.1/a"]), _cfg(tmp_path, backfill_openalex_metadata=False), _paths(tmp_path), FakeSession([])
+    )
+    assert complete is True and out.loc[0, "oa_status"] == "hybrid"
+
+
+def test_backfill_400_falls_back_to_single_doi_lookups(tmp_path, no_sleep, monkeypatch):
+    monkeypatch.setattr(pipeline, "ensure_openalex_budget_available", lambda cfg, session: None)
+    session = FakeSession([
+        FakeResponse(400, {"error": "bad filter"}),
+        FakeResponse(200, {"results": [_meta_work("10.1/a")]}),
+        FakeResponse(200, {"results": []}),
+    ])
+    out, complete = pipeline.run_openalex_metadata_backfill(_legacy_df(["10.1/a", "10.1/b"]), _cfg(tmp_path), _paths(tmp_path), session)
+    assert complete is True
+    assert [c["params"]["filter"] for c in session.calls] == ["doi:10.1/a|10.1/b", "doi:10.1/a", "doi:10.1/b"]
+    assert out.loc[out["doi"] == "10.1/a", "work_type"].iloc[0] == "article"
+
+
+def test_backfill_stops_early_when_budget_wait_exceeds_cap(tmp_path, no_sleep, monkeypatch):
+    monkeypatch.setattr(pipeline, "ensure_openalex_budget_available", lambda cfg, session: None)
+    session = FakeSession([
+        FakeResponse(429, headers={"x-ratelimit-remaining": "0", "x-ratelimit-reset": str(10 * 3600)}),
+    ])
+    out, complete = pipeline.run_openalex_metadata_backfill(
+        _legacy_df(["10.1/a"]), _cfg(tmp_path, openalex_budget_wait_max_hours=1.0), _paths(tmp_path), session
+    )
+    assert complete is False
+    assert no_sleep == []
+    assert not (tmp_path / "openalex_metadata_cache.jsonl").exists()
