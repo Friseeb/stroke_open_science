@@ -52,47 +52,69 @@ DAS_SENTENCE_PATTERN = re.compile(
     r"(data|datasets?|materials?)[^.;]{0,100}(support(ing)? the (findings|results|conclusions)|used (and/or |and |or )?analy[sz]ed|generated (and|or) analy[sz]ed|"
     r"of (this|the present|the current) study)[^.;]{0,160}(available|shared|accessible|deposited|provided|obtained)|"
     r"(available|obtained) from the corresponding author|data (sharing|availability) statement|"
-    r"(will|can) be (made )?available (up)?on (reasonable )?request|data are not publicly available|no data (were|was) generated",
+    r"(will|can|may) be (made )?available (up)?on (reasonable )?request|(are|is) available (up)?on (reasonable |justified )?request|"
+    r"data (are|is) not publicly available|no data(sets)? (were|was|are|is) (generated|used|created|analy[sz]ed)|"
+    r"data sharing (is )?not applicable|supplied regarding data availability|"
+    r"(make|made) (the |all |our )?(data|datasets?|study materials?)[^.;]{0,80}available to (any|other|qualified) researcher|"
+    r"will not be made available to other researchers|without undue reservation|"
+    r"requests? to access the data(set)? (may|can|should) be (sent|directed|made)",
     re.I,
 )
 DAS_TITLE_PATTERN = re.compile(r"(data|code|material|software)\s+(and\s+\w+\s+)?(availability|sharing|access|statement)|availability\s+of\s+(the\s+)?(data|code|supporting)|data\s+statement", re.I)
 
 # Classification patterns (multi-label). Order in PRIMARY_PRIORITY resolves to one label.
 PATTERNS: Dict[str, re.Pattern] = {
+    # Authors deposited their own data/code somewhere public.
     "repository": re.compile(
         r"zenodo|figshare|dryad|osf\.io|open science framework|github\.com|gitlab|bitbucket|dbgap|openneuro|synapse\.org|"
-        r"mendeley data|vivli|yoda project|virtual international stroke trials archive|\bvista\b|clinicalstudydatarequest|"
+        r"mendeley data|vivli|yoda project|virtual international stroke trials archive|clinicalstudydatarequest|"
         r"dataverse|\bgeo\b accession|\bgse\d{4,}|arrayexpress|\bsra\b|ega-|european genome-phenome|physionet|"
-        r"ukbiobank|uk biobank|\bnda\b|nimh data archive|openicpsr|icpsr|\bzivahub|re3data|doi\.org/10\.5281|doi\.org/10\.6084|"
-        r"doi\.org/10\.5061|deposited (in|at|to) (a |the )?(public )?repositor|publicly available (at|in|from|through) (the )?(https?://|www\.)",
+        r"\bnda\b|nimh data archive|openicpsr|icpsr|zivahub|re3data|doi\.org/10\.5281|doi\.org/10\.6084|"
+        r"doi\.org/10\.5061|deposited (in|at|to|with) (a |the )?(public )?(repositor|archive|database)|"
+        r"(are|is|have been|has been) (publicly |openly |freely )?available (at|in|from|through|via) (the )?(https?://|www\.)|"
+        r"supplemental file|supplementary (data )?file",
+        re.I,
+    ),
+    # Secondary analysis of an existing public or third-party dataset (not the authors' deposit).
+    "public_source": re.compile(
+        r"uk ?biobank|biobank|nhanes|nhird|national health insurance (research )?database|charls|mimic-?i{1,3}v?|eicu|"
+        r"global burden of disease|\bgbd\b|hcup|nationwide inpatient sample|national inpatient sample|\bseer\b|medicare|cprd|"
+        r"get with the guidelines|\bnis\b|nsqip|\bvista\b|publicly available (from|at|on|through|via|database|dataset|data ?set)|"
+        r"(data|dataset)s? (are|is|were|was) (publicly |freely )?available (from|at) (the )?(official )?\w[\w\s-]{0,40}(website|portal|database|platform|registry)|"
+        r"third[- ]party (data|database)|open[- ]access database|public (database|dataset|registry|data ?source)",
         re.I,
     ),
     "on_request": re.compile(
-        r"(up)?on (reasonable |justified |formal )?request|by request|available from the corresponding author|"
-        r"contact(ing)? the corresponding author|available upon|request to the (corresponding |first )?author|from the authors? (up)?on",
+        r"(up)?on (reasonable |justified |formal |written )?request|by request|available from the corresponding author|"
+        r"contact(ing)? the (corresponding |first |senior |main )?author|available upon|request to the (corresponding |first )?author|"
+        r"from the authors? (up)?on|made available by the authors|available (by|with|through|via) the (corresponding |main |first |senior )?author|"
+        r"without undue reservation|to any qualified researcher|available to any researcher|available to other researchers|"
+        r"may be (sent|directed|requested|obtained)|requests? (to access|for) (the )?data|on asking|via connecting with",
         re.I,
     ),
     "in_article": re.compile(
         r"(included|contained|presented|provided|available) (with)?in (this|the) (published )?(article|manuscript|paper|study)|"
-        r"within the (article|manuscript|paper)|supplementa(l|ry) (material|information|file|data|table)|"
+        r"within the (article|manuscript|paper)|supplementa(l|ry) (material|information|file|data|table|appendix)|supporting information|"
         r"all (relevant )?data are (within|in) the (paper|manuscript)",
         re.I,
     ),
     "controlled_or_restricted": re.compile(
-        r"restrictions? apply|not publicly available|cannot be (made )?(publicly )?(available|shared)|third[- ]party|"
+        r"restrictions? apply|not publicly available|cannot be (made )?(publicly )?(available|shared)|not permitted|"
         r"ethical (restriction|reason|approval)|privacy|confidential|data protection|gdpr|ethics committee|"
-        r"institutional (review board|policy)|patient (consent|privacy)|data (use|sharing|access) agreement|"
-        r"controlled access|regulatory|governance|licen[cs]e (restriction|agreement)",
+        r"institutional (review board|policy)|patient (consent|privacy)|data (use|sharing|access|transfer) agreement|"
+        r"controlled access|regulatory|governance|licen[cs]e|restricted to|approval (of|by|from) the|subject to (the following )?(license|restriction)|"
+        r"by law|legal (restriction|reason)|consent was not (sought|obtained)",
         re.I,
     ),
     "not_available_or_na": re.compile(
-        r"no (new )?data(sets)? (were|was|are|is) (generated|created|analy[sz]ed)|not applicable|no data (are|is) available|"
-        r"data sharing (is )?not applicable|will not be (made )?(available|shared)|not available|data are unavailable",
+        r"no (new |additional )?data(sets)? (were|was|are|is) (generated|created|analy[sz]ed|used|available)|not applicable|"
+        r"no data (are|is|was|were) (available|used)|data sharing (is )?not applicable|will not be (made )?(available|shared)|"
+        r"not available|data are unavailable|no additional data",
         re.I,
     ),
     "code_shared": re.compile(r"(code|script|software|analysis pipeline)s? (is|are|were|will be|have been) (publicly |freely |openly )?(available|shared|deposited|released)|github\.com|gitlab|zenodo", re.I),
 }
-PRIMARY_PRIORITY = ["repository", "controlled_or_restricted", "on_request", "in_article", "not_available_or_na"]
+PRIMARY_PRIORITY = ["repository", "public_source", "controlled_or_restricted", "on_request", "in_article", "not_available_or_na"]
 
 
 # ----------------------------------------------------------------------------- stage 1: search
@@ -163,13 +185,19 @@ def extract_statements(xml_text: str) -> Dict:
             consider(sec, "sec-type", sec_type or title)
         elif title and DAS_TITLE_PATTERN.search(title) and len(title) < 90:
             consider(sec, "sec-title", title)
-    for tag in ("notes", "fn", "custom-meta", "supplementary-material"):
+    for tag in ("notes", "fn", "custom-meta", "supplementary-material", "ack", "statement"):
         for el in root.iter(tag):
             attrs = " ".join(f"{k}={v}" for k, v in el.attrib.items()).lower()
             title_el = el.find("title")
             title = _text(title_el) if title_el is not None else ""
-            if "availab" in attrs or "data-sharing" in attrs or (title and DAS_TITLE_PATTERN.search(title)):
-                consider(el, tag, attrs or title)
+            meta_name = el.find("meta-name")
+            label = _text(meta_name) if meta_name is not None else ""
+            if "availab" in attrs or "data-sharing" in attrs or (title and DAS_TITLE_PATTERN.search(title)) or (label and DAS_TITLE_PATTERN.search(label)):
+                consider(el, tag, attrs or title or label)
+            elif tag in ("fn", "notes", "ack"):
+                txt = _text(el)
+                if DAS_SENTENCE_PATTERN.search(txt) and len(txt) < 1500:
+                    consider(el, f"{tag}-sentence", "unmarked DAS in " + tag)
     # Last resort: a paragraph that starts like a DAS, or any paragraph containing a
     # DAS-style sentence (AHA journals place the statement unmarked at the start of Methods).
     if not statements:
@@ -215,6 +243,19 @@ def stage_fetch(args: argparse.Namespace) -> None:
     articles = pd.read_csv(data_dir / "articles.csv")
     out = data_dir / "statements.jsonl"
     done = already_fetched(out)
+    if args.refetch_missing and out.exists():
+        # Re-fetch records that returned 200 but yielded no statement (parser improved since).
+        keep, redo = [], set()
+        with out.open() as fh:
+            for line in fh:
+                rec = json.loads(line)
+                if rec.get("http") == 200 and not rec.get("statements"):
+                    redo.add(rec["pmcid"])
+                else:
+                    keep.append(line)
+        out.write_text("".join(keep))
+        done -= redo
+        logging.info("Re-fetching %d records that had no statement", len(redo))
     if args.sample_per_year:
         articles = (articles.groupby("year", group_keys=False)
                     .apply(lambda g: g.sample(n=min(len(g), args.sample_per_year), random_state=args.seed)))
@@ -260,9 +301,15 @@ def stage_fetch(args: argparse.Namespace) -> None:
 
 
 # ----------------------------------------------------------------------------- stage 3: classify
+REFUSAL_PATTERN = re.compile(r"will not be (made )?(available|shared)|no data(sets)? (were|was|are|is) (generated|used|created)|data sharing (is )?not applicable|no additional data", re.I)
+
+
 def classify_text(text: str) -> Dict[str, object]:
     labels = {name: bool(p.search(text)) for name, p in PATTERNS.items()}
-    primary = next((name for name in PRIMARY_PRIORITY if labels[name]), "other_or_unclear")
+    if REFUSAL_PATTERN.search(text) and not labels["repository"] and not labels["public_source"]:
+        primary = "not_available_or_na"
+    else:
+        primary = next((name for name in PRIMARY_PRIORITY if labels[name]), "other_or_unclear")
     return {**{f"lab_{k}": v for k, v in labels.items()}, "primary": primary}
 
 
@@ -276,8 +323,8 @@ def stage_classify(args: argparse.Namespace) -> None:
             if rec.get("http") != 200:
                 rows.append({"pmcid": rec["pmcid"], "fetched": False})
                 continue
-            stmts = rec.get("statements") or []
-            das_text = " || ".join(s["text"] for s in stmts)
+            stmts = [st for st in (rec.get("statements") or []) if len(re.sub(r"(?i)(data|code)? ?(availability|sharing)( statement)?|availability of data( and materials?)?", "", st["text"]).strip()) > 15]
+            das_text = " || ".join(st["text"] for st in stmts)
             row = {"pmcid": rec["pmcid"], "fetched": True, "has_das": bool(stmts), "n_statements": len(stmts), "das_chars": len(das_text), "das_text": das_text[:2000], **(rec.get("flags") or {})}
             if stmts:
                 row.update(classify_text(das_text))
@@ -292,7 +339,7 @@ def stage_classify(args: argparse.Namespace) -> None:
     fetched.drop(columns=["das_text"]).to_csv(out_dir / "tables" / "das_audit_articles.csv", index=False)
     fetched[["pmcid", "year", "journal", "primary", "das_text"]].to_csv(out_dir / "tables" / "das_audit_statements.csv", index=False)
 
-    cats = ["no_statement", "not_available_or_na", "in_article", "on_request", "controlled_or_restricted", "repository", "other_or_unclear"]
+    cats = ["no_statement", "not_available_or_na", "in_article", "on_request", "controlled_or_restricted", "public_source", "repository", "other_or_unclear"]
     by_year = pd.crosstab(fetched["year"], fetched["primary"], normalize="index").reindex(columns=cats, fill_value=0.0)
     by_year["n"] = fetched.groupby("year").size()
     by_year.to_csv(out_dir / "tables" / "das_primary_by_year.csv")
@@ -315,9 +362,9 @@ def stage_classify(args: argparse.Namespace) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import numpy as np
-    colors = {"repository": "#0d366b", "controlled_or_restricted": "#2a78d6", "on_request": "#86b6ef", "in_article": "#cde2fb", "not_available_or_na": "#e6e5e1", "other_or_unclear": "#f0efec", "no_statement": "#d9d8d4"}
-    nice = {"repository": "public repository", "controlled_or_restricted": "controlled / restricted", "on_request": "on request", "in_article": "in article or supplement", "not_available_or_na": "not available / N/A", "other_or_unclear": "other / unclear", "no_statement": "no statement found"}
-    order = ["repository", "controlled_or_restricted", "on_request", "in_article", "not_available_or_na", "other_or_unclear", "no_statement"]
+    colors = {"repository": "#0d366b", "public_source": "#1c5cab", "controlled_or_restricted": "#2a78d6", "on_request": "#86b6ef", "in_article": "#cde2fb", "not_available_or_na": "#e6e5e1", "other_or_unclear": "#f0efec", "no_statement": "#d9d8d4"}
+    nice = {"repository": "authors' deposit in a repository", "public_source": "public or third-party dataset", "controlled_or_restricted": "controlled / restricted", "on_request": "on request", "in_article": "in article or supplement", "not_available_or_na": "not available / N/A", "other_or_unclear": "other / unclear", "no_statement": "no statement found"}
+    order = ["repository", "public_source", "controlled_or_restricted", "on_request", "in_article", "not_available_or_na", "other_or_unclear", "no_statement"]
     fig, ax = plt.subplots(figsize=(12, 6.75), dpi=150)
     years = by_year.index.astype(int).values
     bottom = np.zeros(len(years))
@@ -351,6 +398,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     parser.add_argument("--workers", type=int, default=5, help="parallel full-text fetches")
     parser.add_argument("--sample-per-year", type=int, default=0, help="random sample size per year (0 = all)")
     parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument("--refetch-missing", action="store_true", help="re-fetch records that had no statement (after parser changes)")
     args = parser.parse_args(list(argv) if argv is not None else None)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s", datefmt="%H:%M:%S")
     {"search": stage_search, "fetch": stage_fetch, "classify": stage_classify}[args.stage](args)
