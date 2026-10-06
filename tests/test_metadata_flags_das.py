@@ -8,7 +8,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import pandas as pd
 import pytest
@@ -381,3 +381,192 @@ def test_corpus_flag_survives_standardize_dataframe():
     out = pipeline.standardize_dataframe(df)
     assert str(out["in_article_corpus"].dtype) == "boolean"
     assert bool(out.loc[0, "in_article_corpus"]) is True
+
+
+# ── DAS audit: JATS extraction ─────────────────────────────────────────────────
+
+JATS_MARKED = """<?xml version="1.0"?>
+<article><front><article-meta><title-group><article-title>Trial</article-title></title-group></article-meta></front>
+<body>
+  <sec sec-type="methods"><title>Methods</title><p>We enrolled 120 patients with acute ischemic stroke (NCT01234567).</p></sec>
+  <sec sec-type="results"><title>Results</title><p>Outcomes improved.</p></sec>
+</body>
+<back>
+  <sec sec-type="data-availability"><title>Data Availability Statement</title>
+    <p>De-identified individual participant data and analysis code are deposited in Zenodo
+    (<ext-link>https://doi.org/10.5281/zenodo.1234567</ext-link>) and on GitHub (github.com/lab/stroke-trial).</p>
+  </sec>
+</back></article>"""
+
+JATS_UNMARKED_AHA = """<?xml version="1.0"?>
+<article><body>
+  <sec><title>Methods</title>
+    <p>The data that support the findings of this study are available from the corresponding author upon reasonable request. Patients were recruited at 12 comprehensive stroke centers between 2016 and 2019.</p>
+    <p>Statistical analyses were performed in R.</p>
+  </sec>
+</body></article>"""
+
+
+def test_extract_das_statements_marked_section():
+    out = pipeline.extract_das_statements(JATS_MARKED)
+    assert "parse_error" not in out
+    assert len(out["statements"]) == 1
+    stmt = out["statements"][0]
+    assert stmt["how"] == "sec-type"
+    assert stmt["label"] == "data-availability"
+    assert "zenodo" in stmt["text"].lower()
+    assert "Methods" not in stmt["text"]
+    assert out["flags"]["mentions_trial_registration"] is True
+    assert out["flags"]["mentions_github"] is True
+
+
+def test_extract_das_statements_unmarked_aha_paragraph():
+    out = pipeline.extract_das_statements(JATS_UNMARKED_AHA)
+    assert len(out["statements"]) == 1
+    stmt = out["statements"][0]
+    assert stmt["how"] == "p-sentence"
+    assert stmt["text"] == (
+        "The data that support the findings of this study are available from the corresponding author upon reasonable request."
+    ), "only the DAS sentence is kept, with its first word intact"
+    assert out["flags"]["mentions_trial_registration"] is False
+
+
+def test_extract_das_statements_handles_bad_xml_and_absence():
+    assert pipeline.extract_das_statements("<article><body><p>unclosed") == {"parse_error": True}
+    out = pipeline.extract_das_statements("<article><body><p>Nothing about sharing here.</p></body></article>")
+    assert out["statements"] == []
+
+
+# ── DAS audit: classification ──────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "text, primary",
+    [
+        ("Data are deposited in Dryad (https://doi.org/10.5061/dryad.abc).", "repository"),
+        ("Analysis code is available at github.com/lab/repo.", "repository"),
+        ("Restrictions apply to the availability of these data, which were used under license.", "controlled_or_restricted"),
+        ("Data are not publicly available due to patient privacy; they are available on reasonable request.", "controlled_or_restricted"),
+        ("The datasets analysed during the current study are available from the corresponding author on reasonable request.", "on_request"),
+        ("All relevant data are within the paper and its Supplementary Information files.", "in_article"),
+        ("Data sharing is not applicable to this article as no datasets were generated or analysed.", "not_available_or_na"),
+        ("The authors declare that they have nothing to add.", "other_or_unclear"),
+    ],
+)
+def test_classify_das_text_primary_label(text, primary):
+    out = pipeline.classify_das_text(text)
+    assert out["primary"] == primary
+
+
+def test_classify_das_text_is_multilabel():
+    out = pipeline.classify_das_text("Code is available on GitHub (github.com/x/y); data are available upon reasonable request.")
+    assert out["lab_repository"] and out["lab_on_request"] and out["lab_code_shared"]
+    assert out["primary"] == "repository"
+    assert set(pipeline.DAS_CATEGORIES) >= {"repository", "on_request", "no_statement", "other_or_unclear"}
+
+
+# ── DAS audit: end-to-end with a scripted Europe PMC session ───────────────────
+
+class RoutingFakeSession:
+    """Routes Europe PMC search / fullTextXML URLs to canned responses and records calls."""
+
+    def __init__(self, articles: Dict[str, Dict[str, Any]], xml_by_pmcid: Dict[str, str]):
+        self.articles = articles  # doi -> {"pmcid": ..., "pmid": ...}
+        self.xml_by_pmcid = xml_by_pmcid
+        self.calls: List[str] = []
+        self.search_queries: List[str] = []
+
+    def get(self, url, params=None, timeout=None):
+        self.calls.append(url)
+        if url.endswith("/search"):
+            query = params["query"]
+            self.search_queries.append(query)
+            assert "HAS_FT:y" in query and "SRC:MED" in query
+            dois = [m.lower() for m in __import__("re").findall(r'DOI:"([^"]+)"', query)]
+            assert len(dois) <= pipeline.EUROPEPMC_DOI_BATCH_SIZE
+            hits = [{"doi": d, "pmcid": self.articles[d]["pmcid"], "pmid": self.articles[d]["pmid"], "source": "MED"} for d in dois if d in self.articles]
+            return FakeResponse(200, {"hitCount": len(hits), "resultList": {"result": hits}})
+        if url.endswith("/fullTextXML"):
+            pmcid = url.rsplit("/", 2)[-2]
+            xml = self.xml_by_pmcid.get(pmcid)
+            resp = FakeResponse(200 if xml else 404)
+            resp.text = xml or ""
+            return resp
+        raise AssertionError(f"unexpected url {url}")
+
+
+
+
+def _corpus_df(n_per_year: int, years=(2020, 2021)) -> pd.DataFrame:
+    rows = []
+    for year in years:
+        for i in range(n_per_year):
+            rows.append({"doi": f"10.1/{year}-{i}", "title": "t", "journal": "Stroke", "year": year,
+                         "work_type": "article", "primary_source_type": "journal"})
+    rows.append({"doi": "10.1/dataset", "title": "d", "journal": "Figshare", "year": 2020, "work_type": "dataset", "primary_source_type": "repository"})
+    df = pipeline.apply_corpus_flag(pd.DataFrame(rows))
+    return pipeline.standardize_dataframe(df)
+
+
+def test_run_das_audit_samples_per_year_fetches_and_caches(tmp_path, no_sleep):
+    df = _corpus_df(40)
+    # every third in-corpus article has full text; the dataset row must never be considered
+    articles = {}
+    xml = {}
+    k = 0
+    for doi in df.loc[df["in_article_corpus"].fillna(False), "doi"]:
+        k += 1
+        if k % 3 == 0:
+            pmcid = f"PMC{k:05d}"
+            articles[doi] = {"pmcid": pmcid, "pmid": str(k)}
+            xml[pmcid] = JATS_MARKED if k % 2 == 0 else JATS_UNMARKED_AHA
+    articles["10.1/dataset"] = {"pmcid": "PMC99999", "pmid": "9"}
+    xml["PMC99999"] = JATS_MARKED
+    session = RoutingFakeSession(articles, xml)
+    cfg = _cfg(tmp_path, das_audit_sample_per_year=5, das_audit_workers=2, das_audit_delay_seconds=0.0, das_audit_timeout_seconds=10)
+    paths = _paths(tmp_path)
+    paths.das_cache = tmp_path / "das_cache.jsonl"
+
+    out = pipeline.run_das_audit(df, cfg, paths, session)
+
+    audited = out[out["das_available"].fillna(False).astype(bool)]
+    assert audited.groupby("year").size().to_dict() == {2020: 5, 2021: 5}
+    assert "10.1/dataset" not in set(audited["doi"])
+    assert set(audited["das_primary"]) <= {"repository", "on_request"}
+    assert audited["das_has_statement"].all()
+    assert audited["das_text"].str.len().max() <= pipeline.DAS_TEXT_MAX_CHARS
+    assert audited["das_pmcid"].str.startswith("PMC").all()
+    assert (~out["das_available"].astype(bool)).sum() == len(out) - 10
+    assert out.loc[~out["das_available"].astype(bool), "das_primary"].eq("").all()
+    assert all(q.count('DOI:"') <= 25 for q in session.search_queries)
+    n_fulltext = sum(1 for u in session.calls if u.endswith("/fullTextXML"))
+    assert n_fulltext == 10
+
+    resolved, fetched = pipeline.load_das_cache(paths.das_cache)
+    assert len(fetched) == 10
+    assert all(r["kind"] == "resolve" for r in resolved.values())
+
+    # Resume: same corpus, same seed -> same sample, no new requests
+    session2 = RoutingFakeSession(articles, xml)
+    out2 = pipeline.run_das_audit(df, cfg, paths, session2)
+    assert session2.calls == []
+    assert set(out2.loc[out2["das_available"].astype(bool), "doi"]) == set(audited["doi"])
+
+
+def test_run_das_audit_disabled_adds_empty_columns(tmp_path):
+    df = _corpus_df(2)
+    out = pipeline.run_das_audit(df, _cfg(tmp_path, das_audit_sample_per_year=0), _paths(tmp_path), RoutingFakeSession({}, {}))
+    assert out["das_available"].astype(bool).sum() == 0
+    for col in pipeline.DAS_TEXT_COLS + pipeline.DAS_BOOL_COLS:
+        assert col in out.columns
+
+
+def test_das_no_statement_label_when_fulltext_has_no_das(tmp_path, no_sleep):
+    df = _corpus_df(1, years=(2022,))
+    doi = df.loc[df["in_article_corpus"].fillna(False), "doi"].iloc[0]
+    session = RoutingFakeSession({doi: {"pmcid": "PMC1", "pmid": "1"}}, {"PMC1": "<article><body><p>No sharing text.</p></body></article>"})
+    paths = _paths(tmp_path)
+    out = pipeline.run_das_audit(df, _cfg(tmp_path, das_audit_sample_per_year=3, das_audit_delay_seconds=0.0), paths, session)
+    row = out[out["doi"] == doi].iloc[0]
+    assert bool(row["das_available"]) is True
+    assert bool(row["das_has_statement"]) is False
+    assert row["das_primary"] == "no_statement"

@@ -22,6 +22,7 @@ import hashlib
 import json
 import logging
 import os
+import random
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -231,6 +232,79 @@ NON_JOURNAL_SOURCE_PATTERN = re.compile(
 )
 CORPUS_FLAG_COLS = ["in_article_corpus"]
 
+# Data-availability-statement (DAS) audit via Europe PMC full text (open-access subset only).
+EUROPEPMC_REST_BASE = "https://www.ebi.ac.uk/europepmc/webservices/rest"
+EUROPEPMC_DOI_BATCH_SIZE = 25
+DAS_TEXT_MAX_CHARS = 1000
+DAS_SEC_TYPES = {
+    "data-availability",
+    "data-availability-statement",
+    "data-availability-statements",
+    "availability-of-data",
+    "data-sharing",
+    "code-availability",
+    "availability",
+}
+DAS_SENTENCE_PATTERN = re.compile(
+    r"(data|datasets?|materials?)[^.;]{0,100}(support(ing)? the (findings|results|conclusions)|used (and/or |and |or )?analy[sz]ed|"
+    r"generated (and|or) analy[sz]ed|of (this|the present|the current) study)[^.;]{0,160}(available|shared|accessible|deposited|provided|obtained)|"
+    r"(available|obtained) from the corresponding author|data (sharing|availability) statement|"
+    r"(will|can) be (made )?available (up)?on (reasonable )?request|data are not publicly available|no data (were|was) generated",
+    re.IGNORECASE,
+)
+DAS_TITLE_PATTERN = re.compile(
+    r"(data|code|material|software)\s+(and\s+\w+\s+)?(availability|sharing|access|statement)|"
+    r"availability\s+of\s+(the\s+)?(data|code|supporting)|data\s+statement",
+    re.IGNORECASE,
+)
+DAS_PREFIX_PATTERN = re.compile(r"^(data|code) (availability|sharing)( statement)?[:.]|^availability of data", re.IGNORECASE)
+DAS_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"'(])")
+# Multi-label classification; DAS_PRIMARY_PRIORITY resolves to one label per article.
+DAS_PATTERNS: Dict[str, "re.Pattern[str]"] = {
+    "repository": re.compile(
+        r"zenodo|figshare|dryad|osf\.io|open science framework|github\.com|gitlab|bitbucket|dbgap|openneuro|synapse\.org|"
+        r"mendeley data|vivli|yoda project|virtual international stroke trials archive|\bvista\b|clinicalstudydatarequest|"
+        r"dataverse|\bgeo\b accession|\bgse\d{4,}|arrayexpress|\bsra\b|ega-|european genome-phenome|physionet|"
+        r"ukbiobank|uk biobank|\bnda\b|nimh data archive|openicpsr|icpsr|\bzivahub|re3data|doi\.org/10\.5281|doi\.org/10\.6084|"
+        r"doi\.org/10\.5061|deposited (in|at|to) (a |the )?(public )?repositor|publicly available (at|in|from|through) (the )?(https?://|www\.)",
+        re.IGNORECASE,
+    ),
+    "on_request": re.compile(
+        r"(up)?on (reasonable |justified |formal )?request|by request|available from the corresponding author|"
+        r"contact(ing)? the corresponding author|available upon|request to the (corresponding |first )?author|from the authors? (up)?on",
+        re.IGNORECASE,
+    ),
+    "in_article": re.compile(
+        r"(included|contained|presented|provided|available) (with)?in (this|the) (published )?(article|manuscript|paper|study)|"
+        r"within the (article|manuscript|paper)|supplementa(l|ry) (material|information|file|data|table)|"
+        r"all (relevant )?data are (within|in) the (paper|manuscript)",
+        re.IGNORECASE,
+    ),
+    "controlled_or_restricted": re.compile(
+        r"restrictions? apply|not publicly available|cannot be (made )?(publicly )?(available|shared)|third[- ]party|"
+        r"ethical (restriction|reason|approval)|privacy|confidential|data protection|gdpr|ethics committee|"
+        r"institutional (review board|policy)|patient (consent|privacy)|data (use|sharing|access) agreement|"
+        r"controlled access|regulatory|governance|licen[cs]e (restriction|agreement)",
+        re.IGNORECASE,
+    ),
+    "not_available_or_na": re.compile(
+        r"no (new )?data(sets)? (were|was|are|is) (generated|created|analy[sz]ed)|not applicable|no data (are|is) available|"
+        r"data sharing (is )?not applicable|will not be (made )?(available|shared)|not available|data are unavailable",
+        re.IGNORECASE,
+    ),
+    "code_shared": re.compile(
+        r"(code|script|software|analysis pipeline)s? (is|are|were|will be|have been) (publicly |freely |openly )?(available|shared|deposited|released)|"
+        r"github\.com|gitlab|zenodo",
+        re.IGNORECASE,
+    ),
+}
+DAS_PRIMARY_PRIORITY = ["repository", "controlled_or_restricted", "on_request", "in_article", "not_available_or_na"]
+DAS_OTHER_LABEL = "other_or_unclear"
+DAS_NO_STATEMENT_LABEL = "no_statement"
+DAS_CATEGORIES = DAS_PRIMARY_PRIORITY + [DAS_OTHER_LABEL, DAS_NO_STATEMENT_LABEL]
+DAS_TEXT_COLS = ["das_pmcid", "das_primary", "das_text"]
+DAS_BOOL_COLS = ["das_available", "das_has_statement"]
+
 TEXT_COLS = [
     "id",
     "doi",
@@ -259,6 +333,7 @@ TEXT_COLS = [
     "dataset_repos",
     *OPENALEX_METADATA_TEXT_COLS,
     "corpus_rule",
+    *DAS_TEXT_COLS,
 ]
 
 BOOL_COLS = [
@@ -270,6 +345,7 @@ BOOL_COLS = [
     *OPENALEX_METADATA_BOOL_COLS,
     *REGISTRATION_FLAG_COLS,
     *CORPUS_FLAG_COLS,
+    *DAS_BOOL_COLS,
 ]
 NUM_COLS = ["open_science_score", "cited_by_count", "journal_impact_factor"]
 
@@ -303,6 +379,7 @@ class PipelinePaths:
     llm_cache: Path
     retrieval_slices_dir: Path
     openalex_metadata_cache: Path = Path("openalex_metadata_cache.jsonl")
+    das_cache: Path = Path("das_cache.jsonl")
 
 
 @dataclass
@@ -359,6 +436,11 @@ class PipelineConfig:
     openalex_budget_wait_max_hours: float = 30.0
     backfill_openalex_metadata: bool = False
     openalex_metadata_min_budget_remaining: int = 150
+    das_audit_sample_per_year: int = 0
+    das_audit_workers: int = 5
+    das_audit_delay_seconds: float = 0.1
+    das_audit_timeout_seconds: int = 90
+    das_audit_seed: int = 2026
 
 
 def parse_dotenv_file(path: Path) -> Dict[str, str]:
@@ -562,6 +644,21 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
     parser.add_argument("--fulltext-char-limit", type=int, default=12000)
     parser.add_argument("--llm-max-fulltext-fetch", type=int, default=200)
 
+    parser.add_argument(
+        "--das-audit-sample-per-year",
+        type=int,
+        default=0,
+        help=(
+            "Data-availability-statement audit: per publication year, sample this many in-corpus "
+            "articles with full text in Europe PMC, fetch their JATS XML and classify the statement. "
+            "0 disables the stage. Results are cached in das_cache.jsonl (resumable)."
+        ),
+    )
+    parser.add_argument("--das-audit-workers", type=int, default=5, help="Parallel Europe PMC full-text fetches")
+    parser.add_argument("--das-audit-delay-seconds", type=float, default=0.1, help="Per-worker delay between Europe PMC requests")
+    parser.add_argument("--das-audit-timeout-seconds", type=int, default=90)
+    parser.add_argument("--das-audit-seed", type=int, default=2026, help="Seed for the per-year DAS audit sample")
+
     parser.add_argument("--journal-metrics-csv", default=str(script_root / "configs" / "journal_metrics.csv"))
     parser.add_argument("--impact-factor-threshold", type=float, default=10.0)
     parser.add_argument("--citation-percentile-threshold", type=float, default=90.0)
@@ -588,6 +685,7 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
         llm_cache=output_dir / args.llm_cache,
         retrieval_slices_dir=output_dir / "retrieval_slices",
         openalex_metadata_cache=output_dir / "openalex_metadata_cache.jsonl",
+        das_cache=output_dir / "das_cache.jsonl",
     )
 
     cfg = PipelineConfig(
@@ -614,6 +712,11 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
         openalex_budget_wait_max_hours=max(0.0, args.openalex_budget_wait_max_hours),
         backfill_openalex_metadata=bool(args.backfill_openalex_metadata),
         openalex_metadata_min_budget_remaining=max(0, args.openalex_metadata_min_budget_remaining),
+        das_audit_sample_per_year=max(0, args.das_audit_sample_per_year),
+        das_audit_workers=max(1, args.das_audit_workers),
+        das_audit_delay_seconds=max(0.0, args.das_audit_delay_seconds),
+        das_audit_timeout_seconds=max(10, args.das_audit_timeout_seconds),
+        das_audit_seed=int(args.das_audit_seed),
         max_per_query=max(0, args.max_per_query),
         refresh_openalex=args.refresh_openalex,
         force=args.force,
@@ -4145,6 +4248,380 @@ def run_llm_extraction(
     return df, llm_cache
 
 
+# ---------------------------------------------------------------------------
+# Data-availability-statement audit (Europe PMC full text, open-access subset)
+# ---------------------------------------------------------------------------
+
+
+def _jats_text(element: ET.Element) -> str:
+    return WS_RE.sub(" ", " ".join(element.itertext())).strip()
+
+
+def _sentence_around(text: str, start: int, end: int) -> str:
+    """The sentence of ``text`` that contains the span ``[start, end)``."""
+    sentence_start = 0
+    sentence_end = len(text)
+    for boundary in DAS_SENTENCE_BOUNDARY.finditer(text):
+        if boundary.end() <= start:
+            sentence_start = boundary.end()
+        elif boundary.start() >= end:
+            sentence_end = boundary.start()
+            break
+    return text[sentence_start:sentence_end].strip()
+
+
+def extract_das_statements(xml_text: Any) -> Dict[str, Any]:
+    """Pull data/code-availability statements out of a JATS XML document.
+
+    Looks, in order, at ``<sec sec-type="data-availability">``-style sections, sections whose
+    title reads like a DAS, ``notes``/``fn``/``custom-meta``/``supplementary-material`` elements
+    flagged as availability statements, and finally (AHA journals put the statement unmarked at
+    the start of Methods) paragraphs that start like a DAS or contain a DAS-style sentence.
+    Returns ``{"statements": [...], "flags": {...}}`` or ``{"parse_error": True}``."""
+    try:
+        payload = xml_text.encode("utf-8") if isinstance(xml_text, str) else xml_text
+        root = ET.fromstring(payload)
+    except (ET.ParseError, TypeError, AttributeError):
+        return {"parse_error": True}
+
+    statements: List[Dict[str, str]] = []
+    seen: set = set()
+
+    def consider(element: ET.Element, how: str, label: str) -> None:
+        text = _jats_text(element)
+        if not text or text in seen or len(text) > 6000:
+            return
+        seen.add(text)
+        statements.append({"how": how, "label": label[:120], "text": text})
+
+    for sec in root.iter("sec"):
+        sec_type = (sec.get("sec-type") or "").lower()
+        title_el = sec.find("title")
+        title = _jats_text(title_el) if title_el is not None else ""
+        if sec_type in DAS_SEC_TYPES or any(token in sec_type for token in ("availab", "data-sharing")):
+            consider(sec, "sec-type", sec_type or title)
+        elif title and DAS_TITLE_PATTERN.search(title) and len(title) < 90:
+            consider(sec, "sec-title", title)
+    for tag in ("notes", "fn", "custom-meta", "supplementary-material"):
+        for element in root.iter(tag):
+            attrs = " ".join(f"{k}={v}" for k, v in element.attrib.items()).lower()
+            title_el = element.find("title")
+            title = _jats_text(title_el) if title_el is not None else ""
+            if "availab" in attrs or "data-sharing" in attrs or (title and DAS_TITLE_PATTERN.search(title)):
+                consider(element, tag, attrs or title)
+    if not statements:
+        for paragraph in root.iter("p"):
+            text = _jats_text(paragraph)
+            if DAS_PREFIX_PATTERN.match(text):
+                consider(paragraph, "p-prefix", text[:40])
+                continue
+            match = DAS_SENTENCE_PATTERN.search(text)
+            if match:
+                sentence = _sentence_around(text, match.start(), match.end())
+                if 20 < len(sentence) < 700 and sentence not in seen:
+                    seen.add(sentence)
+                    statements.append({"how": "p-sentence", "label": "unmarked DAS sentence", "text": sentence})
+
+    body_text = _jats_text(root)
+    flags = {
+        "mentions_trial_registration": bool(
+            re.search(r"\bNCT\d{8}\b|ISRCTN\d{8}|ChiCTR|clinicaltrials\.gov|PROSPERO|CRD42\d{6}", body_text)
+        ),
+        "mentions_github": "github.com" in body_text.lower(),
+        "mentions_supplement": bool(re.search(r"supplementa(l|ry)", body_text, re.IGNORECASE)),
+        "n_chars": len(body_text),
+    }
+    return {"statements": statements, "flags": flags}
+
+
+def classify_das_text(text: str) -> Dict[str, Any]:
+    """Multi-label regex classification of a DAS; ``primary`` is the first label in
+    ``DAS_PRIMARY_PRIORITY`` that fires, else ``other_or_unclear``."""
+    text = str(text or "")
+    labels = {name: bool(pattern.search(text)) for name, pattern in DAS_PATTERNS.items()}
+    primary = next((name for name in DAS_PRIMARY_PRIORITY if labels[name]), DAS_OTHER_LABEL)
+    return {**{f"lab_{name}": flag for name, flag in labels.items()}, "primary": primary}
+
+
+def load_das_cache(path: Path) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    """Returns ``(resolved, fetched)``: DOI -> Europe PMC resolution record and PMCID -> full-text
+    extraction record."""
+    resolved: Dict[str, Dict[str, Any]] = {}
+    fetched: Dict[str, Dict[str, Any]] = {}
+    if not path.exists():
+        return resolved, fetched
+    with path.open("r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(rec, dict):
+                continue
+            kind = rec.get("kind")
+            if kind == "resolve" and rec.get("doi"):
+                resolved[normalize_doi(rec["doi"])] = rec
+            elif kind == "fetch" and rec.get("pmcid"):
+                fetched[str(rec["pmcid"])] = rec
+    return resolved, fetched
+
+
+def append_das_cache(path: Path, records: Sequence[Dict[str, Any]]) -> None:
+    if not records:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        for rec in records:
+            handle.write(json.dumps(make_json_safe(rec), ensure_ascii=False) + "\n")
+        handle.flush()
+
+
+def europepmc_doi_query(dois: Sequence[str]) -> str:
+    clause = " OR ".join(f'DOI:"{doi}"' for doi in dois)
+    return f"({clause}) AND HAS_FT:y AND SRC:MED"
+
+
+def resolve_pmcids_europepmc(
+    session: requests.Session,
+    dois: Sequence[str],
+    timeout_seconds: int,
+    max_attempts: int = 3,
+) -> Optional[Dict[str, Dict[str, Any]]]:
+    """Resolve up to ``EUROPEPMC_DOI_BATCH_SIZE`` DOIs to PMCIDs with full text in Europe PMC.
+    Returns a record for every DOI in the batch (``has_ft`` False when not found), or None when
+    the request failed (the batch is then left unresolved and retried on the next run)."""
+    dois = [normalize_doi(d) for d in dois if normalize_doi(d)]
+    if not dois:
+        return {}
+    payload = safe_get_json(
+        session,
+        f"{EUROPEPMC_REST_BASE}/search",
+        params={
+            "query": europepmc_doi_query(dois),
+            "format": "json",
+            "resultType": "lite",
+            "pageSize": 100,
+        },
+        timeout=timeout_seconds,
+        max_attempts=max_attempts,
+        request_label="Europe PMC DOI->PMCID",
+    )
+    if payload is None:
+        return None
+    hits = ((payload.get("resultList") or {}).get("result") or []) if isinstance(payload, dict) else []
+    out: Dict[str, Dict[str, Any]] = {doi: {"kind": "resolve", "doi": doi, "pmcid": "", "pmid": "", "has_ft": False} for doi in dois}
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        doi = normalize_doi(hit.get("doi") or "")
+        pmcid = str(hit.get("pmcid") or "").strip()
+        if doi in out and pmcid and not out[doi]["pmcid"]:
+            out[doi].update({"pmcid": pmcid, "pmid": str(hit.get("pmid") or ""), "has_ft": True})
+    return out
+
+
+def fetch_europepmc_fulltext_record(
+    session: requests.Session,
+    pmcid: str,
+    timeout_seconds: int,
+    delay_seconds: float = 0.0,
+    max_attempts: int = 3,
+) -> Dict[str, Any]:
+    """Fetch ``/{pmcid}/fullTextXML`` and extract DAS statements. ``http`` holds the final status
+    (200 = audited; 404 = no XML; "error" = transient failure, not cached)."""
+    rec: Dict[str, Any] = {"kind": "fetch", "pmcid": pmcid, "http": "error"}
+    url = f"{EUROPEPMC_REST_BASE}/{pmcid}/fullTextXML"
+    last_status: Optional[int] = None
+    for attempt in range(max(1, max_attempts)):
+        try:
+            resp = session.get(url, timeout=timeout_seconds)
+        except Exception as exc:
+            rec["error"] = str(exc)[:200]
+            time.sleep(min(30.0, 2.0 ** attempt))
+            continue
+        status = resp.status_code
+        last_status = status
+        if status == 200 and (resp.text or "").strip():
+            rec.update(extract_das_statements(resp.text))
+            rec["http"] = 200
+            break
+        if status == 429 or status >= 500:
+            retry_after = _coerce_float(resp.headers.get("Retry-After")) if getattr(resp, "headers", None) else None
+            time.sleep(min(60.0, retry_after if retry_after is not None else 5.0 + 3.0 * attempt))
+            continue
+        rec["http"] = status if status != 200 else "empty"
+        break
+    if rec["http"] == "error" and last_status is not None:
+        # Europe PMC answers a persistent 500 for some PMCIDs (no XML rendition); record the
+        # status so the article counts as not audited instead of being re-fetched every run.
+        rec["http"] = last_status
+    if delay_seconds > 0:
+        time.sleep(delay_seconds)
+    return rec
+
+
+def select_das_audit_sample(
+    df: pd.DataFrame,
+    sample_per_year: int,
+    seed: int,
+    resolved: Dict[str, Dict[str, Any]],
+    resolve_fn: Callable[[Sequence[str]], Optional[Dict[str, Dict[str, Any]]]],
+    on_resolved: Optional[Callable[[Sequence[Dict[str, Any]]], None]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Per year: shuffle the in-corpus DOIs deterministically and walk them in order, resolving
+    unresolved DOIs in look-ahead batches, until ``sample_per_year`` articles with full text are
+    selected. The selection depends only on the seed and the corpus, not on batching, so a
+    resumed run picks the same articles. Returns DOI -> resolution record for selected rows."""
+    doi_norm = _doi_norm_series(df)
+    in_corpus = coerce_nullable_bool(df.get("in_article_corpus", pd.Series(True, index=df.index))).fillna(True).astype(bool)
+    years = pd.to_numeric(df.get("year"), errors="coerce")
+    candidates = pd.DataFrame({"doi": doi_norm, "year": years})[in_corpus & doi_norm.ne("") & years.notna()]
+    selected: Dict[str, Dict[str, Any]] = {}
+    for year, group in candidates.groupby("year"):
+        dois = sorted(set(group["doi"].tolist()))
+        rng = random.Random(f"{seed}:{int(year)}")
+        rng.shuffle(dois)
+        picked = 0
+        position = 0
+        while position < len(dois) and picked < sample_per_year:
+            doi = dois[position]
+            if doi not in resolved:
+                batch = [d for d in dois[position : position + 4 * EUROPEPMC_DOI_BATCH_SIZE] if d not in resolved][:EUROPEPMC_DOI_BATCH_SIZE]
+                result = resolve_fn(batch)
+                if result is None:
+                    logging.warning("Europe PMC resolution failed for a batch in %d; leaving it for the next run.", int(year))
+                    break
+                resolved.update(result)
+                if on_resolved:
+                    on_resolved(list(result.values()))
+                continue
+            rec = resolved[doi]
+            if rec.get("has_ft") and rec.get("pmcid"):
+                selected[doi] = rec
+                picked += 1
+            position += 1
+        logging.info("DAS audit %d: selected %d/%d full-text articles from %d candidates.", int(year), picked, sample_per_year, len(dois))
+    return selected
+
+
+def apply_das_results(
+    df: pd.DataFrame,
+    selected: Dict[str, Dict[str, Any]],
+    fetched: Dict[str, Dict[str, Any]],
+) -> pd.DataFrame:
+    """Write das_pmcid / das_available / das_has_statement / das_primary / das_text."""
+    for col in DAS_TEXT_COLS:
+        if col not in df.columns:
+            df[col] = ""
+    for col in DAS_BOOL_COLS:
+        if col not in df.columns:
+            df[col] = pd.Series([pd.NA] * len(df), index=df.index, dtype="boolean")
+    df["das_available"] = coerce_nullable_bool(df["das_available"]).fillna(False)
+    if not selected:
+        return df
+    doi_norm = _doi_norm_series(df)
+    rows = {}
+    for doi, rec in selected.items():
+        pmcid = str(rec.get("pmcid") or "")
+        fetch_rec = fetched.get(pmcid)
+        row: Dict[str, Any] = {"das_pmcid": pmcid, "das_available": False, "das_has_statement": pd.NA, "das_primary": "", "das_text": ""}
+        if fetch_rec and fetch_rec.get("http") == 200 and not fetch_rec.get("parse_error"):
+            statements = fetch_rec.get("statements") or []
+            text = " || ".join(str(s.get("text") or "") for s in statements if isinstance(s, dict))
+            row["das_available"] = True
+            row["das_has_statement"] = bool(statements)
+            row["das_primary"] = classify_das_text(text)["primary"] if statements else DAS_NO_STATEMENT_LABEL
+            row["das_text"] = text[:DAS_TEXT_MAX_CHARS]
+        rows[doi] = row
+    mask = doi_norm.isin(rows.keys())
+    results = pd.DataFrame.from_dict(rows, orient="index").reindex(doi_norm[mask].to_numpy())
+    for col in DAS_TEXT_COLS:
+        df.loc[mask, col] = results[col].fillna("").astype(str).to_numpy()
+    for col in DAS_BOOL_COLS:
+        df[col] = coerce_nullable_bool(df[col])
+        df.loc[mask, col] = coerce_nullable_bool(results[col].reset_index(drop=True)).to_numpy()
+    df["das_available"] = coerce_nullable_bool(df["das_available"]).fillna(False)
+    return df
+
+
+def run_das_audit(
+    df: pd.DataFrame,
+    cfg: PipelineConfig,
+    paths: PipelinePaths,
+    session: requests.Session,
+) -> pd.DataFrame:
+    """DAS audit stage (``--das-audit-sample-per-year N``): resolve in-corpus DOIs to PMCIDs via
+    Europe PMC search (batched ``DOI:"..." OR ...`` with ``HAS_FT:y``), sample N per year among
+    those with full text, fetch the JATS XML with a small thread pool, extract and classify the
+    data-availability statement. Everything is appended to ``das_cache.jsonl`` as it completes,
+    so an interrupted run resumes. Scope note: only the open-access subset has full text, so
+    rates are optimistic relative to the whole corpus."""
+    if cfg.das_audit_sample_per_year <= 0:
+        return apply_das_results(df, {}, {})
+    if df.empty:
+        return apply_das_results(df, {}, {})
+
+    resolved, fetched = load_das_cache(paths.das_cache)
+    logging.info("DAS audit: %d DOIs resolved and %d full texts cached in %s", len(resolved), len(fetched), paths.das_cache)
+
+    def _resolve(batch: Sequence[str]) -> Optional[Dict[str, Dict[str, Any]]]:
+        result = resolve_pmcids_europepmc(session, batch, cfg.das_audit_timeout_seconds)
+        if cfg.das_audit_delay_seconds > 0:
+            time.sleep(cfg.das_audit_delay_seconds)
+        return result
+
+    selected = select_das_audit_sample(
+        df,
+        cfg.das_audit_sample_per_year,
+        cfg.das_audit_seed,
+        resolved,
+        _resolve,
+        on_resolved=lambda recs: append_das_cache(paths.das_cache, recs),
+    )
+    todo = sorted({str(rec["pmcid"]) for rec in selected.values() if rec.get("pmcid")} - set(fetched))
+    logging.info("DAS audit: %d articles selected, %d full texts to fetch (%d workers).", len(selected), len(todo), cfg.das_audit_workers)
+
+    if todo:
+        n_ok = n_err = 0
+        pending: List[Dict[str, Any]] = []
+        with ThreadPoolExecutor(max_workers=cfg.das_audit_workers) as pool:
+            futures = {
+                pool.submit(fetch_europepmc_fulltext_record, session, pmcid, cfg.das_audit_timeout_seconds, cfg.das_audit_delay_seconds): pmcid
+                for pmcid in todo
+            }
+            for i, future in enumerate(tqdm(as_completed(futures), total=len(futures), desc="DAS full text"), start=1):
+                try:
+                    rec = future.result()
+                except Exception as exc:
+                    rec = {"kind": "fetch", "pmcid": futures[future], "http": "error", "error": str(exc)[:200]}
+                if rec.get("http") == "error":
+                    n_err += 1  # transient: not cached, retried next run
+                else:
+                    fetched[str(rec["pmcid"])] = rec
+                    pending.append(rec)
+                    if rec.get("http") == 200:
+                        n_ok += 1
+                    else:
+                        n_err += 1
+                if len(pending) >= 50:
+                    append_das_cache(paths.das_cache, pending)
+                    pending = []
+                if i % 500 == 0:
+                    logging.info("DAS audit: %d/%d fetched (ok=%d, failed=%d)", i, len(todo), n_ok, n_err)
+        append_das_cache(paths.das_cache, pending)
+        logging.info("DAS audit fetch done: ok=%d failed=%d", n_ok, n_err)
+
+    df = apply_das_results(df, selected, fetched)
+    audited = int(coerce_nullable_bool(df["das_available"]).fillna(False).sum())
+    if audited:
+        counts = df.loc[coerce_nullable_bool(df["das_available"]).fillna(False), "das_primary"].value_counts()
+        logging.info("DAS audit: %d articles audited; primary categories: %s", audited, counts.to_dict())
+    return df
+
+
 def apply_journal_metrics(df: pd.DataFrame, journal_metrics_csv: str) -> pd.DataFrame:
     path = Path(journal_metrics_csv).expanduser()
     if not path.exists():
@@ -4349,6 +4826,8 @@ def main() -> int:
     llm_cache = llm_cache_raw if isinstance(llm_cache_raw, dict) else {}
     df, llm_cache = run_llm_extraction(df, cfg, llm_cache, paths.llm_cache, session)
     df = apply_metadata_preprint_flag(df)
+
+    df = run_das_audit(df, cfg, paths, session)
 
     df = apply_journal_metrics(df, cfg.journal_metrics_csv)
     df = standardize_dataframe(df)
