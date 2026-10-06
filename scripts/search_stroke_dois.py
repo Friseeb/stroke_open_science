@@ -1188,6 +1188,12 @@ def openalex_requests_remaining(rate_limit: Optional[Dict[str, Any]]) -> Optiona
     if not rate_limit:
         return None
     lowered = {str(k).strip().lower(): v for k, v in rate_limit.items()}
+    # Prepaid credit is drawn after the free daily budget, so a near-zero daily counter is not
+    # exhaustion while prepaid balance remains: report "unknown" so callers neither stop nor wait.
+    for key in ("x-ratelimit-prepaid-remaining-usd", "prepaid_remaining_usd", "prepaid_usd_remaining"):
+        prepaid = _coerce_float(lowered.get(key))
+        if prepaid is not None and prepaid > 0.05:
+            return None
     for key in OPENALEX_REMAINING_KEYS:
         if key in lowered:
             parsed = _coerce_int(lowered[key])

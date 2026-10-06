@@ -305,3 +305,10 @@ def test_slice_exception_counts_as_incomplete(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="incomplete"):
         pipeline.fetch_or_load_openalex(cfg, paths, session=object())
     assert not paths.raw_csv.exists()
+
+
+def test_openalex_requests_remaining_ignores_daily_counter_when_prepaid_credit_remains():
+    headers = {"x-ratelimit-remaining": "0", "x-ratelimit-remaining-usd": "0", "x-ratelimit-prepaid-remaining-usd": "9.4"}
+    assert pipeline.openalex_requests_remaining(headers) is None
+    spent = {"x-ratelimit-remaining": "0", "x-ratelimit-prepaid-remaining-usd": "0"}
+    assert pipeline.openalex_requests_remaining(spent) == 0
