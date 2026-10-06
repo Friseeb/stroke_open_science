@@ -130,6 +130,11 @@ def parse_args(script_root: Optional[Path] = None) -> argparse.Namespace:
     parser.add_argument("--disable-api-enrich", action="store_true")
     parser.add_argument("--disable-dataset-search", action="store_true",
                         help="Skip DataCite/Dryad/Figshare dataset repository search")
+    parser.add_argument("--backfill-openalex-metadata", action="store_true",
+                        help="Batched OpenAlex DOI lookups for retrieval datasets that predate the work-metadata columns")
+    parser.add_argument("--das-audit-sample-per-year", type=int, default=0,
+                        help="Data-availability-statement audit sample size per year via Europe PMC (0 = off)")
+    parser.add_argument("--das-audit-workers", type=int, default=5, help="Parallel Europe PMC full-text fetches")
     parser.add_argument("--resume", action="store_true", help="Skip discipline runs with existing fully_enriched.csv")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--skip-dashboard", action="store_true")
@@ -307,6 +312,10 @@ def main() -> int:
             str(max(1000, args.fulltext_char_limit)),
             "--llm-max-fulltext-fetch",
             str(max(0, args.llm_max_fulltext_fetch)),
+            "--das-audit-sample-per-year",
+            str(max(0, args.das_audit_sample_per_year)),
+            "--das-audit-workers",
+            str(max(1, args.das_audit_workers)),
         ]
 
         if args.include_pubmed:
@@ -340,6 +349,8 @@ def main() -> int:
             cmd.append("--disable-api-enrich")
         if args.disable_dataset_search:
             cmd.append("--disable-dataset-search")
+        if args.backfill_openalex_metadata:
+            cmd.append("--backfill-openalex-metadata")
         if args.refresh_openalex:
             cmd.append("--refresh-openalex")
         if args.force:

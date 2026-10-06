@@ -59,22 +59,58 @@ python scripts/build_discipline_dashboard.py
 ```
 
 ## Pipeline stages (search_stroke_dois.py)
-1. **OpenAlex retrieval** — parallel term×year cursor pagination → `data/{discipline}/raw_openalex_articles.csv`
-2. **PubMed retrieval** (optional `--include-pubmed`) — adds PMC OA links
-3. **Unpaywall snapshot join** — DuckDB left-join on DOI, fills `is_oa`, `license_unpaywall`, `best_oa_location_url`
-4. **Crossref relations join** — DuckDB, fills `repo_links` from supplement/data relations
-5. **Regex extraction** — GitHub/Zenodo/OSF/dataset-repo patterns from title+abstract+url fields
-6. **API enrichment** — async Unpaywall/Zenodo/OSF/GitHub lookups with resumable JSON cache
-7. **Dataset repo search** — DataCite → Dryad → Figshare API chain, async with rate limiting
-8. **Embedding ranking** (optional) — SentenceTransformer cosine similarity to an open-science concept vector
-9. **LLM extraction** (optional) — OpenAI or Ollama JSON extraction of `code_link`, `data_link`, `preregistered`, `preprint`
-10. **High-impact subgroup** — filters by journal IF threshold + citation percentile → `high_impact_subset.csv`
-11. **Preview export** — first N rows → `enriched_preview.csv`
+1. **OpenAlex retrieval** — parallel term×year cursor pagination → `data/{discipline}/raw_openalex_articles.csv`.
+   The `select` list includes `type, open_access, locations, authorships, is_retracted, has_fulltext, funders`
+   (`funders` is a valid select field; `grants` is not), flattened by `flatten_openalex_work_metadata` into
+   `work_type`, `oa_status`, `primary_source_type`, `primary_source_is_in_doaj`, `has_preprint_version`,
+   `is_preprint_record`, `preprint_servers`, `first_author_country`, `countries`, `funders`, `is_retracted`, `has_fulltext`.
+2. **OpenAlex metadata backfill** (`--backfill-openalex-metadata`) — for retrieval datasets that predate those
+   columns: batched `filter=doi:a|b|...` lookups (50 DOIs/request) for rows with a blank `work_type`, cached per
+   batch in `openalex_metadata_cache.jsonl` (resumable; unknown DOIs recorded as `_missing`). Uses the budget
+   helpers: waits for the daily reset on a keyed 429, never drops the key, pauses at
+   `--openalex-metadata-min-budget-remaining`. A complete backfill rewrites `raw_openalex_articles.csv`.
+   Not needed for new runs.
+3. **PubMed retrieval** (optional `--include-pubmed`) — adds PMC OA links
+4. **Unpaywall snapshot join** — DuckDB left-join on DOI, fills `is_oa`, `license_unpaywall`, `best_oa_location_url`
+5. **Crossref relations join** — DuckDB, fills `repo_links` from supplement/data relations
+6. **Regex extraction** — GitHub/Zenodo/OSF/dataset-repo patterns from title+abstract+url fields; registration
+   flags (`reg_trial_registry`, `reg_prospero`, `reg_preregistration_wording`, `registered_any`,
+   `registration_signal`) from `REGISTRY_PATTERNS`; `in_article_corpus` / `corpus_rule` from
+   `apply_corpus_flag` (OpenAlex type + journal source, falling back to `NON_JOURNAL_SOURCE_PATTERN` on the
+   journal name when metadata is missing). Rows are never dropped; the dashboard filters on the flag.
+7. **API enrichment** — async Unpaywall/Zenodo/OSF/GitHub lookups with resumable JSON cache
+8. **Dataset repo search** — DataCite → Dryad → Figshare API chain, async with rate limiting
+9. **Embedding ranking** (optional) — SentenceTransformer cosine similarity to an open-science concept vector
+10. **LLM extraction** (optional) — OpenAI or Ollama JSON extraction of `code_link`, `data_link`, `preregistered`, `preprint`.
+    Afterwards `apply_metadata_preprint_flag` fills a blank `preprint` from `has_preprint_version`.
+11. **DAS audit** (`--das-audit-sample-per-year N`, default 0 = off) — for in-corpus rows with a DOI: Europe PMC
+    search resolves DOI → PMCID (`DOI:"..." OR ...`, ≤25 per query, `resultType=lite`, `OPEN_ACCESS:y AND HAS_FT:y AND SRC:MED`),
+    a deterministic per-year sample of N full-text articles is fetched (`fullTextXML`, 5 workers, 0.1 s delay),
+    data-availability statements are extracted (`extract_das_statements`) and classified (`classify_das_text`).
+    Writes `das_pmcid`, `das_available`, `das_has_statement`, `das_primary`, `das_text`. Open-access full text only,
+    so rates are optimistic relative to the whole corpus.
+12. **High-impact subgroup** — filters by journal IF threshold + citation percentile (pooled across years within
+    the discipline) → `high_impact_subset.csv`
+13. **Preview export** — first N rows → `enriched_preview.csv`
 
 Caches:
 - `data/{discipline}/enrich_cache.json` — API enrichment results (resumable)
 - `data/{discipline}/llm_cache.json` — LLM extraction results (resumable)
+- `data/{discipline}/openalex_metadata_cache.jsonl` — batched OpenAlex work metadata by DOI (resumable)
+- `data/{discipline}/das_cache.jsonl` — Europe PMC DOI→PMCID resolutions and full-text DAS extractions (resumable)
 - `data/{discipline}/retrieval_slices/` — per-term per-window raw API results
+
+Backfill an existing discipline and run the DAS audit on it. `--force` is needed because `fully_enriched.csv`
+exists; retrieval is reused from the cached `raw_openalex_articles.csv` (so `--terms` does not matter), and the
+enrichment / LLM caches make the re-run cheap:
+```bash
+python scripts/search_stroke_dois.py --discipline stroke --output-dir data/benchmarks/stroke \
+  --start-year 2015 --force --disable-dataset-search \
+  --backfill-openalex-metadata --das-audit-sample-per-year 1500
+# or via the runner (presets resolved for you):
+python scripts/run_discipline_benchmark.py --disciplines stroke --force --skip-dashboard \
+  --disable-dataset-search --backfill-openalex-metadata --das-audit-sample-per-year 1500
+```
 
 ## Output schema (key columns)
 | Column | Type | Description |
@@ -95,8 +131,28 @@ Caches:
 | `dataset_urls` | str | Semicolon-joined dataset repo URLs |
 | `dataset_repos` | str | Semicolon-joined repo type names |
 | `has_public_dataset` | boolean | Any dataset URL found |
-| `preregistered` | boolean | Pre-registration found |
-| `preprint` | str | Preprint URL/identifier |
+| `preregistered` | boolean | Pre-registration found (LLM, candidate subset only) |
+| `preprint` | str | Preprint URL/identifier (LLM), else preprint server names from OpenAlex, else `openalex:preprint_version` |
+| `work_type` | str | OpenAlex work type (`article`, `review`, `preprint`, `dataset`, `erratum`, ...) |
+| `oa_status` | str | OpenAlex OA status: `diamond`, `gold`, `hybrid`, `green`, `bronze`, `closed` |
+| `primary_source_type` | str | OpenAlex primary source type (`journal`, `repository`, ...) |
+| `primary_source_is_in_doaj` | boolean | Primary source listed in DOAJ |
+| `has_preprint_version` | boolean | A location on a preprint server exists (and the record itself is not a preprint) |
+| `is_preprint_record` | boolean | The work is a preprint record |
+| `preprint_servers` | str | Pipe-joined preprint server names |
+| `first_author_country` | str | ISO country of the first author |
+| `countries` | str | Pipe-joined distinct author countries |
+| `funders` | str | Pipe-joined funder names |
+| `is_retracted` / `has_fulltext` | boolean | OpenAlex flags |
+| `reg_trial_registry` / `reg_prospero` / `reg_preregistration_wording` | boolean | Regex registration signals over title+abstract |
+| `registered_any` / `registration_signal` | boolean | Any regex registration signal (identical) |
+| `in_article_corpus` | boolean | Journal article/review (OpenAlex type + journal source; journal-name fallback when metadata is missing) |
+| `corpus_rule` | str | `openalex_type` or `source_name_fallback` |
+| `das_pmcid` | str | Europe PMC PMCID used for the DAS audit |
+| `das_available` | boolean | Full text fetched and parsed (article was audited) |
+| `das_has_statement` | boolean | A data-availability statement was found (audited rows only) |
+| `das_primary` | str | `repository`, `controlled_or_restricted`, `on_request`, `in_article`, `not_available_or_na`, `other_or_unclear`, `no_statement` |
+| `das_text` | str | Extracted statement(s), truncated to 1000 chars |
 | `code_link` | str | Code repository URL |
 | `data_link` | str | Data repository URL |
 | `open_science_score` | float | Embedding cosine similarity (optional) |

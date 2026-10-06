@@ -64,14 +64,17 @@ jobs:
       # budget cap resumes where it left off. The key is unique per run (actions/cache never
       # overwrites an existing key); restore-keys picks the most recent cache for the same
       # discipline/start_year/max_per_query. Saved with if: always() so failed runs resume too.
+      # The "v2" schema tag: slices now carry the OpenAlex work-metadata columns (work_type,
+      # oa_status, locations, countries, funders) captured at retrieval, so older v1 slices
+      # are not restored and no --backfill-openalex-metadata pass is needed for new runs.
       - name: Restore cached retrieval slices
         id: restore-slices
         uses: actions/cache/restore@v5
         with:
           path: data/benchmarks/${{ matrix.discipline }}/retrieval_slices
-          key: retrieval-slices-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: retrieval-slices-v2-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            retrieval-slices-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-
+            retrieval-slices-v2-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-
 
       - name: Write .env from secrets
         run: |
@@ -91,9 +94,12 @@ jobs:
         run: |
           # Hosted runners cap a job at 6 h, so a budget wait longer than 5 h cannot finish here:
           # stop the slice cleanly (partial saved, cache kept) and let the next run resume instead.
-          ARGS="--disciplines ${{ matrix.discipline }} --start-year $START_YEAR --skip-dashboard --disable-dataset-search --openalex-budget-wait-max-hours 5"
+          # The data-availability-statement audit samples 1,500 open-access full texts per year
+          # from Europe PMC (free, no key; resumable via das_cache.jsonl).
+          ARGS="--disciplines ${{ matrix.discipline }} --start-year $START_YEAR --skip-dashboard --disable-dataset-search --openalex-budget-wait-max-hours 5 --das-audit-sample-per-year 1500"
           if [ "$MAX_PER_QUERY" != "0" ]; then
-            ARGS="$ARGS --max-per-query $MAX_PER_QUERY --disable-api-enrich"
+            # Smoke test: the later --das-audit-sample-per-year wins (argparse), keeping the audit tiny.
+            ARGS="$ARGS --max-per-query $MAX_PER_QUERY --disable-api-enrich --das-audit-sample-per-year 20"
           fi
           python scripts/run_discipline_benchmark.py $ARGS
 
@@ -275,6 +281,8 @@ jobs:
             --exclude='enriched_preview.csv' \
             --exclude='enrich_cache.json' \
             --exclude='llm_cache.json' \
+            --exclude='openalex_metadata_cache.jsonl' \
+            --exclude='das_cache.jsonl' \
             --exclude='fully_enriched.csv' \
             data/benchmarks/. "$DEST/"
           cp outputs_archive/manifest.csv "$DEST/manifest.csv" 2>/dev/null || true

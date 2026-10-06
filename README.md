@@ -77,12 +77,20 @@ resumes only the unfinished slices. Keyless fallback is used only when no key is
 ## Pipeline stages
 
 ```text
-OpenAlex retrieval  →  PubMed (optional)  →  Unpaywall/Crossref snapshot joins
-→  Regex extraction (GitHub/Zenodo/OSF/dataset repos)
+OpenAlex retrieval (incl. work type, OA status, preprint locations, countries, funders)
+→  OpenAlex metadata backfill (--backfill-openalex-metadata, legacy datasets only)
+→  PubMed (optional)  →  Unpaywall/Crossref snapshot joins
+→  Regex extraction (GitHub/Zenodo/OSF/dataset repos · registration signals · in_article_corpus flag)
 →  API enrichment (Unpaywall · Zenodo · OSF · GitHub · DataCite · Dryad · Figshare)
-→  Embedding ranking (optional)  →  LLM extraction (optional)
+→  Embedding ranking (optional)  →  LLM extraction (optional; preprint filled from metadata otherwise)
+→  Data-availability-statement audit via Europe PMC (--das-audit-sample-per-year N)
 →  Journal metrics  →  High-impact subgroup  →  CSV export
 ```
+
+The DAS audit resolves DOIs to PMCIDs with batched Europe PMC searches, samples N open-access
+full texts per year, and classifies the data-availability statement (repository, controlled /
+restricted, on request, in article, not available, other, no statement). Only the open-access
+subset has full text, so those rates are optimistic relative to the whole corpus.
 
 ## Output files
 
@@ -96,11 +104,16 @@ Each discipline run produces these files under `data/{discipline}/`:
 | `high_impact_subset.csv` | Papers meeting IF ≥ 10 or citation ≥ 90th percentile |
 | `enrich_cache.json` | Resumable API enrichment cache |
 | `llm_cache.json` | Resumable LLM extraction cache |
+| `openalex_metadata_cache.jsonl` | Resumable batched OpenAlex work-metadata lookups (backfill only) |
+| `das_cache.jsonl` | Resumable Europe PMC DOI→PMCID resolutions and DAS extractions |
 
-Key output columns: `doi`, `title`, `year`, `discipline`, `is_oa`, `license`,
-`journal`, `journal_impact_factor`, `cited_by_count`, `github`, `zenodo`, `osf`,
-`dataset_urls`, `dataset_repos`, `has_public_dataset`, `preregistered`, `preprint`,
-`code_link`, `data_link`, `open_science_score`, `high_impact_flag`.
+Key output columns: `doi`, `title`, `year`, `discipline`, `is_oa`, `oa_status`, `license`,
+`journal`, `journal_impact_factor`, `cited_by_count`, `work_type`, `primary_source_type`,
+`in_article_corpus`, `github`, `zenodo`, `osf`, `dataset_urls`, `dataset_repos`,
+`has_public_dataset`, `preregistered`, `registration_signal`, `preprint`, `has_preprint_version`,
+`first_author_country`, `countries`, `funders`, `code_link`, `data_link`, `das_available`,
+`das_primary`, `das_text`, `open_science_score`, `high_impact_flag`. See `CLAUDE.md` for the full
+schema.
 
 ## Disciplines
 
