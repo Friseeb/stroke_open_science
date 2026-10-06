@@ -11,6 +11,8 @@ from __future__ import annotations
 import argparse
 import html
 import logging
+import shutil
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -128,6 +130,11 @@ def parse_args() -> argparse.Namespace:
                         help="Fallback for the footnote when high_impact_reason does not state the IF threshold")
     parser.add_argument("--citation-percentile-threshold", type=float, default=90.0,
                         help="Fallback for the footnote when high_impact_reason does not state the citation percentile")
+    parser.add_argument("--enrichment-dir", default=None,
+                        help="Directory with <discipline>_work_metadata.csv files, left-joined by DOI into the "
+                             "interactive dashboard data when the main CSV lacks the OpenAlex work-metadata columns")
+    parser.add_argument("--skip-site", action="store_true",
+                        help="Do not build the interactive site (dashboard_data.json + site/)")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
 
@@ -1766,7 +1773,17 @@ def main() -> int:
     out_dir = Path(args.out_dir).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    site_builder = None
+    if not getattr(args, "skip_site", False):
+        try:
+            import build_dashboard_data as site_builder  # sibling module (scripts/ is on sys.path via __file__)
+        except ImportError:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            import build_dashboard_data as site_builder
+    enrichment_dir = Path(args.enrichment_dir).expanduser().resolve() if getattr(args, "enrichment_dir", None) else None
+
     panels: List[pd.DataFrame] = []
+    site_aggregates: List[Dict[str, object]] = []
     high_impact_settings: Dict[str, float] = {}
     for discipline, path in inputs.items():
         if not path.exists():
@@ -1776,6 +1793,13 @@ def main() -> int:
         df = pd.read_csv(path, low_memory=False)
         for key, value in infer_high_impact_settings(df).items():
             high_impact_settings.setdefault(key, value)
+        if site_builder is not None:
+            # Optional enrichment join / derived flags, shared by both outputs so they agree; then aggregate
+            # for the interactive site while the frame is in memory (counts only, small).
+            df = site_builder.prepare_frame(df, discipline, enrichment_dir=enrichment_dir)
+            aggregate = site_builder.aggregate_discipline(df, discipline)
+            if aggregate["cells"]:
+                site_aggregates.append(aggregate)
         panel = prepare_discipline_panel(df, discipline)
         if panel.empty:
             logging.warning("No usable rows for %s after preprocessing.", discipline)
@@ -1809,6 +1833,16 @@ def main() -> int:
     )
     if dashboard_html.exists():
         logging.info("Saved dashboard HTML: %s", dashboard_html)
+
+    if site_builder is not None and site_aggregates:
+        payload = site_builder.assemble_payload(site_aggregates, high_impact_defaults=high_impact_settings)
+        json_path = out_dir / "dashboard_data.json"
+        site_builder.write_payload(payload, json_path)
+        site_dir = out_dir / "site"
+        site_builder.copy_site(json_path, site_dir)
+        if dashboard_html.exists():
+            shutil.copy2(dashboard_html, site_dir / "legacy.html")
+        logging.info("Interactive site ready: %s (serve with `python -m http.server` from that folder)", site_dir)
 
     return 0
 

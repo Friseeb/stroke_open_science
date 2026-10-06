@@ -289,10 +289,20 @@ jobs:
           cp outputs_archive/metadata.json "$DEST/metadata.json" 2>/dev/null || true
           echo "$TIMESTAMP" > outputs_repo/LATEST_RUN.txt
 
-          # Update GitHub Pages root so the dashboard is always at the repo's Pages URL
+          # Update GitHub Pages root so the dashboard is always at the repo's Pages URL.
+          # The interactive static site (index.html + app.js + styles.css + dashboard_data.json) is the
+          # landing page; the single-file Plotly dashboard stays available as legacy.html.
+          if [ -d "data/benchmarks/dashboard/site" ]; then
+            mkdir -p outputs_repo/docs
+            cp data/benchmarks/dashboard/site/* outputs_repo/docs/
+            touch outputs_repo/docs/.nojekyll
+          fi
           if [ -f "data/benchmarks/dashboard/discipline_dashboard.html" ]; then
             mkdir -p outputs_repo/docs
-            cp data/benchmarks/dashboard/discipline_dashboard.html outputs_repo/docs/index.html
+            cp data/benchmarks/dashboard/discipline_dashboard.html outputs_repo/docs/legacy.html
+            if [ ! -f outputs_repo/docs/index.html ]; then
+              cp data/benchmarks/dashboard/discipline_dashboard.html outputs_repo/docs/index.html
+            fi
             cp data/benchmarks/dashboard/discipline_overall_summary.csv outputs_repo/docs/ 2>/dev/null || true
             cp data/benchmarks/dashboard/discipline_year_summary.csv outputs_repo/docs/ 2>/dev/null || true
           fi

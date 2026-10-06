@@ -55,8 +55,24 @@ python scripts/run_discipline_benchmark.py
 
 Build dashboard only (from existing data):
 ```bash
-python scripts/build_discipline_dashboard.py
+python scripts/build_discipline_dashboard.py --inputs stroke=data/benchmarks/stroke/fully_enriched.csv ... \
+  --out-dir data/benchmarks/dashboard            # add --enrichment-dir data/enrichment for legacy CSVs
+python -m http.server 8000 --directory data/benchmarks/dashboard/site   # preview the interactive site
 ```
+
+## Dashboards
+- `build_discipline_dashboard.py` writes the static single-file report (`discipline_dashboard.html`) and,
+  unless `--skip-site`, calls `build_dashboard_data.py` on each loaded frame to write `dashboard_data.json`
+  and copy `dashboard/` (index.html, app.js, styles.css) + the JSON + `legacy.html` into `<out-dir>/site/`.
+- `dashboard_data.json` stores **counts only** (`COUNT_KEYS`: n, oa, oa_<status>×6, code, data, material,
+  preprint, reg, n_abs, das_audited, das_stmt, das_<category>×7) at the grain year × high_impact × journal
+  (top 40 + Other) × first-author country (top 25 + Other) per discipline, plus year × high_impact × funder
+  (top 25 + Other + no-funder; multi-valued, so funder n's exceed paper totals). Rows are flat int lists; the
+  browser sums and divides. Legacy CSVs without the new columns get `available.*=false` and the page hides
+  those charts. `--enrichment-dir` left-joins `<discipline>_work_metadata.csv` by `doi_norm` (fills blank /
+  missing fields only, then derives `in_article_corpus` via `apply_corpus_flag`; registration flags are
+  derived from title+abstract via `apply_registration_flags` when missing).
+- GitHub Pages (outputs repo `docs/`): workflows copy `site/*` to `docs/` and the old report to `docs/legacy.html`.
 
 ## Pipeline stages (search_stroke_dois.py)
 1. **OpenAlex retrieval** — parallel term×year cursor pagination → `data/{discipline}/raw_openalex_articles.csv`.
@@ -166,9 +182,10 @@ pip install pytest
 python -m pytest -q
 ```
 
-Tests live in `tests/test_pipeline_deterministic.py`. They load the pipeline module directly and
-test pure-logic functions (DOI normalization, date windows, LLM payload parsing, regex extraction,
-deduplication). No API calls, no fixtures on disk — safe to run in CI.
+Tests live in `tests/` (`test_pipeline_deterministic.py`, `test_openalex_budget.py`, `test_metadata_flags_das.py`,
+`test_dashboard_metrics.py`, `test_dashboard_data.py`). They load the scripts directly and test pure-logic
+functions (DOI normalization, date windows, LLM payload parsing, regex extraction, deduplication, dashboard
+count aggregation). No API calls, no fixtures on disk — safe to run in CI.
 
 ## Adding a new discipline
 1. Add terms to `configs/discipline_presets.json`.

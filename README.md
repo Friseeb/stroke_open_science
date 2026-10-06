@@ -39,7 +39,26 @@ python scripts/search_stroke_dois.py --discipline stroke --start-year 2018 --end
 # 5. All disciplines + dashboard
 python scripts/run_discipline_benchmark.py
 python scripts/build_discipline_dashboard.py
+
+# 6. Interactive dashboard only (static site; preview locally)
+python scripts/build_discipline_dashboard.py \
+  --inputs stroke=data/benchmarks/stroke/fully_enriched.csv neurology=data/benchmarks/neurology/fully_enriched.csv \
+  --out-dir data/benchmarks/dashboard
+python -m http.server 8000 --directory data/benchmarks/dashboard/site   # open http://localhost:8000/
 ```
+
+## Interactive dashboard
+
+`scripts/build_discipline_dashboard.py` writes two things to `--out-dir`: the single-file Plotly
+report (`discipline_dashboard.html`, kept on GitHub Pages as `legacy.html`) and the interactive
+static site in `site/` (`index.html`, `app.js`, `styles.css` from `dashboard/`, plus
+`dashboard_data.json`). The JSON holds pre-aggregated **counts** (discipline × year × high-impact ×
+journal × first-author country, and discipline × year × high-impact × funder, top-N + "Other") so the
+browser recomputes every rate for any filter combination without row-level data; it stays well under
+3 MB for four disciplines. `scripts/build_dashboard_data.py` can also be run on its own
+(`--inputs`, `--out`, `--site-dir`, `--enrichment-dir` to left-join `<discipline>_work_metadata.csv`
+by DOI into legacy CSVs that lack the OpenAlex work-metadata columns). The page must be served over
+HTTP (GitHub Pages, or `python -m http.server`), because browsers block `fetch()` from `file://`.
 
 ## Environment variables
 
@@ -141,15 +160,19 @@ No API calls, no on-disk fixtures.
 scripts/
   search_stroke_dois.py          # Main pipeline (3 500+ lines, all stages)
   run_discipline_benchmark.py    # Multi-discipline orchestrator
-  build_discipline_dashboard.py  # HTML dashboard generator
+  build_discipline_dashboard.py  # HTML dashboard generator (also builds the interactive site)
+  build_dashboard_data.py        # Pre-aggregated counts JSON for dashboard/ (interactive static site)
   run_scheduled_benchmark.py     # Scheduled-run wrapper
   prepare_outputs_archive.py     # Manifest/metadata for outputs repo
 configs/
   discipline_presets.json        # Search terms per discipline
   journal_metrics.csv            # Journal impact factors
   .env.example                   # Credential template
+dashboard/
+  index.html, app.js, styles.css # Interactive static dashboard (reads dashboard_data.json; Plotly via CDN)
 tests/
   test_pipeline_deterministic.py # Pure-logic unit tests
+  test_dashboard_data.py         # Dashboard count aggregation, top-N folding, enrichment join
   test_openalex_budget.py        # Budget-wait and partial-slice resume tests (mocked HTTP)
 docs/
   REPOSITORY_AND_GITHUB_PLAN.md  # Architecture and roadmap
