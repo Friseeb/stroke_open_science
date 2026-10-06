@@ -65,7 +65,7 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   unless `--skip-site`, calls `build_dashboard_data.py` on each loaded frame to write `dashboard_data.json`
   and copy `dashboard/` (index.html, app.js, styles.css) + the JSON + `legacy.html` into `<out-dir>/site/`.
 - `dashboard_data.json` stores **counts only** (`COUNT_KEYS`: n, oa, oa_<status>×6, code, data, material,
-  preprint, reg, n_abs, das_audited, das_stmt, das_<category>×7) at the grain year × high_impact × journal
+  preprint, reg, n_abs, das_audited, das_stmt, das_<category>×8) at the grain year × high_impact × journal
   (top 40 + Other) × first-author country (top 25 + Other) per discipline, plus year × high_impact × funder
   (top 25 + Other + no-funder; multi-valued, so funder n's exceed paper totals). Rows are flat int lists; the
   browser sums and divides. Legacy CSVs without the new columns get `available.*=false` and the page hides
@@ -117,6 +117,23 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
     data-availability statements are extracted (`extract_das_statements`) and classified (`classify_das_text`).
     Writes `das_pmcid`, `das_available`, `das_has_statement`, `das_primary`, `das_text`. Open-access full text only,
     so rates are optimistic relative to the whole corpus.
+    - Extraction: `<sec sec-type="data-availability">`-style sections or DAS-like titles; `notes`/`fn`/`custom-meta`
+      (`<meta-name>`)/`supplementary-material`/`ack`/`statement` elements flagged by attribute/title; short (<1500 chars)
+      `fn`/`notes`/`ack` whose text matches `DAS_SENTENCE_PATTERN` (unmarked publisher boilerplate: AHA, Wolters Kluwer,
+      PeerJ, Frontiers); last resort any `<p>` starting like a DAS or containing a DAS sentence (sliced to it, 20-700 chars).
+      A statement that is only its heading (<15 chars of body) counts as no statement.
+    - Categories (`DAS_PRIMARY_PRIORITY`, first match wins): `repository` (authors' own deposit: Zenodo, Dryad, OSF,
+      GitHub, dbGaP, DOI 10.5281/10.6084/10.5061, "available at http..."), `public_source` (secondary analysis of a
+      public/third-party dataset: UK Biobank, NHANES, NHIRD, CHARLS, MIMIC, GBD, HCUP/NIS, SEER, Medicare, CPRD, GWTG,
+      "publicly available from the official ... website"), `controlled_or_restricted`, `on_request`, `in_article`,
+      `not_available_or_na`, else `other_or_unclear`; `no_statement` when nothing was found. `DAS_REFUSAL_PATTERN`
+      ("will not be made available", "no datasets were generated", "data sharing not applicable", "no additional data")
+      forces `not_available_or_na` unless a repository or public source is named. `code_shared` is an extra
+      multi-label flag only.
+    - Validation: the same parser (`stroke_open_science_talk/scripts/audit_data_availability_europepmc.py`) was run on
+      19,637 open-access stroke articles; a blind re-check of 100 recent no-statement articles after the fixes found
+      3 true misses and 2 narrative false alarms, i.e. a residual miss rate of about 1% of articles. Keep the two
+      copies identical (`tests/test_metadata_flags_das.py` carries the shared cases).
 12. **High-impact subgroup** — filters by journal IF threshold + citation percentile (pooled across years within
     the discipline) → `high_impact_subset.csv`
 13. **Preview export** — first N rows → `enriched_preview.csv`
@@ -179,7 +196,7 @@ python scripts/run_discipline_benchmark.py --disciplines stroke --force --skip-d
 | `das_pmcid` | str | Europe PMC PMCID used for the DAS audit |
 | `das_available` | boolean | Full text fetched and parsed (article was audited) |
 | `das_has_statement` | boolean | A data-availability statement was found (audited rows only) |
-| `das_primary` | str | `repository`, `controlled_or_restricted`, `on_request`, `in_article`, `not_available_or_na`, `other_or_unclear`, `no_statement` |
+| `das_primary` | str | `repository` (authors' deposit), `public_source` (public/third-party dataset), `controlled_or_restricted`, `on_request`, `in_article`, `not_available_or_na`, `other_or_unclear`, `no_statement` |
 | `das_text` | str | Extracted statement(s), truncated to 1000 chars |
 | `code_link` | str | Code repository URL |
 | `data_link` | str | Data repository URL |

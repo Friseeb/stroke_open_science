@@ -491,7 +491,80 @@ def test_classify_das_text_is_multilabel():
     out = pipeline.classify_das_text("Code is available on GitHub (github.com/x/y); data are available upon reasonable request.")
     assert out["lab_repository"] and out["lab_on_request"] and out["lab_code_shared"]
     assert out["primary"] == "repository"
-    assert set(pipeline.DAS_CATEGORIES) >= {"repository", "on_request", "no_statement", "other_or_unclear"}
+    assert set(pipeline.DAS_CATEGORIES) >= {"repository", "public_source", "on_request", "no_statement", "other_or_unclear"}
+
+
+def test_das_primary_priority_matches_validated_audit():
+    assert pipeline.DAS_PRIMARY_PRIORITY == [
+        "repository", "public_source", "controlled_or_restricted", "on_request", "in_article", "not_available_or_na",
+    ]
+    assert pipeline.DAS_CATEGORIES == pipeline.DAS_PRIMARY_PRIORITY + ["other_or_unclear", "no_statement"]
+
+
+# Cases from the standalone audit validated on 19,637 open-access stroke articles
+# (stroke_open_science_talk/scripts/audit_data_availability_europepmc.py); both parsers must agree.
+@pytest.mark.parametrize(
+    "text, primary",
+    [
+        ("The raw data supporting the conclusions of this article will be made available by the authors, without undue reservation.", "on_request"),
+        ("Data sharing not applicable to this article as no datasets were generated or analyzed during the current study.", "not_available_or_na"),
+        ("We will make the data and methods used in the analysis available to any researcher for purposes of reproducing the results.", "on_request"),
+        ("The dataset utilized in this study is publicly available from the official CHARLS website (https://charls.pku.edu.cn/).", "public_source"),
+        ("By law, we are not permitted to disclose data to third parties. Requests to access the data set may be sent to Findata.", "controlled_or_restricted"),
+        ("All relevant data are within the Supporting Information files.", "in_article"),
+        ("No additional data are available.", "not_available_or_na"),
+        ("Data are available at https://doi.org/10.5281/zenodo.1234567.", "repository"),
+        ("The data that support the findings of this study are available from the corresponding author upon reasonable request.", "on_request"),
+        ("Data are available in the UK Biobank to approved researchers.", "public_source"),
+        ("The data, analytic methods, and study materials will not be made available to other researchers for purposes of reproducing the results.", "not_available_or_na"),
+        ("Data sharing will be restricted to non-commercial and academic purposes only. The centers will have to give permission for re-use.", "controlled_or_restricted"),
+        ("Code is available at https://github.com/lab/stroke-seg; data will be shared on request.", "repository"),
+    ],
+)
+def test_classify_das_text_validated_cases(text, primary):
+    assert pipeline.classify_das_text(text)["primary"] == primary
+
+
+@pytest.mark.parametrize(
+    "sentence, is_das",
+    [
+        ("Anonymized data can be provided upon reasonable request to the corresponding author.", True),
+        ("All data and materials are publicly available at the NHIS and can be accessed at cdc.gov.", True),
+        ("The following information was supplied regarding data availability: The raw measurements are available in the Supplemental File.", True),
+        ("We will make the data and methods used in the analysis available to any researcher for purposes of reproducing the results.", True),
+        ("There were 39 patients who had MRI data available for analysis.", False),
+    ],
+)
+def test_das_sentence_pattern_detects_unmarked_statements(sentence, is_das):
+    assert bool(pipeline.DAS_SENTENCE_PATTERN.search(sentence)) is is_das
+
+
+JATS_CUSTOM_META_AND_FN = """<?xml version="1.0"?>
+<article><front><article-meta>
+  <custom-meta-group><custom-meta><meta-name>Data Availability</meta-name>
+    <meta-value>The dataset utilized in this study is publicly available from the official CHARLS website.</meta-value>
+  </custom-meta></custom-meta-group>
+</article-meta></front>
+<body><sec><title>Methods</title><p>There were 39 patients who had MRI data available for analysis.</p></sec></body>
+<back><fn-group><fn><p>Anonymized data can be provided upon reasonable request to the corresponding author.</p></fn>
+<fn><p>The authors report no conflicts of interest.</p></fn></fn-group></back></article>"""
+
+
+def test_extract_das_statements_custom_meta_name_and_unmarked_fn():
+    out = pipeline.extract_das_statements(JATS_CUSTOM_META_AND_FN)
+    by_how = {s["how"]: s for s in out["statements"]}
+    assert set(by_how) == {"custom-meta", "fn-sentence"}
+    assert by_how["custom-meta"]["label"] == "Data Availability"
+    assert "CHARLS" in by_how["custom-meta"]["text"]
+    assert by_how["fn-sentence"]["text"].startswith("Anonymized data can be provided")
+    assert not any("conflicts of interest" in s["text"] for s in out["statements"])
+
+
+def test_das_substantive_statements_drops_heading_only():
+    heading_only = [{"how": "sec-title", "label": "Data Availability Statement", "text": "Data Availability Statement"}]
+    assert pipeline.das_substantive_statements(heading_only) == []
+    real = [{"how": "sec-type", "label": "data-availability", "text": "Data availability statement. Data are available at https://doi.org/10.5281/zenodo.1."}]
+    assert pipeline.das_substantive_statements(real + heading_only + ["not-a-dict"]) == real
 
 
 # ── DAS audit: end-to-end with a scripted Europe PMC session ───────────────────

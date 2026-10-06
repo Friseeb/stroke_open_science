@@ -75,8 +75,8 @@ OA_STATUS_COLORS: Dict[str, str] = {
     "green": "#5598e7", "bronze": "#9ec5f4", "closed": "#d9d8d4",
 }
 DAS_COLORS: Dict[str, str] = {
-    "repository": "#0d366b", "controlled_or_restricted": "#1c5cab", "on_request": "#2a78d6",
-    "in_article": "#5598e7", "not_available_or_na": "#9ec5f4",
+    "repository": "#0d366b", "public_source": "#1c5cab", "controlled_or_restricted": "#2a78d6",
+    "on_request": "#5598e7", "in_article": "#9ec5f4", "not_available_or_na": "#cde2fb",
     "other_or_unclear": "#c9c8c4", "no_statement": "#d9d8d4",
 }
 

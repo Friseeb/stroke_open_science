@@ -55,15 +55,16 @@ OA_STATUS_COLORS = {
     "green": "#6baed6", "bronze": "#c6dbef", "closed": "#bdbdbd",
 }
 # Data-availability-statement primary categories (see search_stroke_dois.DAS_CATEGORIES).
-DAS_ORDER = ["repository", "controlled_or_restricted", "on_request", "in_article",
+DAS_ORDER = ["repository", "public_source", "controlled_or_restricted", "on_request", "in_article",
              "not_available_or_na", "other_or_unclear", "no_statement"]
 DAS_COLORS = {
-    "repository": "#08306b", "controlled_or_restricted": "#2171b5", "on_request": "#6baed6",
-    "in_article": "#c6dbef", "not_available_or_na": "#deebf7",
+    "repository": "#08306b", "public_source": "#08519c", "controlled_or_restricted": "#2171b5",
+    "on_request": "#6baed6", "in_article": "#c6dbef", "not_available_or_na": "#deebf7",
     "other_or_unclear": "#d9d9d9", "no_statement": "#a6a6a6",
 }
 DAS_LABELS = {
-    "repository": "Public repository", "controlled_or_restricted": "Controlled / restricted",
+    "repository": "Authors' deposit in a repository", "public_source": "Public or third-party dataset",
+    "controlled_or_restricted": "Controlled / restricted",
     "on_request": "On request", "in_article": "In article / supplement",
     "not_available_or_na": "Not available / N/A", "other_or_unclear": "Other / unclear",
     "no_statement": "No statement found",
@@ -715,7 +716,7 @@ def build_narrative_summary(
         best = audited.sort_values("das_repository_share", ascending=False).iloc[0]
         sentences.append(
             f"Among {int(audited['das_audited'].sum()):,} open-access full texts audited for a data-availability statement, "
-            f"{discipline_label(str(best['discipline']))} most often points to a public repository ({float(best['das_repository_share']):.0%})."
+            f"{discipline_label(str(best['discipline']))} most often reports the authors' own deposit in a repository ({float(best['das_repository_share']):.0%})."
         )
 
     # --- High-impact vs all ---

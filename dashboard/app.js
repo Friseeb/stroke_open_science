@@ -532,11 +532,17 @@
     });
   }
 
+  // DAS categories added or relabelled after early dashboard_data.json builds; the JSON wins when present.
+  const DAS_FALLBACK_LABELS = { repository: "Authors' deposit in a repository", public_source: "Public or third-party dataset" };
+  const DAS_FALLBACK_COLORS = { repository: "#0d366b", public_source: "#1c5cab", controlled_or_restricted: "#2a78d6" };
+
   function renderDas() {
     const d = focusDisc();
     renderStacked({
       id: "das-chart", titleId: "das-title", subId: "das-sub", cardId: "das-card", tableId: "das-table",
-      order: DATA.das_order, labels: DATA.das_labels, colors: DATA.das_colors, prefix: "das_",
+      order: DATA.das_order, prefix: "das_",
+      labels: Object.assign({}, DAS_FALLBACK_LABELS, DATA.das_labels || {}),
+      colors: Object.assign({}, DAS_FALLBACK_COLORS, DATA.das_colors || {}),
       denomFn: (c) => c[K.das_audited],
       title: "Data-availability statements by year",
       subtitle: (n) => "Primary category of the data-availability statement in " + fmtInt(n) + " audited open-access full texts (Europe PMC sample). " + selectionLabel() + ".",

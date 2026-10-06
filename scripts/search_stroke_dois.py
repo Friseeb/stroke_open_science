@@ -246,11 +246,24 @@ DAS_SEC_TYPES = {
     "code-availability",
     "availability",
 }
+# Unmarked statements (no sec-type / title): publisher boilerplate seen in AHA ('make the data and
+# methods used in the analysis available to any researcher'), Wolters Kluwer ('data sharing not
+# applicable ... no datasets were generated'), PeerJ ('supplied regarding data availability'),
+# Frontiers ('without undue reservation'), and common free-text variants. Validated on 19,637
+# open-access stroke articles (talk/wsc2026 audit); keep in sync with
+# stroke_open_science_talk/scripts/audit_data_availability_europepmc.py.
 DAS_SENTENCE_PATTERN = re.compile(
-    r"(data|datasets?|materials?)[^.;]{0,100}(support(ing)? the (findings|results|conclusions)|used (and/or |and |or )?analy[sz]ed|"
-    r"generated (and|or) analy[sz]ed|of (this|the present|the current) study)[^.;]{0,160}(available|shared|accessible|deposited|provided|obtained)|"
+    r"(data|datasets?|materials?)[^.;]{0,100}(support(ing)? the (findings|results|conclusions)|used (and/or |and |or )?analy[sz]ed|generated (and|or) analy[sz]ed|"
+    r"of (this|the present|the current) study)[^.;]{0,160}(available|shared|accessible|deposited|provided|obtained)|"
     r"(available|obtained) from the corresponding author|data (sharing|availability) statement|"
-    r"(will|can) be (made )?available (up)?on (reasonable )?request|data are not publicly available|no data (were|was) generated",
+    r"(will|can|may) be (made )?available (up)?on (reasonable )?request|(are|is) available (up)?on (reasonable |justified )?request|"
+    r"data (are|is) not publicly available|no data(sets)? (were|was|are|is) (generated|used|created|analy[sz]ed)|"
+    r"data sharing (is )?not applicable|supplied regarding data availability|"
+    r"(make|made) (the |all |our )?(data|datasets?|study materials?)[^.;]{0,80}available to (any|other|qualified) researcher|"
+    r"will not be made available to other researchers|without undue reservation|"
+    r"requests? to access the data(set)? (may|can|should) be (sent|directed|made)|"
+    r"(anonymi[sz]ed |de-?identified |individual participant )?data (will|can|may|could) be (shared|provided|obtained|made available|released) (up)?on (reasonable |justified )?request|"
+    r"(data|datasets?) and (materials?|code) (are|is|were) (publicly |freely )?available (at|from|in|through)",
     re.IGNORECASE,
 )
 DAS_TITLE_PATTERN = re.compile(
@@ -259,38 +272,63 @@ DAS_TITLE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 DAS_PREFIX_PATTERN = re.compile(r"^(data|code) (availability|sharing)( statement)?[:.]|^availability of data", re.IGNORECASE)
-DAS_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"'(])")
+# JATS elements (besides <sec>) that publishers use to hold the statement.
+DAS_ELEMENT_TAGS = ("notes", "fn", "custom-meta", "supplementary-material", "ack", "statement")
+DAS_UNMARKED_ELEMENT_TAGS = ("fn", "notes", "ack")
+DAS_UNMARKED_ELEMENT_MAX_CHARS = 1500
+# A statement that is only its heading ("Data availability statement") with < 15 chars of body
+# counts as no statement.
+DAS_HEADING_ONLY_PATTERN = re.compile(r"(?i)(data|code)? ?(availability|sharing)( statement)?|availability of data( and materials?)?")
+DAS_HEADING_MIN_BODY_CHARS = 15
 # Multi-label classification; DAS_PRIMARY_PRIORITY resolves to one label per article.
 DAS_PATTERNS: Dict[str, "re.Pattern[str]"] = {
+    # Authors deposited their own data/code somewhere public.
     "repository": re.compile(
         r"zenodo|figshare|dryad|osf\.io|open science framework|github\.com|gitlab|bitbucket|dbgap|openneuro|synapse\.org|"
-        r"mendeley data|vivli|yoda project|virtual international stroke trials archive|\bvista\b|clinicalstudydatarequest|"
+        r"mendeley data|vivli|yoda project|virtual international stroke trials archive|clinicalstudydatarequest|"
         r"dataverse|\bgeo\b accession|\bgse\d{4,}|arrayexpress|\bsra\b|ega-|european genome-phenome|physionet|"
-        r"ukbiobank|uk biobank|\bnda\b|nimh data archive|openicpsr|icpsr|\bzivahub|re3data|doi\.org/10\.5281|doi\.org/10\.6084|"
-        r"doi\.org/10\.5061|deposited (in|at|to) (a |the )?(public )?repositor|publicly available (at|in|from|through) (the )?(https?://|www\.)",
+        r"\bnda\b|nimh data archive|openicpsr|icpsr|zivahub|re3data|doi\.org/10\.5281|doi\.org/10\.6084|"
+        r"doi\.org/10\.5061|deposited (in|at|to|with) (a |the )?(public )?(repositor|archive|database)|"
+        r"(are|is|have been|has been) (publicly |openly |freely )?available (at|in|from|through|via) (the )?(https?://|www\.)|"
+        r"supplemental file|supplementary (data )?file",
+        re.IGNORECASE,
+    ),
+    # Secondary analysis of an existing public or third-party dataset (not the authors' deposit).
+    "public_source": re.compile(
+        r"uk ?biobank|biobank|nhanes|nhird|national health insurance (research )?database|charls|mimic-?i{1,3}v?|eicu|"
+        r"global burden of disease|\bgbd\b|hcup|nationwide inpatient sample|national inpatient sample|\bseer\b|medicare|cprd|"
+        r"get with the guidelines|\bnis\b|nsqip|\bvista\b|publicly available (from|at|on|through|via|database|dataset|data ?set)|"
+        r"(data|dataset)s? (are|is|were|was) (publicly |freely )?available (from|at) (the )?(official )?\w[\w\s-]{0,40}(website|portal|database|platform|registry)|"
+        r"third[- ]party (data|database)|open[- ]access database|public (database|dataset|registry|data ?source)",
         re.IGNORECASE,
     ),
     "on_request": re.compile(
-        r"(up)?on (reasonable |justified |formal )?request|by request|available from the corresponding author|"
-        r"contact(ing)? the corresponding author|available upon|request to the (corresponding |first )?author|from the authors? (up)?on",
+        r"(up)?on (reasonable |justified |formal |written )?request|by request|available from the corresponding author|"
+        r"contact(ing)? the (corresponding |first |senior |main )?author|available upon|request to the (corresponding |first )?author|"
+        r"from the authors? (up)?on|made available by the authors|available (by|with|through|via) the (corresponding |main |first |senior )?author|"
+        r"without undue reservation|to any qualified researcher|available to any researcher|available to other researchers|"
+        r"may be (sent|directed|requested|obtained)|requests? (to access|for) (the )?data|on asking|via connecting with|"
+        r"(shared|provided|released|obtained) (up)?on (reasonable |justified )?request",
         re.IGNORECASE,
     ),
     "in_article": re.compile(
         r"(included|contained|presented|provided|available) (with)?in (this|the) (published )?(article|manuscript|paper|study)|"
-        r"within the (article|manuscript|paper)|supplementa(l|ry) (material|information|file|data|table)|"
+        r"within the (article|manuscript|paper)|supplementa(l|ry) (material|information|file|data|table|appendix)|supporting information|"
         r"all (relevant )?data are (within|in) the (paper|manuscript)",
         re.IGNORECASE,
     ),
     "controlled_or_restricted": re.compile(
-        r"restrictions? apply|not publicly available|cannot be (made )?(publicly )?(available|shared)|third[- ]party|"
+        r"restrictions? apply|not publicly available|cannot be (made )?(publicly )?(available|shared)|not permitted|"
         r"ethical (restriction|reason|approval)|privacy|confidential|data protection|gdpr|ethics committee|"
-        r"institutional (review board|policy)|patient (consent|privacy)|data (use|sharing|access) agreement|"
-        r"controlled access|regulatory|governance|licen[cs]e (restriction|agreement)",
+        r"institutional (review board|policy)|patient (consent|privacy)|data (use|sharing|access|transfer) agreement|"
+        r"controlled access|regulatory|governance|licen[cs]e|restricted to|approval (of|by|from) the|subject to (the following )?(license|restriction)|"
+        r"by law|legal (restriction|reason)|consent was not (sought|obtained)",
         re.IGNORECASE,
     ),
     "not_available_or_na": re.compile(
-        r"no (new )?data(sets)? (were|was|are|is) (generated|created|analy[sz]ed)|not applicable|no data (are|is) available|"
-        r"data sharing (is )?not applicable|will not be (made )?(available|shared)|not available|data are unavailable",
+        r"no (new |additional )?data(sets)? (were|was|are|is) (generated|created|analy[sz]ed|used|available)|not applicable|"
+        r"no data (are|is|was|were) (available|used)|data sharing (is )?not applicable|will not be (made )?(available|shared)|"
+        r"not available|data are unavailable|no additional data",
         re.IGNORECASE,
     ),
     "code_shared": re.compile(
@@ -299,7 +337,12 @@ DAS_PATTERNS: Dict[str, "re.Pattern[str]"] = {
         re.IGNORECASE,
     ),
 }
-DAS_PRIMARY_PRIORITY = ["repository", "controlled_or_restricted", "on_request", "in_article", "not_available_or_na"]
+# An explicit refusal wins over on_request / controlled wording unless a repository or public source is named.
+DAS_REFUSAL_PATTERN = re.compile(
+    r"will not be (made )?(available|shared)|no data(sets)? (were|was|are|is) (generated|used|created)|data sharing (is )?not applicable|no additional data",
+    re.IGNORECASE,
+)
+DAS_PRIMARY_PRIORITY = ["repository", "public_source", "controlled_or_restricted", "on_request", "in_article", "not_available_or_na"]
 DAS_OTHER_LABEL = "other_or_unclear"
 DAS_NO_STATEMENT_LABEL = "no_statement"
 DAS_CATEGORIES = DAS_PRIMARY_PRIORITY + [DAS_OTHER_LABEL, DAS_NO_STATEMENT_LABEL]
@@ -4287,27 +4330,18 @@ def _jats_text(element: ET.Element) -> str:
     return WS_RE.sub(" ", " ".join(element.itertext())).strip()
 
 
-def _sentence_around(text: str, start: int, end: int) -> str:
-    """The sentence of ``text`` that contains the span ``[start, end)``."""
-    sentence_start = 0
-    sentence_end = len(text)
-    for boundary in DAS_SENTENCE_BOUNDARY.finditer(text):
-        if boundary.end() <= start:
-            sentence_start = boundary.end()
-        elif boundary.start() >= end:
-            sentence_end = boundary.start()
-            break
-    return text[sentence_start:sentence_end].strip()
-
-
 def extract_das_statements(xml_text: Any) -> Dict[str, Any]:
     """Pull data/code-availability statements out of a JATS XML document.
 
     Looks, in order, at ``<sec sec-type="data-availability">``-style sections, sections whose
-    title reads like a DAS, ``notes``/``fn``/``custom-meta``/``supplementary-material`` elements
-    flagged as availability statements, and finally (AHA journals put the statement unmarked at
-    the start of Methods) paragraphs that start like a DAS or contain a DAS-style sentence.
-    Returns ``{"statements": [...], "flags": {...}}`` or ``{"parse_error": True}``."""
+    title reads like a DAS, ``DAS_ELEMENT_TAGS`` elements (``notes``/``fn``/``custom-meta``/
+    ``supplementary-material``/``ack``/``statement``) flagged as availability statements by an
+    attribute, title or ``<meta-name>``, short ``fn``/``notes``/``ack`` elements whose text matches
+    ``DAS_SENTENCE_PATTERN`` (unmarked statements), and finally (AHA journals put the statement
+    unmarked at the start of Methods) paragraphs that start like a DAS or contain a DAS-style
+    sentence, sliced to that sentence. Logic mirrors the validated standalone audit script
+    (stroke_open_science_talk/scripts/audit_data_availability_europepmc.py) so both yield the same
+    statements. Returns ``{"statements": [...], "flags": {...}}`` or ``{"parse_error": True}``."""
     try:
         payload = xml_text.encode("utf-8") if isinstance(xml_text, str) else xml_text
         root = ET.fromstring(payload)
@@ -4332,13 +4366,26 @@ def extract_das_statements(xml_text: Any) -> Dict[str, Any]:
             consider(sec, "sec-type", sec_type or title)
         elif title and DAS_TITLE_PATTERN.search(title) and len(title) < 90:
             consider(sec, "sec-title", title)
-    for tag in ("notes", "fn", "custom-meta", "supplementary-material"):
+    for tag in DAS_ELEMENT_TAGS:
         for element in root.iter(tag):
             attrs = " ".join(f"{k}={v}" for k, v in element.attrib.items()).lower()
             title_el = element.find("title")
             title = _jats_text(title_el) if title_el is not None else ""
-            if "availab" in attrs or "data-sharing" in attrs or (title and DAS_TITLE_PATTERN.search(title)):
-                consider(element, tag, attrs or title)
+            meta_name = element.find("meta-name")
+            label = _jats_text(meta_name) if meta_name is not None else ""
+            if (
+                "availab" in attrs
+                or "data-sharing" in attrs
+                or (title and DAS_TITLE_PATTERN.search(title))
+                or (label and DAS_TITLE_PATTERN.search(label))
+            ):
+                consider(element, tag, attrs or title or label)
+            elif tag in DAS_UNMARKED_ELEMENT_TAGS:
+                text = _jats_text(element)
+                if DAS_SENTENCE_PATTERN.search(text) and len(text) < DAS_UNMARKED_ELEMENT_MAX_CHARS:
+                    consider(element, f"{tag}-sentence", "unmarked DAS in " + tag)
+    # Last resort: a paragraph that starts like a DAS, or any paragraph containing a
+    # DAS-style sentence (AHA journals place the statement unmarked at the start of Methods).
     if not statements:
         for paragraph in root.iter("p"):
             text = _jats_text(paragraph)
@@ -4347,7 +4394,11 @@ def extract_das_statements(xml_text: Any) -> Dict[str, Any]:
                 continue
             match = DAS_SENTENCE_PATTERN.search(text)
             if match:
-                sentence = _sentence_around(text, match.start(), match.end())
+                start_idx = text.rfind(". ", 0, match.start())
+                start_idx = 0 if start_idx < 0 else start_idx + 2
+                end_idx = text.find(". ", match.end())
+                end_idx = len(text) if end_idx < 0 else end_idx + 1
+                sentence = text[start_idx:end_idx]
                 if 20 < len(sentence) < 700 and sentence not in seen:
                     seen.add(sentence)
                     statements.append({"how": "p-sentence", "label": "unmarked DAS sentence", "text": sentence})
@@ -4364,12 +4415,29 @@ def extract_das_statements(xml_text: Any) -> Dict[str, Any]:
     return {"statements": statements, "flags": flags}
 
 
+def das_substantive_statements(statements: Sequence[Any]) -> List[Dict[str, Any]]:
+    """Drop statements that are only a heading ("Data availability statement") with fewer than
+    ``DAS_HEADING_MIN_BODY_CHARS`` characters of body; an article with nothing else has no statement."""
+    kept: List[Dict[str, Any]] = []
+    for statement in statements:
+        if not isinstance(statement, dict):
+            continue
+        body = DAS_HEADING_ONLY_PATTERN.sub("", str(statement.get("text") or "")).strip()
+        if len(body) > DAS_HEADING_MIN_BODY_CHARS:
+            kept.append(statement)
+    return kept
+
+
 def classify_das_text(text: str) -> Dict[str, Any]:
     """Multi-label regex classification of a DAS; ``primary`` is the first label in
-    ``DAS_PRIMARY_PRIORITY`` that fires, else ``other_or_unclear``."""
+    ``DAS_PRIMARY_PRIORITY`` that fires, else ``other_or_unclear``. An explicit refusal
+    (``DAS_REFUSAL_PATTERN``) is ``not_available_or_na`` unless a repository or public source is named."""
     text = str(text or "")
     labels = {name: bool(pattern.search(text)) for name, pattern in DAS_PATTERNS.items()}
-    primary = next((name for name in DAS_PRIMARY_PRIORITY if labels[name]), DAS_OTHER_LABEL)
+    if DAS_REFUSAL_PATTERN.search(text) and not labels["repository"] and not labels["public_source"]:
+        primary = "not_available_or_na"
+    else:
+        primary = next((name for name in DAS_PRIMARY_PRIORITY if labels[name]), DAS_OTHER_LABEL)
     return {**{f"lab_{name}": flag for name, flag in labels.items()}, "primary": primary}
 
 
@@ -4561,8 +4629,8 @@ def apply_das_results(
         fetch_rec = fetched.get(pmcid)
         row: Dict[str, Any] = {"das_pmcid": pmcid, "das_available": False, "das_has_statement": pd.NA, "das_primary": "", "das_text": ""}
         if fetch_rec and fetch_rec.get("http") == 200 and not fetch_rec.get("parse_error"):
-            statements = fetch_rec.get("statements") or []
-            text = " || ".join(str(s.get("text") or "") for s in statements if isinstance(s, dict))
+            statements = das_substantive_statements(fetch_rec.get("statements") or [])
+            text = " || ".join(str(s.get("text") or "") for s in statements)
             row["das_available"] = True
             row["das_has_statement"] = bool(statements)
             row["das_primary"] = classify_das_text(text)["primary"] if statements else DAS_NO_STATEMENT_LABEL
