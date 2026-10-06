@@ -15,11 +15,12 @@ Corpus rules (documented here because they drive every number in the talk)
 --------------------------------------------------------------------------
 * Years 2015-2025. 2026 is a partial year (pull ran June 2026) and is dropped.
   2025 is near-complete but OpenAlex indexing lags, so it is flagged in outputs.
-* When enrichment is available the corpus is journal articles and reviews only
-  (``work_type in {article, review}`` and ``primary_source_type == journal``).
-  Without enrichment, records whose "journal" is a repository or preprint server
-  (Figshare, Zenodo, Research Square, PubMed, DOAJ, SSRN, medRxiv, ...) are
-  dropped by name as a fallback.
+* When enrichment is available the corpus is enriched journal articles and reviews only
+  (``work_type in {article, review}`` and ``primary_source_type == journal``, DOI required).
+  No-DOI records are dropped: they are mostly conference abstracts. Without enrichment,
+  records whose "journal" is a repository or preprint server are dropped by name as a fallback.
+* Open access = OpenAlex current ``oa_status`` other than "closed" (falls back to the
+  release ``is_oa`` flag only when the status is unknown).
 * Code sharing = GitHub / code link / Zenodo / OSF link mentioned by a paper.
 * Data sharing = public dataset repository link detected by regex or DataCite.
 * Registration = trial / review registry identifier or explicit preregistration
@@ -123,20 +124,26 @@ def apply_corpus_rules(df: pd.DataFrame) -> pd.DataFrame:
     before = len(df)
     df = df[df["year"].isin(YEARS)].copy()
     if df["enriched"].any():
-        # Keep: enriched journal articles/reviews. Unenriched records (no DOI) are kept only if
-        # their source name does not look like a repository, so the corpus stays comparable.
+        # Keep only enriched journal articles/reviews. Records without a DOI are dropped: they are
+        # dominated by conference abstracts (e.g. ISC abstracts in Stroke) that would otherwise be
+        # counted as closed journal articles and distort journal-level open-access rates.
         is_article = df["work_type"].isin(["article", "review"]) & (df["primary_source_type"] == "journal")
-        unenriched_ok = (~df["enriched"]) & ~df["journal"].astype(str).str.contains(NON_JOURNAL_SOURCE_PATTERN, na=False)
-        df["in_corpus"] = is_article | unenriched_ok
-        df["corpus_rule"] = "openalex_type"
+        df["in_corpus"] = is_article & df["enriched"]
+        df["corpus_rule"] = "openalex_type_doi_only"
     else:
         df["in_corpus"] = ~df["journal"].astype(str).str.contains(NON_JOURNAL_SOURCE_PATTERN, na=False)
         df["corpus_rule"] = "source_name_fallback"
     df = df[df["in_corpus"]].copy()
     logging.info("  corpus: %d -> %d records (%s)", before, len(df), df["corpus_rule"].iloc[0] if len(df) else "n/a")
 
-    # Derived flags
-    df["is_oa"] = to_bool(df["is_oa"])
+    # Derived flags. One open-access definition throughout: OpenAlex's current oa_status when the
+    # record is enriched (anything but "closed"), else the release's is_oa flag.
+    release_is_oa = to_bool(df["is_oa"])
+    if "oa_status" in df.columns:
+        status_known = df["oa_status"].isin(OA_STATUS_ORDER)
+        df["is_oa"] = (df["oa_status"].ne("closed") & status_known) | (~status_known & release_is_oa)
+    else:
+        df["is_oa"] = release_is_oa
     if "oa_status" in df.columns:
         df["oa_status"] = df["oa_status"].where(df["oa_status"].isin(OA_STATUS_ORDER), None)
     df["shares_code"] = nonempty(df["github"]) | nonempty(df["code_link"]) | nonempty(df["zenodo"]) | nonempty(df["osf"])
