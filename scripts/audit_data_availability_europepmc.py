@@ -57,7 +57,9 @@ DAS_SENTENCE_PATTERN = re.compile(
     r"data sharing (is )?not applicable|supplied regarding data availability|"
     r"(make|made) (the |all |our )?(data|datasets?|study materials?)[^.;]{0,80}available to (any|other|qualified) researcher|"
     r"will not be made available to other researchers|without undue reservation|"
-    r"requests? to access the data(set)? (may|can|should) be (sent|directed|made)",
+    r"requests? to access the data(set)? (may|can|should) be (sent|directed|made)|"
+    r"(anonymi[sz]ed |de-?identified |individual participant )?data (will|can|may|could) be (shared|provided|obtained|made available|released) (up)?on (reasonable |justified )?request|"
+    r"(data|datasets?) and (materials?|code) (are|is|were) (publicly |freely )?available (at|from|in|through)",
     re.I,
 )
 DAS_TITLE_PATTERN = re.compile(r"(data|code|material|software)\s+(and\s+\w+\s+)?(availability|sharing|access|statement)|availability\s+of\s+(the\s+)?(data|code|supporting)|data\s+statement", re.I)
@@ -89,7 +91,8 @@ PATTERNS: Dict[str, re.Pattern] = {
         r"contact(ing)? the (corresponding |first |senior |main )?author|available upon|request to the (corresponding |first )?author|"
         r"from the authors? (up)?on|made available by the authors|available (by|with|through|via) the (corresponding |main |first |senior )?author|"
         r"without undue reservation|to any qualified researcher|available to any researcher|available to other researchers|"
-        r"may be (sent|directed|requested|obtained)|requests? (to access|for) (the )?data|on asking|via connecting with",
+        r"may be (sent|directed|requested|obtained)|requests? (to access|for) (the )?data|on asking|via connecting with|"
+        r"(shared|provided|released|obtained) (up)?on (reasonable |justified )?request",
         re.I,
     ),
     "in_article": re.compile(
