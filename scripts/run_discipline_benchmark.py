@@ -106,6 +106,12 @@ def parse_args(script_root: Optional[Path] = None) -> argparse.Namespace:
     parser.add_argument("--openalex-max-attempts", type=int, default=3)
     parser.add_argument("--openalex-max-failures-per-query", type=int, default=3)
     parser.add_argument("--openalex-max-retry-after-seconds", type=int, default=60)
+    parser.add_argument(
+        "--openalex-budget-wait-max-hours",
+        type=float,
+        default=30.0,
+        help="Max hours to sleep for an OpenAlex daily-budget reset before stopping a slice early",
+    )
     parser.add_argument("--max-per-query", type=int, default=0, help="0 means unlimited")
     parser.add_argument("--refresh-openalex", action="store_true")
     parser.add_argument("--api-concurrency", type=int, default=12)
@@ -279,6 +285,8 @@ def main() -> int:
             str(max(1, args.openalex_max_failures_per_query)),
             "--openalex-max-retry-after-seconds",
             str(max(5, args.openalex_max_retry_after_seconds)),
+            "--openalex-budget-wait-max-hours",
+            str(max(0.0, args.openalex_budget_wait_max_hours)),
             "--max-per-query",
             str(max(0, args.max_per_query)),
             "--api-concurrency",

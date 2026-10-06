@@ -28,7 +28,7 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import quote
 
 import pandas as pd
@@ -278,6 +278,7 @@ class PipelineConfig:
     impact_factor_threshold: float
     citation_percentile_threshold: float
     verbose: bool
+    openalex_budget_wait_max_hours: float = 30.0
 
 
 def parse_dotenv_file(path: Path) -> Dict[str, str]:
@@ -411,6 +412,16 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
     parser.add_argument("--openalex-max-attempts", type=int, default=3)
     parser.add_argument("--openalex-max-failures-per-query", type=int, default=3)
     parser.add_argument("--openalex-max-retry-after-seconds", type=int, default=60)
+    parser.add_argument(
+        "--openalex-budget-wait-max-hours",
+        type=float,
+        default=30.0,
+        help=(
+            "When the OpenAlex API key's daily budget is exhausted, sleep until the budget resets "
+            "(00:00 UTC) and resume the same cursor, as long as the wait is at most this many hours. "
+            "Longer waits stop the slice early and leave a .partial.csv to resume on the next run."
+        ),
+    )
     parser.add_argument("--max-per-query", type=int, default=0, help="0 means unlimited")
     parser.add_argument("--refresh-openalex", action="store_true")
     parser.add_argument("--force", action="store_true", help="Overwrite existing full output")
@@ -500,6 +511,7 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
         openalex_max_attempts=max(1, args.openalex_max_attempts),
         openalex_max_failures_per_query=max(1, args.openalex_max_failures_per_query),
         openalex_max_retry_after_seconds=max(5, args.openalex_max_retry_after_seconds),
+        openalex_budget_wait_max_hours=max(0.0, args.openalex_budget_wait_max_hours),
         max_per_query=max(0, args.max_per_query),
         refresh_openalex=args.refresh_openalex,
         force=args.force,
@@ -562,6 +574,11 @@ def retrieval_slice_path(paths: PipelinePaths, source: str, term: str, start_dat
     term_slug = sanitize_filename_fragment(term, fallback=source)
     range_slug = f"{start_date.isoformat()}__{end_date.isoformat()}"
     return paths.retrieval_slices_dir / sanitize_filename_fragment(source, fallback="source") / f"{term_slug}__{range_slug}.csv"
+
+
+def retrieval_slice_partial_path(slice_path: Path) -> Path:
+    """Path used for a slice whose retrieval stopped early (never treated as a complete cache)."""
+    return slice_path.with_name(f"{slice_path.stem}.partial{slice_path.suffix}")
 
 
 def assign_source_db(df: pd.DataFrame, source_db: str) -> pd.DataFrame:
@@ -704,11 +721,17 @@ def safe_get_json(
     max_attempts: int = 3,
     max_retry_after_seconds: Optional[float] = None,
     request_label: str = "",
+    raise_on_budget_exhausted: bool = False,
 ) -> Optional[Dict[str, Any]]:
     for attempt in range(max_attempts):
         try:
             resp = session.get(url, params=params, timeout=timeout)
             if resp.status_code == 429:
+                if raise_on_budget_exhausted:
+                    rate_limit = parse_openalex_rate_limit_headers(getattr(resp, "headers", None))
+                    remaining = openalex_requests_remaining(rate_limit)
+                    if remaining is not None and remaining <= 0:
+                        raise OpenAlexBudgetExhausted(rate_limit)
                 retry_after = resp.headers.get("Retry-After")
                 retry_after_s: Optional[float] = None
                 try:
@@ -763,6 +786,8 @@ def safe_get_json(
                     )
                 return None
             return resp.json()
+        except OpenAlexBudgetExhausted:
+            raise
         except Exception:
             if request_label:
                 logging.warning(
@@ -883,78 +908,235 @@ def safe_post_json(
     return None
 
 
+OPENALEX_BUDGET_RESET_MARGIN_SECONDS = 60.0
+OPENALEX_BUDGET_SLEEP_CHUNK_SECONDS = 300.0
+
+# Header / payload names that carry the same quantity. OpenAlex's metered API returns
+# ``x-ratelimit-*`` headers on every response, while the ``/rate-limit`` endpoint has used
+# ``credits_remaining`` and ``daily_requests_remaining`` in its JSON body. Read all of them.
+OPENALEX_REMAINING_KEYS = (
+    "x-ratelimit-remaining",
+    "daily_requests_remaining",
+    "credits_remaining",
+    "requests_remaining",
+    "remaining",
+)
+OPENALEX_RESET_SECONDS_KEYS = (
+    "x-ratelimit-reset",
+    "resets_in_seconds",
+    "reset_in_seconds",
+    "reset",
+)
+OPENALEX_RESET_AT_KEYS = ("resets_at", "reset_at")
+
+
+class OpenAlexBudgetExhausted(RuntimeError):
+    """Raised by safe_get_json when a 429 carries headers showing the daily budget is spent."""
+
+    def __init__(self, rate_limit: Optional[Dict[str, Any]] = None) -> None:
+        self.rate_limit: Dict[str, Any] = dict(rate_limit or {})
+        super().__init__("OpenAlex API key daily budget exhausted")
+
+
+def parse_openalex_rate_limit_headers(headers: Any) -> Dict[str, Any]:
+    """Extract the OpenAlex ``x-ratelimit-*`` headers (case-insensitively) into a plain dict."""
+    out: Dict[str, Any] = {}
+    if not headers:
+        return out
+    try:
+        items = list(headers.items())
+    except Exception:
+        return out
+    for name, value in items:
+        key = str(name or "").strip().lower()
+        if key.startswith("x-ratelimit-") or key == "retry-after":
+            out[key] = value
+    return out
+
+
+def _coerce_int(value: Any) -> Optional[int]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        text = str(value).strip()
+        if not text or text.lower() in {"nan", "none", "null"}:
+            return None
+        return int(float(text))
+    except Exception:
+        return None
+
+
+def _coerce_float(value: Any) -> Optional[float]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        text = str(value).strip()
+        if not text or text.lower() in {"nan", "none", "null"}:
+            return None
+        return float(text)
+    except Exception:
+        return None
+
+
+def openalex_requests_remaining(rate_limit: Optional[Dict[str, Any]]) -> Optional[int]:
+    """Requests left in the daily budget, whichever header/field name reports it (None if unknown)."""
+    if not rate_limit:
+        return None
+    lowered = {str(k).strip().lower(): v for k, v in rate_limit.items()}
+    for key in OPENALEX_REMAINING_KEYS:
+        if key in lowered:
+            parsed = _coerce_int(lowered[key])
+            if parsed is not None:
+                return parsed
+    usd = _coerce_float(lowered.get("x-ratelimit-remaining-usd"))
+    if usd is not None:
+        return 0 if usd <= 0 else None
+    return None
+
+
+def seconds_until_next_utc_midnight(now: Optional[dt.datetime] = None) -> float:
+    """Seconds from ``now`` (aware or naive UTC) until the next 00:00 UTC budget reset."""
+    if now is None:
+        now = dt.datetime.now(dt.timezone.utc)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=dt.timezone.utc)
+    else:
+        now = now.astimezone(dt.timezone.utc)
+    next_midnight = dt.datetime.combine(now.date() + dt.timedelta(days=1), dt.time.min, tzinfo=dt.timezone.utc)
+    return max(0.0, (next_midnight - now).total_seconds())
+
+
+def openalex_reset_seconds(rate_limit: Optional[Dict[str, Any]], now: Optional[dt.datetime] = None) -> float:
+    """Seconds until the budget resets: ``x-ratelimit-reset``/``resets_in_seconds`` if present,
+    else an ISO ``resets_at`` timestamp, else the time to the next 00:00 UTC."""
+    lowered = {str(k).strip().lower(): v for k, v in (rate_limit or {}).items()}
+    for key in OPENALEX_RESET_SECONDS_KEYS:
+        if key in lowered:
+            parsed = _coerce_float(lowered[key])
+            if parsed is not None and parsed >= 0:
+                return parsed
+    for key in OPENALEX_RESET_AT_KEYS:
+        raw = str(lowered.get(key) or "").strip()
+        if raw:
+            try:
+                reset_at = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if reset_at.tzinfo is None:
+                    reset_at = reset_at.replace(tzinfo=dt.timezone.utc)
+                current = now or dt.datetime.now(dt.timezone.utc)
+                if current.tzinfo is None:
+                    current = current.replace(tzinfo=dt.timezone.utc)
+                return max(0.0, (reset_at - current).total_seconds())
+            except Exception:
+                pass
+    return seconds_until_next_utc_midnight(now)
+
+
+def compute_openalex_budget_wait_seconds(
+    rate_limit: Optional[Dict[str, Any]],
+    now: Optional[dt.datetime] = None,
+    margin_seconds: float = OPENALEX_BUDGET_RESET_MARGIN_SECONDS,
+) -> float:
+    """How long to sleep before retrying after budget exhaustion (reset time plus a safety margin)."""
+    return openalex_reset_seconds(rate_limit, now) + max(0.0, margin_seconds)
+
+
+def wait_for_openalex_budget_reset(
+    rate_limit: Optional[Dict[str, Any]],
+    max_wait_hours: float,
+    context: str = "",
+    sleep_fn: Optional[Callable[[float], None]] = None,
+) -> bool:
+    """Sleep until the OpenAlex daily budget resets. Returns False (without sleeping) when the
+    required wait exceeds ``max_wait_hours``; the caller should then stop early."""
+    sleep = sleep_fn or time.sleep
+    wait_seconds = compute_openalex_budget_wait_seconds(rate_limit)
+    max_wait_seconds = max(0.0, float(max_wait_hours)) * 3600.0
+    label = f" ({context})" if context else ""
+    if wait_seconds > max_wait_seconds:
+        logging.error(
+            "OpenAlex API key budget exhausted%s; reset in ~%.0f min exceeds --openalex-budget-wait-max-hours=%.2f. "
+            "Stopping early; re-run after the budget resets to resume.",
+            label,
+            wait_seconds / 60.0,
+            max_wait_hours,
+        )
+        return False
+    resume_at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=wait_seconds)
+    logging.warning(
+        "OpenAlex API key budget exhausted%s. Keeping the key and sleeping %.0f min until ~%s UTC "
+        "(reset + %.0fs margin), then resuming the same cursor.",
+        label,
+        wait_seconds / 60.0,
+        resume_at.strftime("%Y-%m-%d %H:%M"),
+        OPENALEX_BUDGET_RESET_MARGIN_SECONDS,
+    )
+    remaining = wait_seconds
+    while remaining > 0:
+        chunk = min(remaining, OPENALEX_BUDGET_SLEEP_CHUNK_SECONDS)
+        sleep(chunk)
+        remaining -= chunk
+        if remaining > 0:
+            logging.info("Waiting for OpenAlex budget reset%s: ~%.0f min left.", label, remaining / 60.0)
+    return True
+
+
 def inspect_openalex_rate_limit(
     session: requests.Session,
     api_key: str,
     timeout_seconds: int,
 ) -> Optional[Dict[str, Any]]:
+    """Query /rate-limit and merge its JSON body with the response's x-ratelimit-* headers so
+    callers can use ``openalex_requests_remaining`` / ``openalex_reset_seconds`` uniformly."""
     api_key = str(api_key or "").strip()
     if not api_key:
         return None
 
-    payload = safe_get_json(
-        session,
-        "https://api.openalex.org/rate-limit",
-        params={"api_key": api_key},
-        timeout=max(10, timeout_seconds),
-        max_attempts=1,
-        max_retry_after_seconds=30.0,
-        request_label="OpenAlex rate-limit",
-    )
-    if not payload:
+    try:
+        resp = session.get(
+            "https://api.openalex.org/rate-limit",
+            params={"api_key": api_key},
+            timeout=max(10, timeout_seconds),
+        )
+    except Exception:
+        logging.warning("Request exception on OpenAlex rate-limit check.")
         return None
 
-    rate_limit = payload.get("rate_limit")
-    if isinstance(rate_limit, dict):
-        return rate_limit
-    return None
+    merged: Dict[str, Any] = parse_openalex_rate_limit_headers(getattr(resp, "headers", None))
+    if resp.status_code < 400:
+        try:
+            payload = resp.json()
+        except Exception:
+            payload = None
+        if isinstance(payload, dict):
+            body = payload.get("rate_limit") if isinstance(payload.get("rate_limit"), dict) else payload
+            for key, value in body.items():
+                merged.setdefault(str(key), value)
+    elif resp.status_code != 429:
+        logging.warning("HTTP %s on OpenAlex rate-limit check.", resp.status_code)
+    return merged or None
 
 
-def maybe_disable_exhausted_openalex_key(cfg: PipelineConfig, session: requests.Session) -> None:
+def ensure_openalex_budget_available(cfg: PipelineConfig, session: requests.Session) -> None:
+    """At startup: if the configured API key has no budget left, wait for the reset (bounded by
+    ``openalex_budget_wait_max_hours``). The key is never dropped; keyless mode is only used when
+    no key is configured at all."""
     if not cfg.openalex_api_key:
         return
 
     rate_limit = inspect_openalex_rate_limit(session, cfg.openalex_api_key, cfg.openalex_timeout_seconds)
-    if not rate_limit:
+    remaining = openalex_requests_remaining(rate_limit)
+    if remaining is None:
         return
 
-    credits_remaining_raw = rate_limit.get("credits_remaining")
-    try:
-        credits_remaining = int(credits_remaining_raw)
-    except Exception:
-        credits_remaining = None
-
-    if credits_remaining is None:
+    if remaining > 0:
+        logging.info("OpenAlex requests remaining in today's budget on current API key: %d", remaining)
         return
 
-    reset_at = str(rate_limit.get("resets_at") or "").strip()
-    reset_in_seconds = rate_limit.get("resets_in_seconds")
-    reset_suffix = ""
-    if reset_at:
-        reset_suffix = f" until {reset_at}"
-    elif reset_in_seconds is not None:
-        reset_suffix = f" for another ~{reset_in_seconds}s"
+    wait_for_openalex_budget_reset(rate_limit, cfg.openalex_budget_wait_max_hours, context="startup check")
 
-    if credits_remaining > 0:
-        logging.info("OpenAlex credits remaining on current API key: %d", credits_remaining)
-        return
 
-    if not cfg.openalex_mailto:
-        logging.warning(
-            "OpenAlex API key credits are exhausted%s and no mailto is configured. Requests may fail until the quota resets.",
-            reset_suffix,
-        )
-        return
-
-    cfg.openalex_api_key = ""
-    cfg.openalex_workers = 1
-    cfg.openalex_delay_seconds = max(cfg.openalex_delay_seconds, 1.0)
-    logging.warning(
-        "OpenAlex API key credits are exhausted%s. Falling back to mailto-only mode with %d worker and %.1fs delay.",
-        reset_suffix,
-        cfg.openalex_workers,
-        cfg.openalex_delay_seconds,
-    )
+# Backwards-compatible alias (the old behaviour dropped the key; it now waits instead).
+maybe_disable_exhausted_openalex_key = ensure_openalex_budget_available
 
 
 def ncbi_common_params(email: str, api_key: str, tool: str) -> Dict[str, Any]:
@@ -1422,6 +1604,16 @@ def openalex_work_to_record(work: Dict[str, Any], term: str, discipline: str) ->
     return record
 
 
+@dataclass
+class OpenAlexSliceResult:
+    """Records fetched for one term x date-window slice plus whether pagination finished."""
+
+    records: List[Dict[str, Any]]
+    complete: bool
+    pages: int = 0
+    stop_reason: str = ""
+
+
 def search_openalex_term_date_range(
     term: str,
     start_date: dt.date,
@@ -1436,7 +1628,8 @@ def search_openalex_term_date_range(
     max_attempts: int,
     max_failures_per_query: int,
     max_retry_after_seconds: int,
-) -> List[Dict[str, Any]]:
+    budget_wait_max_hours: float = 30.0,
+) -> OpenAlexSliceResult:
     url = "https://api.openalex.org/works"
     range_label = f"{start_date.isoformat()}..{end_date.isoformat()}"
     params = {
@@ -1455,7 +1648,6 @@ def search_openalex_term_date_range(
     if mailto:
         params["mailto"] = mailto
     active_api_key = str(api_key or "").strip()
-    active_delay_seconds = delay_seconds
     if active_api_key:
         params["api_key"] = active_api_key
 
@@ -1463,51 +1655,55 @@ def search_openalex_term_date_range(
     cursor = "*"
     pages = 0
     consecutive_failures = 0
+    budget_waits = 0
+    context = f"term='{term}' range={range_label}"
+
+    def _wait_for_budget(rate_limit: Optional[Dict[str, Any]]) -> bool:
+        nonlocal budget_waits
+        budget_waits += 1
+        return wait_for_openalex_budget_reset(rate_limit, budget_wait_max_hours, context=context)
 
     while cursor:
         params["cursor"] = cursor
-        payload = safe_get_json(
-            session,
-            url,
-            params=params,
-            timeout=timeout_seconds,
-            max_attempts=max_attempts,
-            max_retry_after_seconds=float(max_retry_after_seconds),
-            request_label=f"OpenAlex term='{term}' range={range_label}",
-        )
-        if not payload:
-            if active_api_key and mailto:
-                rate_limit = inspect_openalex_rate_limit(session, active_api_key, timeout_seconds)
-                credits_remaining = None
-                if rate_limit:
-                    try:
-                        credits_remaining = int(rate_limit.get("daily_requests_remaining"))
-                    except Exception:
-                        credits_remaining = None
+        try:
+            payload = safe_get_json(
+                session,
+                url,
+                params=params,
+                timeout=timeout_seconds,
+                max_attempts=max_attempts,
+                max_retry_after_seconds=float(max_retry_after_seconds),
+                request_label=f"OpenAlex {context}",
+                raise_on_budget_exhausted=bool(active_api_key),
+            )
+        except OpenAlexBudgetExhausted as exc:
+            # Keyed mode: never drop the key. Sleep until the daily budget resets and retry
+            # the same cursor, unless the wait exceeds the configured cap.
+            if _wait_for_budget(exc.rate_limit):
+                continue
+            return OpenAlexSliceResult(records, complete=False, pages=pages, stop_reason="budget_wait_exceeded")
 
-                if credits_remaining is not None and credits_remaining <= 0:
-                    active_api_key = ""
-                    params.pop("api_key", None)
-                    active_delay_seconds = max(active_delay_seconds, 1.0)
-                    logging.warning(
-                        "OpenAlex API key exhausted mid-query for term='%s' range=%s. "
-                        "Retrying in mailto-only mode with %.1fs delay.",
-                        term,
-                        range_label,
-                        active_delay_seconds,
+        if not payload:
+            if active_api_key:
+                # A 429 without informative headers (or repeated failures) may still be budget
+                # exhaustion; confirm via the /rate-limit endpoint and wait rather than fall back.
+                rate_limit = inspect_openalex_rate_limit(session, active_api_key, timeout_seconds)
+                remaining = openalex_requests_remaining(rate_limit)
+                if remaining is not None and remaining <= 0:
+                    if _wait_for_budget(rate_limit):
+                        continue
+                    return OpenAlexSliceResult(
+                        records, complete=False, pages=pages, stop_reason="budget_wait_exceeded"
                     )
-                    if active_delay_seconds > 0:
-                        time.sleep(active_delay_seconds)
-                    continue
             consecutive_failures += 1
             if consecutive_failures >= max_failures_per_query:
                 logging.warning(
-                    "Stopping OpenAlex query early after %d consecutive failures (term='%s', range=%s).",
+                    "Stopping OpenAlex query early after %d consecutive failures (%s). "
+                    "Slice will be saved as partial and re-run on the next invocation.",
                     consecutive_failures,
-                    term,
-                    range_label,
+                    context,
                 )
-                break
+                return OpenAlexSliceResult(records, complete=False, pages=pages, stop_reason="max_failures")
             continue
         consecutive_failures = 0
 
@@ -1516,17 +1712,23 @@ def search_openalex_term_date_range(
         for work in works:
             records.append(openalex_work_to_record(work, term, discipline))
             if max_per_query and len(records) >= max_per_query:
-                return records
+                return OpenAlexSliceResult(records, complete=True, pages=pages, stop_reason="max_per_query")
 
         cursor = (payload.get("meta") or {}).get("next_cursor")
         if not cursor:
             break
 
-        if active_delay_seconds > 0:
-            time.sleep(active_delay_seconds)
+        if delay_seconds > 0:
+            time.sleep(delay_seconds)
 
-    logging.info("OpenAlex done term='%s' range=%s: %d records across %d pages", term, range_label, len(records), pages)
-    return records
+    logging.info(
+        "OpenAlex done %s: %d records across %d pages%s",
+        context,
+        len(records),
+        pages,
+        f" ({budget_waits} budget wait(s))" if budget_waits else "",
+    )
+    return OpenAlexSliceResult(records, complete=True, pages=pages)
 
 
 def read_csv_if_exists(path: Path) -> Optional[pd.DataFrame]:
@@ -1805,7 +2007,7 @@ def fetch_or_load_openalex(cfg: PipelineConfig, paths: PipelinePaths, session: r
     if cached_openalex_only is not None:
         all_records.extend(cached_openalex_only.to_dict(orient="records"))
     else:
-        maybe_disable_exhausted_openalex_key(cfg, session)
+        ensure_openalex_budget_available(cfg, session)
 
         months_per_window = cfg.query_window_months if cfg.max_per_query == 0 else 12
         if cfg.max_per_query and cfg.query_window_months != 12:
@@ -1827,9 +2029,18 @@ def fetch_or_load_openalex(cfg: PipelineConfig, paths: PipelinePaths, session: r
         pending_jobs: List[Tuple[str, dt.date, dt.date, Path]] = []
 
         completed_queries = 0
+        incomplete_slices: List[str] = []
         for term, start_date, end_date in query_jobs:
             slice_path = retrieval_slice_path(paths, "openalex", term, start_date, end_date)
+            partial_path = retrieval_slice_partial_path(slice_path)
             range_label = f"{start_date.isoformat()}..{end_date.isoformat()}"
+            if partial_path.exists() and not slice_path.exists():
+                logging.warning(
+                    "OpenAlex slice term='%s' range=%s stopped early on a previous run; re-running it: %s",
+                    term,
+                    range_label,
+                    partial_path,
+                )
             if slice_path.exists() and not cfg.refresh_openalex:
                 cached_slice = load_cached_slice_records(slice_path, cfg.discipline, "openalex")
                 if dataframe_has_data_rows(cached_slice):
@@ -1866,16 +2077,37 @@ def fetch_or_load_openalex(cfg: PipelineConfig, paths: PipelinePaths, session: r
                     cfg.openalex_max_attempts,
                     cfg.openalex_max_failures_per_query,
                     cfg.openalex_max_retry_after_seconds,
+                    cfg.openalex_budget_wait_max_hours,
                 ): (term, start_date, end_date, slice_path)
                 for term, start_date, end_date, slice_path in pending_jobs
             }
 
             for future in tqdm(as_completed(future_map), total=len(future_map), desc="OpenAlex"):
                 term, start_date, end_date, slice_path = future_map[future]
+                partial_path = retrieval_slice_partial_path(slice_path)
                 range_label = f"{start_date.isoformat()}..{end_date.isoformat()}"
                 try:
-                    records = future.result()
+                    result = future.result()
+                    if isinstance(result, OpenAlexSliceResult):
+                        records, slice_complete = result.records, result.complete
+                    else:  # legacy: a bare list means a normally completed slice
+                        records, slice_complete = list(result), True
+                    if not slice_complete:
+                        incomplete_slices.append(f"{term} {range_label}")
+                        if records:
+                            write_slice_records(records, partial_path, cfg.discipline, "openalex")
+                        logging.warning(
+                            "OpenAlex slice term='%s' range=%s is incomplete (%d records); saved as %s and "
+                            "will be re-run on the next invocation.",
+                            term,
+                            range_label,
+                            len(records),
+                            partial_path.name,
+                        )
+                        continue
                     write_slice_records(records, slice_path, cfg.discipline, "openalex")
+                    if partial_path.exists():
+                        partial_path.unlink()
                     all_records.extend(records)
                     completed_queries += 1
                     logging.info(
@@ -1888,7 +2120,15 @@ def fetch_or_load_openalex(cfg: PipelineConfig, paths: PipelinePaths, session: r
                         len(all_records),
                     )
                 except Exception as exc:
+                    incomplete_slices.append(f"{term} {range_label}")
                     logging.warning("OpenAlex query failed (%s, %s): %s", term, range_label, exc)
+
+        if incomplete_slices:
+            raise RuntimeError(
+                f"OpenAlex retrieval incomplete: {len(incomplete_slices)}/{len(query_jobs)} slices stopped early "
+                f"(e.g. {incomplete_slices[0]}). Completed slices are cached under {paths.retrieval_slices_dir}; "
+                "re-run the same command to resume the remaining slices. Not writing the raw retrieval dataset."
+            )
 
     if cfg.include_pubmed:
         pubmed_records = fetch_pubmed_records(cfg, paths, session)

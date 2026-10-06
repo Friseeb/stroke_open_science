@@ -18,6 +18,10 @@ on:
         description: "Skip push to outputs repo (type true or false)"
         required: false
         default: "false"
+      allow_partial:
+        description: "Publish even if some disciplines are missing or below the row-count sanity threshold (type true or false)"
+        required: false
+        default: "false"
 
 jobs:
   extract:
@@ -29,7 +33,10 @@ jobs:
     strategy:
       matrix:
         discipline: [stroke, neuroscience, neurology, cardiology]
-      max-parallel: 2
+      # OpenAlex metered pricing: one API key gets $1/day (10,000 list requests), resetting at
+      # 00:00 UTC. Running disciplines concurrently makes them compete for the same budget, so
+      # run them one at a time; the pipeline sleeps through budget resets and resumes.
+      max-parallel: 1
       fail-fast: false
 
     steps:
@@ -53,6 +60,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Completed retrieval slices are cached across runs so a job that times out or stops at the
+      # budget cap resumes where it left off. The key is unique per run (actions/cache never
+      # overwrites an existing key); restore-keys picks the most recent cache for the same
+      # discipline/start_year/max_per_query. Saved with if: always() so failed runs resume too.
+      - name: Restore cached retrieval slices
+        id: restore-slices
+        uses: actions/cache/restore@v5
+        with:
+          path: data/benchmarks/${{ matrix.discipline }}/retrieval_slices
+          key: retrieval-slices-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            retrieval-slices-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-
+
       - name: Write .env from secrets
         run: |
           cat > .env <<'ENVEOF'
@@ -69,11 +89,20 @@ jobs:
           MAX_PER_QUERY: ${{ github.event.inputs.max_per_query || '0' }}
           START_YEAR: ${{ github.event.inputs.start_year || '2015' }}
         run: |
-          ARGS="--disciplines ${{ matrix.discipline }} --start-year $START_YEAR --skip-dashboard --disable-dataset-search"
+          # Hosted runners cap a job at 6 h, so a budget wait longer than 5 h cannot finish here:
+          # stop the slice cleanly (partial saved, cache kept) and let the next run resume instead.
+          ARGS="--disciplines ${{ matrix.discipline }} --start-year $START_YEAR --skip-dashboard --disable-dataset-search --openalex-budget-wait-max-hours 5"
           if [ "$MAX_PER_QUERY" != "0" ]; then
             ARGS="$ARGS --max-per-query $MAX_PER_QUERY --disable-api-enrich"
           fi
           python scripts/run_discipline_benchmark.py $ARGS
+
+      - name: Save retrieval slices to cache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: data/benchmarks/${{ matrix.discipline }}/retrieval_slices
+          key: ${{ steps.restore-slices.outputs.cache-primary-key }}
 
       - name: Upload discipline output
         uses: actions/upload-artifact@v4
@@ -160,6 +189,44 @@ jobs:
             outputs_archive/
           retention-days: 30
           if-no-files-found: warn
+
+      # Gate: never publish partial results. Every discipline must have a fully_enriched.csv with
+      # more than MIN_ROWS data rows unless allow_partial=true. In dry_run mode this only warns.
+      - name: Verify all discipline outputs are complete
+        if: ${{ github.event.inputs.allow_partial != 'true' }}
+        env:
+          MIN_ROWS: "50000"
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          python - <<'PYEOF'
+          import csv, os, sys
+          from pathlib import Path
+
+          csv.field_size_limit(sys.maxsize)
+          min_rows = int(os.environ["MIN_ROWS"])
+          dry_run = os.environ.get("DRY_RUN", "false").lower() == "true"
+          problems = []
+          for discipline in ["stroke", "neuroscience", "neurology", "cardiology"]:
+              path = Path("data/benchmarks") / discipline / "fully_enriched.csv"
+              if not path.is_file():
+                  problems.append(f"{discipline}: {path} is missing")
+                  continue
+              with path.open("r", encoding="utf-8", errors="ignore", newline="") as fh:
+                  rows = sum(1 for _ in csv.reader(fh)) - 1
+              status = "ok" if rows > min_rows else "TOO FEW"
+              print(f"{discipline}: {rows} data rows ({status}, threshold {min_rows})")
+              if rows <= min_rows:
+                  problems.append(f"{discipline}: only {rows} rows (threshold {min_rows})")
+          if problems:
+              print("::error::Incomplete benchmark outputs; refusing to publish:")
+              for problem in problems:
+                  print(f"  - {problem}")
+              print("Re-run the workflow (cached retrieval slices resume) or set allow_partial=true to override.")
+              if dry_run:
+                  print("dry_run=true: not failing the job (nothing will be published).")
+              else:
+                  sys.exit(1)
+          PYEOF
 
       - name: Checkout outputs repo
         if: ${{ github.event.inputs.dry_run != 'true' }}

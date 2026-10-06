@@ -19,7 +19,7 @@ Local outputs land in `data/` which is excluded from this repo.
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `OPENALEX_MAILTO` | yes | Polite-pool access for OpenAlex API |
-| `OPENALEX_API_KEY` | optional | Higher rate limits (premium) |
+| `OPENALEX_API_KEY` | recommended | Free key = $1/day (10,000 list requests, resets 00:00 UTC); keyless gets 10x less |
 | `UNPAYWALL_EMAIL` | optional | Unpaywall API calls |
 | `UNPAYWALL_SNAPSHOT` | optional | Path/glob to local Unpaywall parquet snapshot |
 | `CROSSREF_RELATIONS` | optional | Path/glob to local Crossref relations snapshot |
@@ -125,6 +125,19 @@ If the GitHub PAT in `.env` is ever exposed (e.g., appears in logs), immediately
 2. Create a new token with `repo` and `workflow` scopes.
 3. Add it as a GitHub Actions Secret named `OUTPUTS_REPO_PAT`.
 4. Update `.env` locally (never commit).
+
+## OpenAlex budget constraint (metered pricing since mid-2026)
+- One key, $1/day budget. Full 4-discipline run needs ~2 daily budgets: expect ~2 days on the
+  free tier, or prepay ~$2 to finish in one day.
+- On 429/budget exhaustion with a key, `search_stroke_dois.py` never falls back to keyless mode.
+  It reads `x-ratelimit-reset` (fallback: next 00:00 UTC), sleeps until reset + 60 s, and resumes
+  the same cursor. Cap: `--openalex-budget-wait-max-hours` (default 30; CI passes 5 because
+  hosted runners cap jobs at 6 h). Header/endpoint names are unified in
+  `openalex_requests_remaining()` / `openalex_reset_seconds()`.
+- A slice that stops early is saved as `*.partial.csv` and is re-run next invocation; the raw
+  dataset is not written and the run exits non-zero. Completed slices stay cached as before.
+- Scheduled workflow: `max-parallel: 1`, `retrieval_slices/` cached via actions/cache, and a
+  publish gate (all four `fully_enriched.csv` with >50,000 rows unless `allow_partial=true`).
 
 ## Architecture notes
 - `search_stroke_dois.py` is intentionally monolithic for portability — all stages callable from

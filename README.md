@@ -48,7 +48,7 @@ Copy `configs/.env.example` to `.env` (never commit `.env`):
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENALEX_MAILTO` | **yes** | Email for OpenAlex polite-pool access |
-| `OPENALEX_API_KEY` | no | Premium OpenAlex key (higher rate limits) |
+| `OPENALEX_API_KEY` | recommended | Free OpenAlex key: $1/day budget (10,000 list requests); keyless mode gets 10x less |
 | `UNPAYWALL_EMAIL` | no | Email for Unpaywall API |
 | `UNPAYWALL_SNAPSHOT` | no | Path/glob to local Unpaywall parquet snapshot |
 | `CROSSREF_RELATIONS` | no | Path/glob to local Crossref relations parquet |
@@ -58,6 +58,21 @@ Copy `configs/.env.example` to `.env` (never commit `.env`):
 | `OPENAI_LLM_MODEL` | no | Default: `gpt-4o-mini` |
 | `OLLAMA_BASE_URL` | no | Default: `http://localhost:11434` |
 | `EMBEDDING_DEVICE` | no | `auto` / `cpu` / `cuda` / `mps` |
+
+## OpenAlex budget (metered pricing)
+
+Since mid-2026 OpenAlex meters API usage. A free API key gets **$1/day = 10,000 list
+requests** ($0.0001 each), resetting at **00:00 UTC**; without a key the budget is 10x
+smaller. The full four-discipline benchmark needs roughly two daily budgets, so on the
+free tier expect it to span **~2 days**; prepaying ~$2 of credit finishes in one day.
+
+When the key's budget runs out mid-run the pipeline does **not** drop the key or fall
+back to keyless mode. It reads `x-ratelimit-reset` (or computes the time to the next
+00:00 UTC), logs the wait, sleeps until the reset plus a 60 s margin, and resumes the
+same cursor. The wait is capped by `--openalex-budget-wait-max-hours` (default 30);
+beyond the cap the slice stops early, is saved as `retrieval_slices/.../*.partial.csv`
+(never treated as complete), the run exits non-zero, and re-running the same command
+resumes only the unfinished slices. Keyless fallback is used only when no key is set.
 
 ## Pipeline stages
 
@@ -103,8 +118,9 @@ python -m pytest -q
 ```
 
 Tests cover DOI normalization, date windows, LLM payload parsing, regex extraction,
-deduplication, OA inference, high-impact subgroup logic, dataset repo detection, and
-keyword signal scoring. No API calls, no on-disk fixtures.
+deduplication, OA inference, high-impact subgroup logic, dataset repo detection,
+keyword signal scoring, OpenAlex budget-reset waiting, and partial-slice resume.
+No API calls, no on-disk fixtures.
 
 ## Structure
 
@@ -121,6 +137,7 @@ configs/
   .env.example                   # Credential template
 tests/
   test_pipeline_deterministic.py # Pure-logic unit tests
+  test_openalex_budget.py        # Budget-wait and partial-slice resume tests (mocked HTTP)
 docs/
   REPOSITORY_AND_GITHUB_PLAN.md  # Architecture and roadmap
   EXPERT_COLLABORATOR_BRIEF.md   # Context for collaborators
@@ -144,6 +161,12 @@ Before the scheduled workflow can push to the outputs repo, add these secrets at
 | `OUTPUTS_REPO_PAT` | A GitHub PAT with `repo` + `workflow` scopes |
 
 Optional secrets: `OPENALEX_API_KEY`, `UNPAYWALL_EMAIL`, `OPENAI_API_KEY`.
+
+The scheduled workflow runs the four disciplines one at a time (they share one OpenAlex
+key), caches `retrieval_slices/` between runs so an interrupted job resumes, and refuses
+to publish unless every discipline's `fully_enriched.csv` exists with >50,000 rows
+(override with the `allow_partial` input). On the free tier the first run typically
+exhausts the daily budget; re-dispatch the workflow the next day to finish from cache.
 
 ## Citation
 
