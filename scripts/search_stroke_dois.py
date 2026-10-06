@@ -200,6 +200,37 @@ OPENALEX_METADATA_BOOL_COLS = [
 OPENALEX_METADATA_COLS = OPENALEX_METADATA_TEXT_COLS + OPENALEX_METADATA_BOOL_COLS
 LIST_JOIN = "|"
 
+# Registration signals over title + abstract (no LLM). ``preregistered`` stays the LLM field;
+# ``registration_signal`` (= ``registered_any``) is the regex-based counterpart available for
+# every row.
+REGISTRY_PATTERNS: Dict[str, "re.Pattern[str]"] = {
+    "trial_registry": re.compile(
+        r"\bNCT\s?\d{8}\b|\bISRCTN\s?\d{8}\b|\bChiCTR[-\w]*\d{6,}|\bUMIN\s?\d{9}\b|"
+        r"\bACTRN\s?\d{14}\b|\bEudraCT\b|\b\d{4}-\d{6}-\d{2}\b|\bDRKS\s?\d{8}\b|"
+        r"\bCTRI/\d{4}/\d{2}/\d{6}\b|\bIRCT\w*\d{6,}|\bNTR\s?\d{4,}\b|\bNL\s?\d{4,}\b(?=.*netherlands trial)|"
+        r"\bjRCT\w*\d{6,}|\bKCT\s?\d{7}\b|\bclinicaltrials\.gov\b|\bTCTR\d{11}\b|\bPACTR\d{15}\b",
+        re.IGNORECASE,
+    ),
+    "prospero": re.compile(r"\bCRD\s?42\d{6}\b|\bPROSPERO\b", re.IGNORECASE),
+    "preregistration_wording": re.compile(
+        r"\bpre-?registered\b|\bpre-?registration\b|\bregistered report\b|\bosf\.io/\w+|"
+        r"\bprospectively registered\b|\bregistered protocol\b",
+        re.IGNORECASE,
+    ),
+}
+REGISTRATION_FLAG_COLS = [f"reg_{name}" for name in REGISTRY_PATTERNS] + ["registered_any", "registration_signal"]
+
+# Article corpus: OpenAlex journal articles / reviews. Rows without work metadata fall back to
+# the source name (anything that looks like a repository, preprint server or thesis is excluded).
+ARTICLE_WORK_TYPES = {"article", "review"}
+NON_JOURNAL_SOURCE_PATTERN = re.compile(
+    r"figshare|zenodo|research square|^pubmed|doaj|ssrn|medrxiv|biorxiv|arxiv|"
+    r"preprints|dryad|osf|mendeley data|europe pmc|hal \(|repository|eprints|"
+    r"dissertation|thesis|proquest",
+    re.IGNORECASE,
+)
+CORPUS_FLAG_COLS = ["in_article_corpus"]
+
 TEXT_COLS = [
     "id",
     "doi",
@@ -227,6 +258,7 @@ TEXT_COLS = [
     "dataset_urls",
     "dataset_repos",
     *OPENALEX_METADATA_TEXT_COLS,
+    "corpus_rule",
 ]
 
 BOOL_COLS = [
@@ -236,6 +268,8 @@ BOOL_COLS = [
     "high_impact_flag",
     "has_public_dataset",
     *OPENALEX_METADATA_BOOL_COLS,
+    *REGISTRATION_FLAG_COLS,
+    *CORPUS_FLAG_COLS,
 ]
 NUM_COLS = ["open_science_score", "cited_by_count", "journal_impact_factor"]
 
@@ -2803,6 +2837,76 @@ def apply_crossref_relations_snapshot(df: pd.DataFrame, parquet_glob: str) -> pd
     return out
 
 
+def apply_registration_flags(df: pd.DataFrame) -> pd.DataFrame:
+    """Regex registration flags over title + abstract: ``reg_trial_registry``, ``reg_prospero``,
+    ``reg_preregistration_wording``, ``registered_any`` and ``registration_signal`` (alias)."""
+    if df.empty:
+        for col in REGISTRATION_FLAG_COLS:
+            if col not in df.columns:
+                df[col] = pd.Series(dtype="boolean")
+        return df
+    title = df.get("title", pd.Series("", index=df.index)).fillna("").astype(str)
+    abstract = df.get("abstract", pd.Series("", index=df.index)).fillna("").astype(str)
+    text = title + " " + abstract
+    any_flag = pd.Series(False, index=df.index)
+    for name, pattern in REGISTRY_PATTERNS.items():
+        flag = text.str.contains(pattern, na=False)
+        df[f"reg_{name}"] = flag
+        any_flag = any_flag | flag
+    df["registered_any"] = any_flag
+    df["registration_signal"] = any_flag
+    return df
+
+
+def apply_metadata_preprint_flag(df: pd.DataFrame) -> pd.DataFrame:
+    """When the LLM did not fill ``preprint`` for a row, set it from the OpenAlex preprint
+    location (``has_preprint_version``): the preprint server names, or a generic marker."""
+    if df.empty or "has_preprint_version" not in df.columns:
+        return df
+    has_version = coerce_nullable_bool(df["has_preprint_version"]).fillna(False).astype(bool)
+    preprint = df.get("preprint", pd.Series("", index=df.index)).fillna("").astype(str).str.strip()
+    blank = preprint.replace({"nan": "", "None": "", "<NA>": ""}).eq("")
+    mask = has_version & blank
+    if not mask.any():
+        if "preprint" not in df.columns:
+            df["preprint"] = preprint
+        return df
+    servers = df.get("preprint_servers", pd.Series("", index=df.index)).fillna("").astype(str).str.strip()
+    df["preprint"] = preprint
+    df.loc[mask, "preprint"] = servers[mask].where(servers[mask].ne(""), "openalex:preprint_version")
+    logging.info("Set preprint from OpenAlex preprint locations for %d rows.", int(mask.sum()))
+    return df
+
+
+def apply_corpus_flag(df: pd.DataFrame) -> pd.DataFrame:
+    """``in_article_corpus``: journal articles / reviews per OpenAlex work metadata. Rows without
+    metadata keep the row (no drop) and are included unless the source name looks like a
+    repository / preprint server / thesis. ``corpus_rule`` records which rule applied."""
+    if df.empty:
+        if "in_article_corpus" not in df.columns:
+            df["in_article_corpus"] = pd.Series(dtype="boolean")
+        if "corpus_rule" not in df.columns:
+            df["corpus_rule"] = pd.Series(dtype=object)
+        return df
+    work_type = df.get("work_type", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().str.lower()
+    work_type = work_type.replace({"nan": "", "none": "", "<na>": ""})
+    source_type = df.get("primary_source_type", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().str.lower()
+    journal = df.get("journal", pd.Series("", index=df.index)).fillna("").astype(str)
+    has_metadata = work_type.ne("")
+    is_article = work_type.isin(ARTICLE_WORK_TYPES) & source_type.eq("journal")
+    journal_like = ~journal.str.contains(NON_JOURNAL_SOURCE_PATTERN, na=False)
+    df["in_article_corpus"] = (has_metadata & is_article) | (~has_metadata & journal_like)
+    df["corpus_rule"] = pd.Series("source_name_fallback", index=df.index).where(~has_metadata, "openalex_type")
+    logging.info(
+        "Article corpus flag: %d/%d rows in corpus (%d via OpenAlex type, %d via source-name fallback).",
+        int(df["in_article_corpus"].sum()),
+        len(df),
+        int(has_metadata.sum()),
+        int((~has_metadata).sum()),
+    )
+    return df
+
+
 def is_blank(value: Any) -> bool:
     if value is None:
         return True
@@ -4208,6 +4312,8 @@ def main() -> int:
 
     df = normalize_open_access_fields(df)
     df = apply_regex_extraction(df)
+    df = apply_registration_flags(df)
+    df = apply_corpus_flag(df)
 
     enrich_cache = run_api_enrichment(df, cfg, enrich_cache, paths.enrich_cache)
     if enrich_cache:
@@ -4242,6 +4348,7 @@ def main() -> int:
     llm_cache_raw = load_json(paths.llm_cache)
     llm_cache = llm_cache_raw if isinstance(llm_cache_raw, dict) else {}
     df, llm_cache = run_llm_extraction(df, cfg, llm_cache, paths.llm_cache, session)
+    df = apply_metadata_preprint_flag(df)
 
     df = apply_journal_metrics(df, cfg.journal_metrics_csv)
     df = standardize_dataframe(df)

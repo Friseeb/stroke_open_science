@@ -305,3 +305,79 @@ def test_backfill_stops_early_when_budget_wait_exceeds_cap(tmp_path, no_sleep, m
     assert complete is False
     assert no_sleep == []
     assert not (tmp_path / "openalex_metadata_cache.jsonl").exists()
+
+
+# ── registration regex flags ───────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Registered at ClinicalTrials.gov (NCT01234567).", "reg_trial_registry"),
+        ("Trial registration ISRCTN12345678", "reg_trial_registry"),
+        ("ChiCTR2000031234 registry", "reg_trial_registry"),
+        ("EudraCT 2016-001234-56", "reg_trial_registry"),
+        ("Protocol registered in PROSPERO (CRD42020123456)", "reg_prospero"),
+        ("The analysis plan was pre-registered on osf.io/abc12", "reg_preregistration_wording"),
+        ("This prospectively registered cohort", "reg_preregistration_wording"),
+    ],
+)
+def test_registry_patterns_match(text, expected):
+    df = pipeline.apply_registration_flags(pd.DataFrame([{"title": "t", "abstract": text}]))
+    assert bool(df.loc[0, expected]) is True
+    assert bool(df.loc[0, "registered_any"]) is True
+    assert bool(df.loc[0, "registration_signal"]) is True
+
+
+def test_registry_patterns_do_not_fire_on_plain_text():
+    df = pipeline.apply_registration_flags(pd.DataFrame([
+        {"title": "Registered nurses and stroke care", "abstract": "A survey of 1234 nurses registered with the college."},
+    ]))
+    assert not df.loc[0, "registered_any"]
+    for col in pipeline.REGISTRATION_FLAG_COLS:
+        assert col in df.columns
+
+
+# ── metadata-based preprint flag ───────────────────────────────────────────────
+
+def test_metadata_preprint_flag_fills_only_blank_preprint():
+    df = pd.DataFrame([
+        {"preprint": "", "has_preprint_version": True, "preprint_servers": "medRxiv (Cold Spring Harbor Laboratory)"},
+        {"preprint": "https://www.medrxiv.org/x", "has_preprint_version": True, "preprint_servers": "medRxiv"},
+        {"preprint": "", "has_preprint_version": False, "preprint_servers": ""},
+        {"preprint": "", "has_preprint_version": True, "preprint_servers": ""},
+        {"preprint": "", "has_preprint_version": pd.NA, "preprint_servers": ""},
+    ])
+    out = pipeline.apply_metadata_preprint_flag(df)
+    assert out["preprint"].tolist() == [
+        "medRxiv (Cold Spring Harbor Laboratory)", "https://www.medrxiv.org/x", "", "openalex:preprint_version", "",
+    ]
+
+
+# ── in_article_corpus ──────────────────────────────────────────────────────────
+
+def test_in_article_corpus_rules():
+    df = pd.DataFrame([
+        {"journal": "Stroke", "work_type": "article", "primary_source_type": "journal"},
+        {"journal": "Lancet Neurology", "work_type": "review", "primary_source_type": "journal"},
+        {"journal": "medRxiv", "work_type": "preprint", "primary_source_type": "repository"},
+        {"journal": "Figshare", "work_type": "dataset", "primary_source_type": "repository"},
+        {"journal": "Stroke", "work_type": "erratum", "primary_source_type": "journal"},
+        {"journal": "Research Square", "work_type": "article", "primary_source_type": "repository"},
+        # no metadata: fall back to the source name
+        {"journal": "Journal of Stroke and Cerebrovascular Diseases", "work_type": "", "primary_source_type": ""},
+        {"journal": "Research Square (Research Square)", "work_type": "", "primary_source_type": ""},
+        {"journal": "ProQuest Dissertations", "work_type": None, "primary_source_type": None},
+        {"journal": "", "work_type": "", "primary_source_type": ""},
+    ])
+    out = pipeline.apply_corpus_flag(df)
+    assert out["in_article_corpus"].tolist() == [True, True, False, False, False, False, True, False, False, True]
+    assert out["corpus_rule"].tolist()[:6] == ["openalex_type"] * 6
+    assert out["corpus_rule"].tolist()[6:] == ["source_name_fallback"] * 4
+    assert len(out) == len(df), "rows are flagged, never dropped"
+
+
+def test_corpus_flag_survives_standardize_dataframe():
+    df = pipeline.apply_corpus_flag(pd.DataFrame([{"doi": "10.1/x", "journal": "Stroke", "work_type": "article", "primary_source_type": "journal"}]))
+    out = pipeline.standardize_dataframe(df)
+    assert str(out["in_article_corpus"].dtype) == "boolean"
+    assert bool(out.loc[0, "in_article_corpus"]) is True
