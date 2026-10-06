@@ -4381,7 +4381,7 @@ def append_das_cache(path: Path, records: Sequence[Dict[str, Any]]) -> None:
 
 def europepmc_doi_query(dois: Sequence[str]) -> str:
     clause = " OR ".join(f'DOI:"{doi}"' for doi in dois)
-    return f"({clause}) AND HAS_FT:y AND SRC:MED"
+    return f"({clause}) AND OPEN_ACCESS:y AND HAS_FT:y AND SRC:MED"
 
 
 def resolve_pmcids_europepmc(
@@ -4390,9 +4390,11 @@ def resolve_pmcids_europepmc(
     timeout_seconds: int,
     max_attempts: int = 3,
 ) -> Optional[Dict[str, Dict[str, Any]]]:
-    """Resolve up to ``EUROPEPMC_DOI_BATCH_SIZE`` DOIs to PMCIDs with full text in Europe PMC.
-    Returns a record for every DOI in the batch (``has_ft`` False when not found), or None when
-    the request failed (the batch is then left unresolved and retried on the next run)."""
+    """Resolve up to ``EUROPEPMC_DOI_BATCH_SIZE`` DOIs to PMCIDs with open-access full text in
+    Europe PMC (``OPEN_ACCESS:y AND HAS_FT:y``: records that only have HAS_FT, e.g. author
+    manuscripts, answer a persistent 500 on ``fullTextXML``). Returns a record for every DOI in
+    the batch (``has_ft`` False when not found), or None when the request failed (the batch is
+    then left unresolved and retried on the next run)."""
     dois = [normalize_doi(d) for d in dois if normalize_doi(d)]
     if not dois:
         return {}

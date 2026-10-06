@@ -480,7 +480,7 @@ class RoutingFakeSession:
         if url.endswith("/search"):
             query = params["query"]
             self.search_queries.append(query)
-            assert "HAS_FT:y" in query and "SRC:MED" in query
+            assert "HAS_FT:y" in query and "SRC:MED" in query and "OPEN_ACCESS:y" in query
             dois = [m.lower() for m in __import__("re").findall(r'DOI:"([^"]+)"', query)]
             assert len(dois) <= pipeline.EUROPEPMC_DOI_BATCH_SIZE
             hits = [{"doi": d, "pmcid": self.articles[d]["pmcid"], "pmid": self.articles[d]["pmid"], "source": "MED"} for d in dois if d in self.articles]
