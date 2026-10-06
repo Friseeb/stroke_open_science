@@ -46,3 +46,4 @@ retrieval_slices/
 talk/outputs_test/
 .venv
 data
+talk/outputs/das_audit/tables/das_audit_statements.csv

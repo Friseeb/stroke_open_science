@@ -1,0 +1,213 @@
+{
+  "corpus_rule": "openalex_type_doi_only",
+  "years": [
+    2015,
+    2025
+  ],
+  "partial_years": [
+    2025
+  ],
+  "n_by_discipline": {
+    "cardiology": 127910,
+    "neurology": 123598,
+    "neuroscience": 118653,
+    "stroke": 126267
+  },
+  "overall": {
+    "cardiology": {
+      "n": 127910,
+      "oa_rate": 0.7015,
+      "code_rate": 0.0006,
+      "data_rate": 0.0023,
+      "any_sharing_rate": 0.0028,
+      "preprint_rate": 0.0006,
+      "high_impact_rate": 0.1524,
+      "n_with_abstract": 89745,
+      "registration_rate": 0.0359,
+      "trial_registry_rate": 0.0281,
+      "prospero_rate": 0.0074,
+      "prereg_wording_rate": 0.0013
+    },
+    "neurology": {
+      "n": 123598,
+      "oa_rate": 0.6147,
+      "code_rate": 0.0008,
+      "data_rate": 0.0024,
+      "any_sharing_rate": 0.003,
+      "preprint_rate": 0.001,
+      "high_impact_rate": 0.1462,
+      "n_with_abstract": 86255,
+      "registration_rate": 0.0233,
+      "trial_registry_rate": 0.0189,
+      "prospero_rate": 0.0038,
+      "prereg_wording_rate": 0.0013
+    },
+    "neuroscience": {
+      "n": 118653,
+      "oa_rate": 0.6014,
+      "code_rate": 0.0011,
+      "data_rate": 0.0034,
+      "any_sharing_rate": 0.0041,
+      "preprint_rate": 0.0049,
+      "high_impact_rate": 0.1622,
+      "n_with_abstract": 80455,
+      "registration_rate": 0.0112,
+      "trial_registry_rate": 0.0094,
+      "prospero_rate": 0.0012,
+      "prereg_wording_rate": 0.0008
+    },
+    "stroke": {
+      "n": 126267,
+      "oa_rate": 0.6579,
+      "code_rate": 0.0007,
+      "data_rate": 0.0037,
+      "any_sharing_rate": 0.0042,
+      "preprint_rate": 0.0012,
+      "high_impact_rate": 0.1728,
+      "n_with_abstract": 94524,
+      "registration_rate": 0.0482,
+      "trial_registry_rate": 0.0384,
+      "prospero_rate": 0.0089,
+      "prereg_wording_rate": 0.0023
+    }
+  },
+  "stroke_first_last_year": {
+    "2015": {
+      "oa_rate": 0.5274,
+      "code_rate": 0.0003,
+      "data_rate": 0.0022,
+      "preprint_rate": 0.0003,
+      "registration_rate": 0.0289
+    },
+    "2024": {
+      "oa_rate": 0.7481,
+      "code_rate": 0.0006,
+      "data_rate": 0.002,
+      "preprint_rate": 0.0017,
+      "registration_rate": 0.0596
+    }
+  },
+  "stroke_high_impact_vs_rest": {
+    "false": {
+      "n": 104451,
+      "oa_rate": 0.6506,
+      "code_rate": 0.0007,
+      "data_rate": 0.0034,
+      "any_sharing_rate": 0.0039,
+      "preprint_rate": 0.0011,
+      "high_impact_rate": 0.0,
+      "n_with_abstract": 77856,
+      "registration_rate": 0.0395,
+      "trial_registry_rate": 0.0301,
+      "prospero_rate": 0.0084,
+      "prereg_wording_rate": 0.0024
+    },
+    "true": {
+      "n": 21816,
+      "oa_rate": 0.6932,
+      "code_rate": 0.0006,
+      "data_rate": 0.0053,
+      "any_sharing_rate": 0.0056,
+      "preprint_rate": 0.0015,
+      "high_impact_rate": 1.0,
+      "n_with_abstract": 16668,
+      "registration_rate": 0.0891,
+      "trial_registry_rate": 0.0772,
+      "prospero_rate": 0.0113,
+      "prereg_wording_rate": 0.0023
+    }
+  },
+  "stroke_oa_status_overall": [
+    {
+      "discipline": "stroke",
+      "diamond": 0.1495,
+      "gold": 0.2503,
+      "hybrid": 0.0935,
+      "green": 0.0659,
+      "bronze": 0.0988,
+      "closed": 0.3421,
+      "n": 126267
+    }
+  ],
+  "enrichment_coverage": {
+    "stroke": 1.0,
+    "neurology": 1.0,
+    "neuroscience": 1.0,
+    "cardiology": 1.0
+  },
+  "stroke_top_countries": {
+    "CN": {
+      "n": 21095,
+      "oa_rate": 0.6356,
+      "data_rate": 0.0065,
+      "code_rate": 0.0005
+    },
+    "US": {
+      "n": 19228,
+      "oa_rate": 0.5787,
+      "data_rate": 0.0008,
+      "code_rate": 0.0004
+    },
+    "KR": {
+      "n": 4951,
+      "oa_rate": 0.7465,
+      "data_rate": 0.0,
+      "code_rate": 0.0002
+    },
+    "JP": {
+      "n": 4825,
+      "oa_rate": 0.664,
+      "data_rate": 0.0019,
+      "code_rate": 0.0
+    },
+    "GB": {
+      "n": 4552,
+      "oa_rate": 0.7746,
+      "data_rate": 0.0081,
+      "code_rate": 0.0004
+    },
+    "ID": {
+      "n": 3439,
+      "oa_rate": 0.95,
+      "data_rate": 0.0009,
+      "code_rate": 0.0009
+    },
+    "DE": {
+      "n": 3415,
+      "oa_rate": 0.6843,
+      "data_rate": 0.0026,
+      "code_rate": 0.0009
+    },
+    "CA": {
+      "n": 3362,
+      "oa_rate": 0.5851,
+      "data_rate": 0.0054,
+      "code_rate": 0.0015
+    },
+    "IN": {
+      "n": 3352,
+      "oa_rate": 0.6909,
+      "data_rate": 0.0018,
+      "code_rate": 0.0003
+    },
+    "AU": {
+      "n": 3190,
+      "oa_rate": 0.653,
+      "data_rate": 0.0398,
+      "code_rate": 0.0006
+    },
+    "IT": {
+      "n": 2794,
+      "oa_rate": 0.6217,
+      "data_rate": 0.0032,
+      "code_rate": 0.0029
+    },
+    "TW": {
+      "n": 2074,
+      "oa_rate": 0.6263,
+      "data_rate": 0.001,
+      "code_rate": 0.0
+    }
+  },
+  "stroke_funded_share": 0.3402
+}
