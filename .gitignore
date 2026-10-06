@@ -43,3 +43,4 @@ llm_cache.json
 .pytest_cache/
 
 retrieval_slices/
+talk/outputs_test/
