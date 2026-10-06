@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open-Science Benchmark</title>
+  <meta name="description" content="Interactive benchmark of open-access, data and code sharing, preprint and registration practices across stroke and adjacent disciplines.">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+</head>
+<body>
+  <a class="skip-link" href="#filters">Skip to filters</a>
+  <header class="page-header">
+    <div class="wrap header-row">
+      <div>
+        <p class="eyebrow">Stroke Open-Science Benchmark</p>
+        <h1>Open-science uptake across stroke and adjacent fields</h1>
+        <p class="lede" id="lede">Open access, data and code sharing, preprints and registration in journal articles and reviews. Pick a discipline, year range, journal, country or funder; every number below recomputes from the pre-aggregated counts.</p>
+      </div>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch colour theme" title="Theme: auto">
+        <span class="theme-icon" aria-hidden="true">◐</span><span class="theme-label">Auto</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="filters" class="filters" aria-label="Filters">
+      <div class="filter filter-disciplines">
+        <span class="filter-label">Disciplines</span>
+        <div id="discipline-chips" class="chips" role="group" aria-label="Disciplines to show"></div>
+      </div>
+      <div class="filter">
+        <label class="filter-label" for="focus-select">Focus</label>
+        <select id="focus-select"></select>
+      </div>
+      <div class="filter filter-years">
+        <span class="filter-label">Years <span id="year-readout" class="readout"></span></span>
+        <div class="year-range" role="group" aria-label="Year range">
+          <label class="sr-only" for="year-min">From year</label>
+          <input id="year-min" type="range" step="1">
+          <label class="sr-only" for="year-max">To year</label>
+          <input id="year-max" type="range" step="1">
+        </div>
+      </div>
+      <div class="filter">
+        <label class="filter-label" for="journal-select">Journal</label>
+        <select id="journal-select"><option value="">All journals</option></select>
+      </div>
+      <div class="filter">
+        <label class="filter-label" for="country-select">First-author country</label>
+        <select id="country-select"><option value="">All countries</option></select>
+      </div>
+      <div class="filter">
+        <label class="filter-label" for="funder-select">Funder</label>
+        <select id="funder-select"><option value="">All funders</option></select>
+      </div>
+      <div class="filter filter-toggle">
+        <span class="filter-label">Subset</span>
+        <div class="segmented" role="group" aria-label="High-impact subset">
+          <button type="button" id="hi-all" class="seg-btn is-active" aria-pressed="true">All papers</button>
+          <button type="button" id="hi-only" class="seg-btn" aria-pressed="false">High-impact</button>
+        </div>
+      </div>
+      <div class="filter filter-actions">
+        <button type="button" id="reset-btn" class="btn btn-ghost">Reset</button>
+        <button type="button" id="download-btn" class="btn">Download selection (CSV)</button>
+      </div>
+      <p id="filter-note" class="filter-note" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="tiles" id="tiles" aria-label="Summary for the current selection" aria-live="polite"></section>
+
+    <section class="card" id="trend-card">
+      <div class="card-head">
+        <div>
+          <h2 id="trend-title">Trend by discipline</h2>
+          <p class="card-sub" id="trend-sub"></p>
+        </div>
+        <div class="metric-picker" role="group" aria-label="Metric">
+          <label class="sr-only" for="metric-select">Metric</label>
+          <select id="metric-select"></select>
+        </div>
+      </div>
+      <div id="trend-chart" class="chart chart-tall" role="img" aria-label="Trend lines by discipline"></div>
+      <details class="table-view"><summary>Table view</summary><div id="trend-table" class="table-scroll"></div></details>
+    </section>
+
+    <div class="grid-2">
+      <section class="card" id="oa-card">
+        <div class="card-head">
+          <div>
+            <h2 id="oa-title">Open-access status by year</h2>
+            <p class="card-sub" id="oa-sub"></p>
+          </div>
+        </div>
+        <div id="oa-chart" class="chart" role="img" aria-label="OpenAlex open-access status stacked bars by year"></div>
+        <details class="table-view"><summary>Table view</summary><div id="oa-table" class="table-scroll"></div></details>
+      </section>
+      <section class="card" id="das-card">
+        <div class="card-head">
+          <div>
+            <h2 id="das-title">Data-availability statements by year</h2>
+            <p class="card-sub" id="das-sub"></p>
+          </div>
+        </div>
+        <div id="das-chart" class="chart" role="img" aria-label="Data-availability statement categories stacked bars by year"></div>
+        <details class="table-view"><summary>Table view</summary><div id="das-table" class="table-scroll"></div></details>
+      </section>
+    </div>
+
+    <section class="card" id="journal-card">
+      <div class="card-head">
+        <div>
+          <h2 id="journal-title">Journals</h2>
+          <p class="card-sub" id="journal-sub"></p>
+        </div>
+      </div>
+      <div id="journal-chart" class="chart" role="img" aria-label="Journal lollipop chart of open access, data and code sharing"></div>
+      <details class="table-view"><summary>Table view</summary><div id="journal-table" class="table-scroll"></div></details>
+    </section>
+
+    <div class="grid-2">
+      <section class="card" id="country-card">
+        <div class="card-head">
+          <div>
+            <h2 id="country-title">First-author countries</h2>
+            <p class="card-sub" id="country-sub"></p>
+          </div>
+        </div>
+        <div id="country-table" class="table-scroll"></div>
+      </section>
+      <section class="card" id="funder-card">
+        <div class="card-head">
+          <div>
+            <h2 id="funder-title">Funders</h2>
+            <p class="card-sub" id="funder-sub"></p>
+          </div>
+        </div>
+        <div id="funder-table" class="table-scroll"></div>
+      </section>
+    </div>
+
+    <details class="card methods" id="methods">
+      <summary><h2>Methods and definitions</h2></summary>
+      <div id="methods-body"></div>
+    </details>
+
+    <p id="error" class="error" hidden></p>
+  </main>
+
+  <footer class="page-footer">
+    <div class="wrap" id="footer-body"></div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
