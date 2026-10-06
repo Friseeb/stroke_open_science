@@ -59,7 +59,8 @@ DAS_SENTENCE_PATTERN = re.compile(
     r"will not be made available to other researchers|without undue reservation|"
     r"requests? to access the data(set)? (may|can|should) be (sent|directed|made)|"
     r"(anonymi[sz]ed |de-?identified |individual participant )?data (will|can|may|could) be (shared|provided|obtained|made available|released) (up)?on (reasonable |justified )?request|"
-    r"(data|datasets?) and (materials?|code) (are|is|were) (publicly |freely )?available (at|from|in|through)",
+    r"(data|datasets?) and (materials?|code) (are|is|were) (publicly |freely )?available (at|from|in|through)|"
+    r"(seeking|requesting) access to the (data|dataset)|formal data (sharing|use|access) agreement",
     re.I,
 )
 DAS_TITLE_PATTERN = re.compile(r"(data|code|material|software)\s+(and\s+\w+\s+)?(availability|sharing|access|statement)|availability\s+of\s+(the\s+)?(data|code|supporting)|data\s+statement", re.I)
