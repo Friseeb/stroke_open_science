@@ -242,8 +242,9 @@ def run_enrichment(args: argparse.Namespace) -> int:
                 logging.info("%d requests, %d/%d DOIs done, %d found, budget remaining=%s",
                              n_requests, min(start + BATCH_SIZE, len(todo)), len(todo), n_found, remaining)
             try:
-                if remaining is not None and int(remaining) < args.min_budget_remaining:
-                    logging.warning("Budget nearly exhausted (remaining=%s); stopping. Re-run after 00:00 UTC.", remaining)
+                prepaid_usd = float(resp.headers.get("X-RateLimit-Prepaid-Remaining-USD") or 0)
+                if remaining is not None and int(remaining) < args.min_budget_remaining and prepaid_usd < 0.05:
+                    logging.warning("Budget nearly exhausted (remaining=%s, prepaid=$%.2f); stopping. Re-run after 00:00 UTC or after topping up.", remaining, prepaid_usd)
                     break
             except ValueError:
                 pass
