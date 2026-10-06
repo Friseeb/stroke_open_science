@@ -5,23 +5,25 @@
     2016,
     2025
   ],
-  "has_das_rate": 0.5024698273667058,
+  "has_das_rate": 0.5029281458471253,
   "primary_overall": {
-    "no_statement": 0.4975,
-    "not_available_or_na": 0.0344,
-    "in_article": 0.1004,
-    "on_request": 0.1899,
-    "controlled_or_restricted": 0.0623,
-    "repository": 0.0236,
-    "other_or_unclear": 0.092
+    "no_statement": 0.4971,
+    "not_available_or_na": 0.0406,
+    "in_article": 0.0966,
+    "on_request": 0.2242,
+    "controlled_or_restricted": 0.0617,
+    "public_source": 0.0141,
+    "repository": 0.027,
+    "other_or_unclear": 0.0388
   },
   "multilabel_rates_all_fetched": {
-    "lab_repository": 0.0236,
-    "lab_on_request": 0.2326,
-    "lab_in_article": 0.1266,
-    "lab_controlled_or_restricted": 0.065,
-    "lab_not_available_or_na": 0.0404,
-    "lab_code_shared": 0.0104
+    "lab_repository": 0.027,
+    "lab_public_source": 0.0181,
+    "lab_on_request": 0.2797,
+    "lab_in_article": 0.1291,
+    "lab_controlled_or_restricted": 0.0704,
+    "lab_not_available_or_na": 0.0444,
+    "lab_code_shared": 0.0107
   },
   "scope_note": "Open-access full text in Europe PMC only; optimistic relative to all stroke articles."
 }
