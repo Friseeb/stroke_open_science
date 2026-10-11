@@ -6,6 +6,7 @@ No network: fixtures are plain dicts and small JATS snippets.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -502,7 +503,7 @@ def test_das_primary_priority_matches_validated_audit():
 
 
 # Cases from the standalone audit validated on 19,637 open-access stroke articles
-# (stroke_open_science_talk/scripts/audit_data_availability_europepmc.py); both parsers must agree.
+# (the retired standalone audit script, validated on 19,637 open-access stroke articles).
 @pytest.mark.parametrize(
     "text, primary",
     [
@@ -672,3 +673,101 @@ def test_das_no_statement_label_when_fulltext_has_no_das(tmp_path, no_sleep):
     assert bool(row["das_available"]) is True
     assert bool(row["das_has_statement"]) is False
     assert row["das_primary"] == "no_statement"
+
+
+# ── Legacy caches from the retired standalone scripts ─────────────────────────
+
+def test_metadata_cache_accepts_legacy_list_valued_records(tmp_path):
+    """The standalone enrich_openalex_work_metadata.py wrote list fields as JSON lists and extra
+    columns; its JSONL must load as a pipeline cache and apply as LIST_JOIN-joined strings."""
+    cache_path = tmp_path / "openalex_metadata_cache.jsonl"
+    legacy = {
+        "openalex_id": "https://openalex.org/W1", "doi_norm": "10.1/legacy", "publication_year": 2020,
+        "work_type": "article", "oa_is_oa": True, "oa_status": "green", "oa_url": "https://x",
+        "primary_source_name": "JAMA", "primary_source_type": "journal", "primary_source_is_in_doaj": False,
+        "primary_license": None, "n_locations": 2, "versions": ["acceptedVersion", "publishedVersion"],
+        "repository_names": ["PubMed Central"], "preprint_servers": ["medRxiv (Cold Spring Harbor Laboratory)"],
+        "has_preprint_version": True, "is_preprint_record": False, "is_retracted": False, "has_fulltext": True,
+        "first_author_country": "NL", "countries": ["GB", "NL"], "n_authors": 3, "institutions": ["UvA"],
+        "funders": ["Wellcome Trust", "NIHR"], "n_funders": 2,
+    }
+    cache_path.write_text(json.dumps(legacy) + "\n" + json.dumps({"_missing": ["10.1/absent"]}) + "\n")
+
+    cache = pipeline.load_openalex_metadata_cache(cache_path)
+    assert cache["10.1/absent"] is None
+    rec = cache["10.1/legacy"]
+    assert rec["countries"] == "GB|NL"
+    assert rec["funders"] == "Wellcome Trust|NIHR"
+    assert rec["preprint_servers"] == "medRxiv (Cold Spring Harbor Laboratory)"
+    assert rec["work_type"] == "article"
+
+    df = pipeline.apply_openalex_metadata_cache(_legacy_df(["10.1/legacy", "10.1/absent"]), cache)
+    row = df[df["doi"] == "10.1/legacy"].iloc[0]
+    assert row["funders"] == "Wellcome Trust|NIHR"
+    assert row["countries"] == "GB|NL"
+    assert row["oa_status"] == "green"
+    assert bool(row["has_preprint_version"]) is True
+    assert df[df["doi"] == "10.1/absent"].iloc[0]["work_type"] == ""
+
+
+def test_das_cache_accepts_legacy_fetch_records_without_kind(tmp_path):
+    """statements.jsonl lines from the retired audit script carry pmcid/statements/flags/http but no
+    ``kind``; they are full-text records and must not be re-fetched."""
+    df = _corpus_df(1, years=(2020,))
+    doi = df.loc[df["in_article_corpus"].fillna(False), "doi"].iloc[0]
+    path = tmp_path / "das_cache.jsonl"
+    legacy = {"pmcid": "PMC1", "statements": [{"how": "notes", "label": "Data Availability", "text": "Data are available on Zenodo."}],
+              "flags": {"mentions_github": False}, "http": 200}
+    path.write_text(json.dumps(legacy) + "\n" + json.dumps({"pmcid": "PMC2", "http": 404}) + "\n"
+                    + json.dumps({"kind": "resolve", "doi": doi, "pmcid": "PMC1", "pmid": "1", "has_ft": True}) + "\n")
+    resolved, fetched = pipeline.load_das_cache(path)
+    assert set(fetched) == {"PMC1", "PMC2"}
+    assert fetched["PMC1"]["kind"] == "fetch"
+    assert fetched["PMC1"]["statements"][0]["text"].startswith("Data are available")
+    assert resolved[doi]["pmcid"] == "PMC1"
+
+    out = pipeline.apply_das_results(df, {doi: resolved[doi]}, fetched)
+    assert out.loc[out["doi"] == doi, "das_primary"].iloc[0] == "repository"
+
+
+def test_run_das_audit_all_audits_every_fulltext_article(tmp_path, no_sleep):
+    df = _corpus_df(30)
+    articles, xml = {}, {}
+    for k, doi in enumerate(df.loc[df["in_article_corpus"].fillna(False), "doi"], start=1):
+        if k % 3 == 0:
+            articles[doi] = {"pmcid": f"PMC{k:05d}", "pmid": str(k)}
+            xml[f"PMC{k:05d}"] = JATS_MARKED
+    session = RoutingFakeSession(articles, xml)
+    cfg = _cfg(tmp_path, das_audit_sample_per_year=2, das_audit_all=True, das_audit_refetch_empty=False,
+               das_audit_delay_seconds=0.0, das_audit_timeout_seconds=10)
+    out = pipeline.run_das_audit(df, cfg, _paths(tmp_path), session)
+    audited = out[out["das_available"].fillna(False).astype(bool)]
+    assert len(audited) == len(articles)  # the per-year sample size is ignored in census mode
+    assert set(audited["doi"]) == set(articles)
+    assert sum(1 for u in session.calls if u.endswith("/fullTextXML")) == len(articles)
+
+
+def test_run_das_audit_refetch_empty_refetches_no_statement_records(tmp_path, no_sleep):
+    df = _corpus_df(1, years=(2022,))
+    doi = df.loc[df["in_article_corpus"].fillna(False), "doi"].iloc[0]
+    articles = {doi: {"pmcid": "PMC1", "pmid": "1"}}
+    paths = _paths(tmp_path)
+    base = dict(das_audit_sample_per_year=3, das_audit_all=False, das_audit_delay_seconds=0.0, das_audit_timeout_seconds=10)
+
+    first = pipeline.run_das_audit(df, _cfg(tmp_path, das_audit_refetch_empty=False, **base), paths,
+                                   RoutingFakeSession(articles, {"PMC1": "<article><body><p>No sharing text.</p></body></article>"}))
+    assert first[first["doi"] == doi]["das_primary"].iloc[0] == "no_statement"
+
+    # Without the flag the empty record is trusted: no new fetch.
+    session2 = RoutingFakeSession(articles, {"PMC1": JATS_MARKED})
+    second = pipeline.run_das_audit(df, _cfg(tmp_path, das_audit_refetch_empty=False, **base), paths, session2)
+    assert not any(u.endswith("/fullTextXML") for u in session2.calls)
+    assert second[second["doi"] == doi]["das_primary"].iloc[0] == "no_statement"
+
+    # With the flag it is fetched again and the new record wins on the next load too.
+    session3 = RoutingFakeSession(articles, {"PMC1": JATS_MARKED})
+    third = pipeline.run_das_audit(df, _cfg(tmp_path, das_audit_refetch_empty=True, **base), paths, session3)
+    assert sum(1 for u in session3.calls if u.endswith("/fullTextXML")) == 1
+    assert third[third["doi"] == doi]["das_primary"].iloc[0] != "no_statement"
+    _, fetched = pipeline.load_das_cache(paths.das_cache)
+    assert fetched["PMC1"]["statements"]

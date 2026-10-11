@@ -135,6 +135,10 @@ def parse_args(script_root: Optional[Path] = None) -> argparse.Namespace:
     parser.add_argument("--das-audit-sample-per-year", type=int, default=0,
                         help="Data-availability-statement audit sample size per year via Europe PMC (0 = off)")
     parser.add_argument("--das-audit-workers", type=int, default=5, help="Parallel Europe PMC full-text fetches")
+    parser.add_argument("--das-audit-all", action="store_true",
+                        help="DAS audit census: every in-corpus article with open-access full text (ignores the per-year sample size)")
+    parser.add_argument("--das-audit-refetch-empty", action="store_true",
+                        help="Re-fetch cached full texts that yielded no data-availability statement")
     parser.add_argument("--resume", action="store_true", help="Skip discipline runs with existing fully_enriched.csv")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--skip-dashboard", action="store_true")
@@ -351,6 +355,10 @@ def main() -> int:
             cmd.append("--disable-dataset-search")
         if args.backfill_openalex_metadata:
             cmd.append("--backfill-openalex-metadata")
+        if args.das_audit_all:
+            cmd.append("--das-audit-all")
+        if args.das_audit_refetch_empty:
+            cmd.append("--das-audit-refetch-empty")
         if args.refresh_openalex:
             cmd.append("--refresh-openalex")
         if args.force:

@@ -102,14 +102,16 @@ OpenAlex retrieval (incl. work type, OA status, preprint locations, countries, f
 →  Regex extraction (GitHub/Zenodo/OSF/dataset repos · registration signals · in_article_corpus flag)
 →  API enrichment (Unpaywall · Zenodo · OSF · GitHub · DataCite · Dryad · Figshare)
 →  Embedding ranking (optional)  →  LLM extraction (optional; preprint filled from metadata otherwise)
-→  Data-availability-statement audit via Europe PMC (--das-audit-sample-per-year N)
+→  Data-availability-statement audit via Europe PMC (--das-audit-sample-per-year N | --das-audit-all)
 →  Journal metrics  →  High-impact subgroup  →  CSV export
 ```
 
 The DAS audit resolves DOIs to PMCIDs with batched Europe PMC searches, samples N open-access
-full texts per year, and classifies the data-availability statement (repository, controlled /
-restricted, on request, in article, not available, other, no statement). Only the open-access
-subset has full text, so those rates are optimistic relative to the whole corpus.
+full texts per year (or every one of them with `--das-audit-all`), and classifies the
+data-availability statement (repository, public source, controlled / restricted, on request,
+in article, not available, other, no statement). Only the open-access subset has full text, so
+those rates are optimistic relative to the whole corpus. `--das-audit-refetch-empty` re-fetches
+cached articles that yielded no statement after an extractor change.
 
 ## Output files
 

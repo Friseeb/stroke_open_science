@@ -250,8 +250,8 @@ DAS_SEC_TYPES = {
 # methods used in the analysis available to any researcher'), Wolters Kluwer ('data sharing not
 # applicable ... no datasets were generated'), PeerJ ('supplied regarding data availability'),
 # Frontiers ('without undue reservation'), and common free-text variants. Validated on 19,637
-# open-access stroke articles (talk/wsc2026 audit); keep in sync with
-# stroke_open_science_talk/scripts/audit_data_availability_europepmc.py.
+# open-access stroke articles (blind re-check rounds documented in talk/outputs/das_audit/validation.md
+# on the talk/wsc2026 branch); this is the only copy of the extractor.
 DAS_SENTENCE_PATTERN = re.compile(
     r"(data|datasets?|materials?)[^.;]{0,100}(support(ing)? the (findings|results|conclusions)|used (and/or |and |or )?analy[sz]ed|generated (and|or) analy[sz]ed|"
     r"of (this|the present|the current) study)[^.;]{0,160}(available|shared|accessible|deposited|provided|obtained)|"
@@ -486,6 +486,8 @@ class PipelineConfig:
     das_audit_delay_seconds: float = 0.1
     das_audit_timeout_seconds: int = 90
     das_audit_seed: int = 2026
+    das_audit_all: bool = False
+    das_audit_refetch_empty: bool = False
 
 
 def parse_dotenv_file(path: Path) -> Dict[str, str]:
@@ -703,6 +705,22 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
     parser.add_argument("--das-audit-delay-seconds", type=float, default=0.1, help="Per-worker delay between Europe PMC requests")
     parser.add_argument("--das-audit-timeout-seconds", type=int, default=90)
     parser.add_argument("--das-audit-seed", type=int, default=2026, help="Seed for the per-year DAS audit sample")
+    parser.add_argument(
+        "--das-audit-all",
+        action="store_true",
+        help=(
+            "Census mode: audit every in-corpus article with open-access full text in Europe PMC instead of a "
+            "per-year sample (--das-audit-sample-per-year is then ignored)."
+        ),
+    )
+    parser.add_argument(
+        "--das-audit-refetch-empty",
+        action="store_true",
+        help=(
+            "Re-fetch cached full texts that parsed fine but yielded no statement, so an improved extractor "
+            "gets another look at them. The new record supersedes the old one in das_cache.jsonl."
+        ),
+    )
 
     parser.add_argument("--journal-metrics-csv", default=str(script_root / "configs" / "journal_metrics.csv"))
     parser.add_argument("--impact-factor-threshold", type=float, default=10.0)
@@ -762,6 +780,8 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
         das_audit_delay_seconds=max(0.0, args.das_audit_delay_seconds),
         das_audit_timeout_seconds=max(10, args.das_audit_timeout_seconds),
         das_audit_seed=int(args.das_audit_seed),
+        das_audit_all=bool(args.das_audit_all),
+        das_audit_refetch_empty=bool(args.das_audit_refetch_empty),
         max_per_query=max(0, args.max_per_query),
         refresh_openalex=args.refresh_openalex,
         force=args.force,
@@ -2065,9 +2085,23 @@ class OpenAlexDoiBatchResult:
     rate_limit: Dict[str, Any] = field(default_factory=dict)
 
 
+def normalize_metadata_cache_record(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """Coerce a cached metadata record to the pipeline's flat form: list-valued fields (as written by
+    the retired standalone ``enrich_openalex_work_metadata.py``) become ``LIST_JOIN``-joined strings,
+    so those JSONL files can be dropped in as ``openalex_metadata_cache.jsonl`` without re-fetching."""
+    out: Dict[str, Any] = {}
+    for key, value in rec.items():
+        if isinstance(value, (list, tuple)):
+            out[key] = LIST_JOIN.join(str(v).strip() for v in value if str(v or "").strip())
+        else:
+            out[key] = value
+    return out
+
+
 def load_openalex_metadata_cache(path: Path) -> Dict[str, Optional[Dict[str, Any]]]:
     """Read the JSONL cache: DOI -> flattened metadata record, or None when OpenAlex had no work
-    for that DOI (recorded as ``{"_missing": [...]}`` lines so they are not re-requested)."""
+    for that DOI (recorded as ``{"_missing": [...]}`` lines so they are not re-requested). Records
+    are passed through :func:`normalize_metadata_cache_record`, so legacy list-valued files load."""
     cache: Dict[str, Optional[Dict[str, Any]]] = {}
     if not path.exists():
         return cache
@@ -2088,7 +2122,7 @@ def load_openalex_metadata_cache(path: Path) -> Dict[str, Optional[Dict[str, Any
                     cache.setdefault(key, None)
             doi = normalize_doi(rec.get("doi_norm") or rec.get("doi") or "")
             if doi and OPENALEX_METADATA_MISSING_KEY not in rec:
-                cache[doi] = rec
+                cache[doi] = normalize_metadata_cache_record(rec)
     return cache
 
 
@@ -4340,9 +4374,9 @@ def extract_das_statements(xml_text: Any) -> Dict[str, Any]:
     attribute, title or ``<meta-name>``, short ``fn``/``notes``/``ack`` elements whose text matches
     ``DAS_SENTENCE_PATTERN`` (unmarked statements), and finally (AHA journals put the statement
     unmarked at the start of Methods) paragraphs that start like a DAS or contain a DAS-style
-    sentence, sliced to that sentence. Logic mirrors the validated standalone audit script
-    (stroke_open_science_talk/scripts/audit_data_availability_europepmc.py) so both yield the same
-    statements. Returns ``{"statements": [...], "flags": {...}}`` or ``{"parse_error": True}``."""
+    sentence, sliced to that sentence. Validated on 19,637 open-access stroke articles (about 1% residual miss rate, see
+    validation.md on the talk/wsc2026 branch). Returns ``{"statements": [...], "flags": {...}}`` or
+    ``{"parse_error": True}``."""
     try:
         payload = xml_text.encode("utf-8") if isinstance(xml_text, str) else xml_text
         root = ET.fromstring(payload)
@@ -4461,11 +4495,21 @@ def load_das_cache(path: Path) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dic
             if not isinstance(rec, dict):
                 continue
             kind = rec.get("kind")
+            if kind is None and rec.get("pmcid") and "http" in rec:
+                # Legacy full-text record from the retired standalone audit (no ``kind`` key): the
+                # same extractor output, so it is a valid fetch record.
+                kind = "fetch"
+                rec = {"kind": kind, **rec}
             if kind == "resolve" and rec.get("doi"):
                 resolved[normalize_doi(rec["doi"])] = rec
             elif kind == "fetch" and rec.get("pmcid"):
                 fetched[str(rec["pmcid"])] = rec
     return resolved, fetched
+
+
+def das_fetch_record_is_empty(rec: Dict[str, Any]) -> bool:
+    """True for a cached full text that parsed (HTTP 200, no parse error) but yielded no statement."""
+    return rec.get("http") == 200 and not rec.get("parse_error") and not rec.get("statements")
 
 
 def append_das_cache(path: Path, records: Sequence[Dict[str, Any]]) -> None:
@@ -4566,7 +4610,7 @@ def fetch_europepmc_fulltext_record(
 
 def select_das_audit_sample(
     df: pd.DataFrame,
-    sample_per_year: int,
+    sample_per_year: Optional[int],
     seed: int,
     resolved: Dict[str, Dict[str, Any]],
     resolve_fn: Callable[[Sequence[str]], Optional[Dict[str, Dict[str, Any]]]],
@@ -4574,8 +4618,9 @@ def select_das_audit_sample(
 ) -> Dict[str, Dict[str, Any]]:
     """Per year: shuffle the in-corpus DOIs deterministically and walk them in order, resolving
     unresolved DOIs in look-ahead batches, until ``sample_per_year`` articles with full text are
-    selected. The selection depends only on the seed and the corpus, not on batching, so a
-    resumed run picks the same articles. Returns DOI -> resolution record for selected rows."""
+    selected (``None`` = census: every article with full text). The selection depends only on the
+    seed and the corpus, not on batching, so a resumed run picks the same articles. Returns
+    DOI -> resolution record for selected rows."""
     doi_norm = _doi_norm_series(df)
     in_corpus = coerce_nullable_bool(df.get("in_article_corpus", pd.Series(True, index=df.index))).fillna(True).astype(bool)
     years = pd.to_numeric(df.get("year"), errors="coerce")
@@ -4587,7 +4632,7 @@ def select_das_audit_sample(
         rng.shuffle(dois)
         picked = 0
         position = 0
-        while position < len(dois) and picked < sample_per_year:
+        while position < len(dois) and (sample_per_year is None or picked < sample_per_year):
             doi = dois[position]
             if doi not in resolved:
                 batch = [d for d in dois[position : position + 4 * EUROPEPMC_DOI_BATCH_SIZE] if d not in resolved][:EUROPEPMC_DOI_BATCH_SIZE]
@@ -4604,7 +4649,8 @@ def select_das_audit_sample(
                 selected[doi] = rec
                 picked += 1
             position += 1
-        logging.info("DAS audit %d: selected %d/%d full-text articles from %d candidates.", int(year), picked, sample_per_year, len(dois))
+        target = "all" if sample_per_year is None else str(sample_per_year)
+        logging.info("DAS audit %d: selected %d/%s full-text articles from %d candidates.", int(year), picked, target, len(dois))
     return selected
 
 
@@ -4654,19 +4700,27 @@ def run_das_audit(
     paths: PipelinePaths,
     session: requests.Session,
 ) -> pd.DataFrame:
-    """DAS audit stage (``--das-audit-sample-per-year N``): resolve in-corpus DOIs to PMCIDs via
-    Europe PMC search (batched ``DOI:"..." OR ...`` with ``HAS_FT:y``), sample N per year among
-    those with full text, fetch the JATS XML with a small thread pool, extract and classify the
-    data-availability statement. Everything is appended to ``das_cache.jsonl`` as it completes,
-    so an interrupted run resumes. Scope note: only the open-access subset has full text, so
-    rates are optimistic relative to the whole corpus."""
-    if cfg.das_audit_sample_per_year <= 0:
+    """DAS audit stage (``--das-audit-sample-per-year N`` or ``--das-audit-all``): resolve
+    in-corpus DOIs to PMCIDs via Europe PMC search (batched ``DOI:"..." OR ...`` with ``HAS_FT:y``),
+    sample N per year among those with full text (or take all of them in census mode), fetch the
+    JATS XML with a small thread pool, extract and classify the data-availability statement.
+    Everything is appended to ``das_cache.jsonl`` as it completes, so an interrupted run resumes.
+    ``--das-audit-refetch-empty`` discards cached full texts that yielded no statement so they are
+    fetched again (after an extractor improvement). Scope note: only the open-access subset has
+    full text, so rates are optimistic relative to the whole corpus."""
+    if cfg.das_audit_sample_per_year <= 0 and not cfg.das_audit_all:
         return apply_das_results(df, {}, {})
     if df.empty:
         return apply_das_results(df, {}, {})
 
     resolved, fetched = load_das_cache(paths.das_cache)
     logging.info("DAS audit: %d DOIs resolved and %d full texts cached in %s", len(resolved), len(fetched), paths.das_cache)
+    if cfg.das_audit_refetch_empty:
+        empty = [pmcid for pmcid, rec in fetched.items() if das_fetch_record_is_empty(rec)]
+        for pmcid in empty:
+            del fetched[pmcid]
+        logging.info("DAS audit: --das-audit-refetch-empty dropped %d cached full texts without a statement.", len(empty))
+    sample_per_year: Optional[int] = None if cfg.das_audit_all else cfg.das_audit_sample_per_year
 
     def _resolve(batch: Sequence[str]) -> Optional[Dict[str, Dict[str, Any]]]:
         result = resolve_pmcids_europepmc(session, batch, cfg.das_audit_timeout_seconds)
@@ -4676,7 +4730,7 @@ def run_das_audit(
 
     selected = select_das_audit_sample(
         df,
-        cfg.das_audit_sample_per_year,
+        sample_per_year,
         cfg.das_audit_seed,
         resolved,
         _resolve,

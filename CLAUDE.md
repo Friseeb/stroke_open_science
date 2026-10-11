@@ -111,10 +111,13 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
 9. **Embedding ranking** (optional) — SentenceTransformer cosine similarity to an open-science concept vector
 10. **LLM extraction** (optional) — OpenAI or Ollama JSON extraction of `code_link`, `data_link`, `preregistered`, `preprint`.
     Afterwards `apply_metadata_preprint_flag` fills a blank `preprint` from `has_preprint_version`.
-11. **DAS audit** (`--das-audit-sample-per-year N`, default 0 = off) — for in-corpus rows with a DOI: Europe PMC
+11. **DAS audit** (`--das-audit-sample-per-year N`, default 0 = off; or `--das-audit-all` for a census of every
+    in-corpus article with open-access full text) — for in-corpus rows with a DOI: Europe PMC
     search resolves DOI → PMCID (`DOI:"..." OR ...`, ≤25 per query, `resultType=lite`, `OPEN_ACCESS:y AND HAS_FT:y AND SRC:MED`),
     a deterministic per-year sample of N full-text articles is fetched (`fullTextXML`, 5 workers, 0.1 s delay),
     data-availability statements are extracted (`extract_das_statements`) and classified (`classify_das_text`).
+    `--das-audit-refetch-empty` drops cached full texts that yielded no statement so an improved extractor fetches
+    them again (the newer record wins in `das_cache.jsonl`).
     Writes `das_pmcid`, `das_available`, `das_has_statement`, `das_primary`, `das_text`. Open-access full text only,
     so rates are optimistic relative to the whole corpus.
     - Extraction: `<sec sec-type="data-availability">`-style sections or DAS-like titles; `notes`/`fn`/`custom-meta`
@@ -130,10 +133,10 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
       ("will not be made available", "no datasets were generated", "data sharing not applicable", "no additional data")
       forces `not_available_or_na` unless a repository or public source is named. `code_shared` is an extra
       multi-label flag only.
-    - Validation: the same parser (`stroke_open_science_talk/scripts/audit_data_availability_europepmc.py`) was run on
-      19,637 open-access stroke articles; a blind re-check of 100 recent no-statement articles after the fixes found
-      3 true misses and 2 narrative false alarms, i.e. a residual miss rate of about 1% of articles. Keep the two
-      copies identical (`tests/test_metadata_flags_das.py` carries the shared cases).
+    - Validation: this extractor and classifier were validated as a standalone script on 19,637 open-access stroke
+      articles (blind re-check rounds in `talk/outputs/das_audit/validation.md` on the `talk/wsc2026` branch); the
+      residual miss rate is about 1% of articles. The standalone script was retired on 2026-10-11; the pipeline holds
+      the only copy, and `tests/test_metadata_flags_das.py` carries the validated cases.
 12. **High-impact subgroup** — filters by journal IF threshold + citation percentile (pooled across years within
     the discipline) → `high_impact_subset.csv`
 13. **Preview export** — first N rows → `enriched_preview.csv`
@@ -141,8 +144,12 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
 Caches:
 - `data/{discipline}/enrich_cache.json` — API enrichment results (resumable)
 - `data/{discipline}/llm_cache.json` — LLM extraction results (resumable)
-- `data/{discipline}/openalex_metadata_cache.jsonl` — batched OpenAlex work metadata by DOI (resumable)
-- `data/{discipline}/das_cache.jsonl` — Europe PMC DOI→PMCID resolutions and full-text DAS extractions (resumable)
+- `data/{discipline}/openalex_metadata_cache.jsonl` — batched OpenAlex work metadata by DOI (resumable). The JSONL
+  written by the retired standalone `enrich_openalex_work_metadata.py` (list-valued fields, extra columns) loads
+  as-is: copy or symlink `data/enrichment/<discipline>_work_metadata.jsonl` to this path and the backfill is free.
+- `data/{discipline}/das_cache.jsonl` — Europe PMC DOI→PMCID resolutions and full-text DAS extractions (resumable).
+  Lines from the retired standalone audit's `statements.jsonl` (no `kind` key) load as full-text records, so
+  appending that file here avoids re-fetching those articles.
 - `data/{discipline}/retrieval_slices/` — per-term per-window raw API results
 
 Backfill an existing discipline and run the DAS audit on it. `--force` is needed because `fully_enriched.csv`
