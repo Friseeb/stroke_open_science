@@ -24,7 +24,14 @@ Corpus rules (documented here because they drive every number in the talk)
   preregistration wording in title+abstract), reported among records WITH an abstract.
 * Preprint = ``has_preprint_version`` (an OpenAlex location on a preprint server).
 * Data-availability statements = the pipeline's Europe PMC audit (``das_available``,
-  ``das_has_statement``, ``das_primary``), open-access full text only.
+  ``das_has_statement``, ``das_primary``), open-access full text only. The audit also flags
+  whether the whole full text mentions GitHub or a trial registration (``das_mentions_*``):
+  the full-text estimates of code sharing and registration for the audited sample.
+* Equity = ``first_author_income_group`` (World Bank, via the pipeline config). Open-access
+  routes are split into free-to-author (diamond, green), paid (gold, hybrid) and other (bronze).
+* Commitment league tables (institutions, journals, funders, countries) use only verified,
+  full-text signals from the audited sample: repository deposit or public-source reuse in the
+  DAS, GitHub in the full text, trial registration in the full text. Minimum n audited applies.
 
 Usage:
   python scripts/wsc2026_talk_analysis.py --inputs stroke=data/talk/stroke/fully_enriched.csv \
@@ -72,6 +79,14 @@ DAS_COLORS = {"repository": "#0d366b", "public_source": "#1c5cab", "controlled_o
 DAS_LABELS = {"repository": "authors' deposit in a repository", "public_source": "public or third-party dataset",
               "controlled_or_restricted": "controlled / restricted", "on_request": "on request", "in_article": "in article or supplement",
               "not_available_or_na": "not available / N/A", "other_or_unclear": "other / unclear", "no_statement": "no statement found"}
+INCOME_ORDER = ["high", "upper_middle", "lower_middle", "low"]
+INCOME_LABELS = {"high": "high income", "upper_middle": "upper-middle income", "lower_middle": "lower-middle income", "low": "low income"}
+# Who pays to be read: free-to-author routes vs article-processing-charge routes.
+OA_ROUTE = {"diamond": "free", "green": "free", "gold": "paid", "hybrid": "paid", "bronze": "other", "closed": "closed"}
+OA_ROUTE_ORDER = ["free", "paid", "other", "closed"]
+OA_ROUTE_COLORS = {"free": "#0d366b", "paid": "#5598e7", "other": "#cde2fb", "closed": "#d9d8d4"}
+OA_ROUTE_LABELS = {"free": "free to author (diamond, green)", "paid": "APC paid (gold, hybrid)", "other": "bronze (free to read, no licence)", "closed": "closed"}
+MIN_N_AUDITED = 30
 TEXT = "#0b0b0b"
 TEXT2 = "#52514e"
 GRID = "#e6e5e1"
@@ -140,6 +155,17 @@ def apply_corpus_rules(df: pd.DataFrame) -> pd.DataFrame:
     df["das_audited"] = dash.to_bool_series(_col(df, "das_available")) & das_primary.isin(DAS_ORDER)
     df["das_primary"] = das_primary.where(df["das_audited"], None)
     df["das_has_statement"] = df["das_audited"] & dash.to_bool_series(_col(df, "das_has_statement"))
+    df["das_deposit"] = df["das_audited"] & df["das_primary"].isin(["repository", "public_source"])
+    df["das_repository"] = df["das_audited"] & df["das_primary"].eq("repository")
+    df["das_on_request"] = df["das_audited"] & df["das_primary"].eq("on_request")
+    df["ft_github"] = df["das_audited"] & dash.to_bool_series(_col(df, "das_mentions_github"))
+    df["ft_registration"] = df["das_audited"] & dash.to_bool_series(_col(df, "das_mentions_trial_registration"))
+
+    income = _clean(_col(df, "first_author_income_group")).str.lower()
+    df["income_group"] = income.where(income.isin(INCOME_ORDER), None)
+    df["oa_route"] = df["oa_status"].map(OA_ROUTE).where(df["oa_status"].notna(), None)
+    df["oa_free_route"] = df["oa_route"].eq("free")
+    df["oa_paid_route"] = df["oa_route"].eq("paid")
     return df
 
 
@@ -369,6 +395,173 @@ def das_outputs(stroke: pd.DataFrame, out_dir: Path) -> Optional[Dict[str, objec
     return summary
 
 
+def fig_commitment(table: pd.DataFrame, label_col: str, title: str, out_dir: Path, name: str):
+    """Horizontal bars of the commitment index (1 = stroke average) with the three signal rates as text."""
+    table = table.iloc[::-1]
+    fig, ax = new_fig(12, 0.5 * len(table) + 2.2)
+    y = np.arange(len(table))
+    ax.barh(y, table["commitment_index"], color="#2a78d6", height=0.6, edgecolor="white")
+    ax.axvline(1.0, color=TEXT2, linewidth=1, linestyle=(0, (3, 3)))
+    ax.text(1.0, len(table) - 0.3, "stroke average", color=TEXT2, fontsize=9, ha="center")
+    for yi, v in zip(y, table["commitment_index"]):
+        ax.text(v + 0.05, yi, f"{v:.1f}x", color=TEXT2, fontsize=9.5, va="center")
+    ax.set_yticks(y)
+    ax.set_yticklabels([f"{str(l)[:46]}  (n={int(n):,})" for l, n in zip(table[label_col], table["n"])], fontsize=10.5, color=TEXT)
+    style_axes(ax, pct=False)
+    ax.yaxis.grid(False)
+    ax.xaxis.grid(True, color=GRID)
+    ax.set_xlim(0, max(3.0, float(table["commitment_index"].max()) * 1.25))
+    ax.set_xlabel("commitment index: mean of (entity rate / stroke rate) over data deposit, GitHub, registration", color=TEXT2, fontsize=10)
+    for j, (col, lab) in enumerate([("das_deposit_rate", "data deposit"), ("ft_github_rate", "GitHub"), ("ft_registration_rate", "registration")]):
+        xpos = 1.04 + 0.14 * j
+        ax.text(xpos, len(table) - 0.35, lab, transform=ax.get_yaxis_transform(), color=TEXT2, fontsize=9.5, ha="left", fontweight="bold")
+        for yi, v in zip(y, table[col]):
+            ax.text(xpos, yi, f"{v:.0%}", transform=ax.get_yaxis_transform(), color=TEXT, fontsize=10, va="center", ha="left")
+    ax.set_ylim(-0.7, len(table) - 0.1)
+    ax.set_title(title, loc="left", fontsize=15, color=TEXT, fontweight="bold", pad=14)
+    fig.text(0.01, -0.02, "Verified in full text (Europe PMC open-access sample): data deposited or public source in the DAS, GitHub mentioned, trial registration mentioned.", color=TEXT2, fontsize=9)
+    save(fig, out_dir, name)
+
+
+# ----------------------------------------------------------------------------- equity and commitment
+def equity_outputs(stroke: pd.DataFrame, tables: Path, figures: Path) -> Optional[Dict[str, object]]:
+    """Open-access route and full-text sharing signals by first-author income group (stroke)."""
+    sub = stroke[stroke["income_group"].notna()]
+    if sub.empty:
+        logging.warning("No first_author_income_group values; skipping the equity outputs.")
+        return None
+    grp = sub.groupby("income_group")
+    table = grp.agg(n=("doi", "size"), oa_rate=("is_oa", "mean"), oa_free_route_rate=("oa_free_route", "mean"),
+                    oa_paid_route_rate=("oa_paid_route", "mean"), high_impact_rate=("high_impact", "mean"),
+                    n_audited=("das_audited", "sum")).reindex(INCOME_ORDER)
+    route = pd.crosstab(sub["income_group"], sub["oa_route"], normalize="index").reindex(index=INCOME_ORDER, columns=OA_ROUTE_ORDER, fill_value=0.0)
+    table = table.join(route.add_prefix("route_"))
+    audited = sub[sub["das_audited"]]
+    if not audited.empty:
+        a = audited.groupby("income_group").agg(
+            das_statement_rate=("das_has_statement", "mean"), das_deposit_rate=("das_deposit", "mean"),
+            das_repository_rate=("das_repository", "mean"), das_public_source_rate=("das_primary", lambda s: s.eq("public_source").mean()),
+            das_on_request_rate=("das_on_request", "mean"), ft_github_rate=("ft_github", "mean"), ft_registration_rate=("ft_registration", "mean"),
+        ).reindex(INCOME_ORDER)
+        table = table.join(a)
+    table.index.name = "income_group"
+    table.to_csv(tables / "stroke_equity_by_income_group.csv")
+    share = sub["income_group"].value_counts(normalize=True).reindex(INCOME_ORDER, fill_value=0.0)
+
+    # fig12: OA route stacked by income group
+    fig, ax = new_fig(12, 5.5)
+    x = np.arange(len(INCOME_ORDER))
+    bottom = np.zeros(len(INCOME_ORDER))
+    for r in OA_ROUTE_ORDER:
+        vals = route[r].values
+        ax.bar(x, vals, bottom=bottom, color=OA_ROUTE_COLORS[r], width=0.7, edgecolor="white", linewidth=1.5, label=OA_ROUTE_LABELS[r])
+        for xi, (b, v) in enumerate(zip(bottom, vals)):
+            if v >= 0.06:
+                ax.text(xi, b + v / 2, f"{v:.0%}", ha="center", va="center", color="white" if r in ("free", "paid") else TEXT, fontsize=10)
+        bottom += vals
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{INCOME_LABELS[g]}\n(n={int(table.loc[g, 'n']):,})" for g in INCOME_ORDER], fontsize=10.5, color=TEXT)
+    ax.set_ylim(0, 1)
+    style_axes(ax, "share of stroke articles")
+    ax.legend(ncol=2, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.16), fontsize=10)
+    ax.set_title("Who pays to be read: open-access route by first-author income group", loc="left", fontsize=15, color=TEXT, fontweight="bold", pad=14)
+    fig.text(0.01, -0.12, "Stroke articles 2015-2025 with a first-author country in OpenAlex; World Bank income groups. Free = diamond or green; paid = gold or hybrid (APC).", color=TEXT2, fontsize=9)
+    save(fig, figures, "fig12_oa_route_by_income")
+
+    out: Dict[str, object] = {
+        "share_of_corpus": {g: round(float(share[g]), 4) for g in INCOME_ORDER},
+        "by_group": table.round(4).to_dict(orient="index"),
+    }
+    # fig13: full-text sharing signals by income group (audited sample)
+    if not audited.empty and "ft_github_rate" in table.columns:
+        metrics = [("das_deposit_rate", "data deposited or public source (DAS)"), ("das_on_request_rate", "data 'on request' (DAS)"),
+                   ("ft_github_rate", "GitHub in full text"), ("ft_registration_rate", "trial registration in full text")]
+        fig, ax = new_fig(12, 5.5)
+        width = 0.2
+        colors = ["#0d366b", "#2a78d6", "#86b6ef", "#cde2fb"]
+        for i, g in enumerate(INCOME_ORDER):
+            vals = [float(table.loc[g, m]) if pd.notna(table.loc[g, m]) else 0.0 for m, _ in metrics]
+            bars = ax.bar(np.arange(len(metrics)) + (i - 1.5) * width, vals, width, color=colors[i], edgecolor="white", linewidth=1.2,
+                          label=f"{INCOME_LABELS[g]} (n audited={int(table.loc[g, 'n_audited']):,})")
+            for b, v in zip(bars, vals):
+                ax.text(b.get_x() + b.get_width() / 2, v + 0.005, f"{v:.1%}", ha="center", color=TEXT2, fontsize=8.5)
+        ax.set_xticks(np.arange(len(metrics)))
+        ax.set_xticklabels([l for _, l in metrics], fontsize=10.5, color=TEXT)
+        ax.set_ylim(0, None)
+        style_axes(ax)
+        ax.legend(frameon=False, fontsize=9.5)
+        ax.set_title("Sharing in the full text, by first-author income group", loc="left", fontsize=15, color=TEXT, fontweight="bold", pad=14)
+        fig.text(0.01, -0.03, "Open-access stroke articles with full text in Europe PMC (audited sample). Optimistic relative to all stroke articles.", color=TEXT2, fontsize=9)
+        save(fig, figures, "fig13_fulltext_sharing_by_income")
+    return out
+
+
+COMMITMENT_SIGNALS = ["das_deposit_rate", "ft_github_rate", "ft_registration_rate"]
+
+
+def commitment_table(audited: pd.DataFrame, key: str, baseline: pd.DataFrame, min_n: int = MIN_N_AUDITED) -> pd.DataFrame:
+    """Verified full-text signals per entity (one row per audited article per entity).
+
+    ``commitment_index`` = mean over the three signals of (entity rate / stroke-wide rate), so a
+    rare signal (data deposit, about 3%) weighs as much as a common one (trial registration in the
+    full text, about 15%). 1.0 = the stroke average; 2.0 = twice the average on each signal."""
+    grp = audited.groupby(key)
+    table = grp.agg(n_audited=("doi", "size"), das_statement_rate=("das_has_statement", "mean"),
+                    das_deposit_rate=("das_deposit", "mean"), das_repository_rate=("das_repository", "mean"),
+                    das_on_request_rate=("das_on_request", "mean"), ft_github_rate=("ft_github", "mean"),
+                    ft_registration_rate=("ft_registration", "mean"), oa_free_route_rate=("oa_free_route", "mean"))
+    table = table[table["n_audited"] >= min_n].copy()
+    base = {s: float(baseline[s.replace("_rate", "")].mean()) for s in COMMITMENT_SIGNALS}
+    ratios = pd.concat([(table[s] / base[s]) if base[s] > 0 else pd.Series(0.0, index=table.index) for s in COMMITMENT_SIGNALS], axis=1)
+    table["commitment_index"] = ratios.mean(axis=1).round(2)
+    return table.sort_values(["commitment_index", "n_audited"], ascending=[False, False])
+
+
+def commitment_outputs(stroke: pd.DataFrame, tables: Path, figures: Path) -> Optional[Dict[str, object]]:
+    audited = stroke[stroke["das_audited"]].copy()
+    if audited.empty:
+        return None
+    out: Dict[str, object] = {"min_n_audited": MIN_N_AUDITED, "n_audited": int(len(audited))}
+    # institutions: one row per (article, institution); an institution gets credit for any author.
+    inst_col = _clean(_col(audited, "institutions"))
+    if inst_col.ne("").any():
+        inst = audited[inst_col.ne("")].copy()
+        inst["institution"] = inst_col[inst_col.ne("")].str.split("|")
+        inst = inst.explode("institution")
+        inst = inst[inst["institution"].str.len() > 0]
+        t = commitment_table(inst, "institution", audited)
+        t.to_csv(tables / "stroke_commitment_institutions.csv")
+        out["institutions_top"] = t.head(15).round(4).to_dict(orient="index")
+        top = t.head(15).reset_index().rename(columns={"n_audited": "n"})
+        if not top.empty:
+            fig_commitment(top, "institution", f"Most committed institutions in stroke (>= {MIN_N_AUDITED} audited articles)", figures, "fig14_commitment_institutions")
+    for key, name in [("journal_norm", "journals"), ("first_author_country", "countries")]:
+        col = _clean(_col(audited, key))
+        sub = audited[col.ne("")].copy()
+        sub[key] = col[col.ne("")]
+        t = commitment_table(sub, key, audited)
+        t.to_csv(tables / f"stroke_commitment_{name}.csv")
+        out[f"{name}_top"] = t.head(15).round(4).to_dict(orient="index")
+    funders_col = _clean(_col(audited, "funders"))
+    if funders_col.ne("").any():
+        f = audited[funders_col.ne("")].copy()
+        f["funder"] = funders_col[funders_col.ne("")].str.split("|")
+        f = f.explode("funder")
+        f = f[f["funder"].str.len() > 0]
+        t = commitment_table(f, "funder", audited)
+        t.to_csv(tables / "stroke_commitment_funders.csv")
+        out["funders_top"] = t.head(15).round(4).to_dict(orient="index")
+    # Full-text vs abstract-based estimates for the audited sample (how much the abstract undercounts).
+    out["baseline_rates"] = {s: round(float(audited[s.replace("_rate", "")].mean()), 4) for s in COMMITMENT_SIGNALS}
+    out["fulltext_vs_abstract"] = {
+        "code_abstract_rate": round(float(audited["shares_code"].mean()), 4),
+        "code_fulltext_github_rate": round(float(audited["ft_github"].mean()), 4),
+        "registration_abstract_rate": round(float(audited.loc[audited["has_abstract"], "registered_any"].mean()), 4) if audited["has_abstract"].any() else None,
+        "registration_fulltext_rate": round(float(audited["ft_registration"].mean()), 4),
+    }
+    return out
+
+
 # ----------------------------------------------------------------------------- main
 def parse_inputs(args: argparse.Namespace) -> Dict[str, Path]:
     inputs: Dict[str, Path] = {}
@@ -461,6 +654,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     das_summary = das_outputs(stroke, out / "das_audit")
     if das_summary:
         numbers["stroke_das_audit"] = das_summary
+    equity = equity_outputs(stroke, tables, figures)
+    if equity:
+        numbers["stroke_equity"] = equity
+    commitment = commitment_outputs(stroke, tables, figures)
+    if commitment:
+        numbers["stroke_commitment"] = commitment
 
     # Figures
     fig_trend_by_discipline(by_year, "oa_rate", "Open access in stroke vs comparator fields", "share of articles open access", figures, "fig01_oa_trend")
