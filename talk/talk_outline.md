@@ -10,8 +10,10 @@ in stroke, grounded in the first stroke-specific measurement of these practices.
 Numbers below come from `talk/outputs/numbers.json` and `talk/outputs/tables/`
 (stroke corpus: OpenAlex journal articles and reviews with a DOI, 2015-2025, n = 126,267; open access = any OpenAlex status other than closed) and from
 `talk/evidence_brief.md`. Items marked TODO wait on the comparator enrichment or the
-Europe PMC data-availability audit. Re-run `scripts/wsc2026_talk_analysis.py` and
-`scripts/audit_data_availability_europepmc.py classify` before finalising.
+Europe PMC data-availability audit. All numbers come from pipeline output: run
+`scripts/search_stroke_dois.py` per discipline (with `--das-audit-all` or
+`--das-audit-sample-per-year N` for stroke), then `scripts/wsc2026_talk_analysis.py`
+before finalising. The two standalone scripts were retired on 2026-10-11.
 
 Timing plan: 13 slides, roughly 1 minute each, 2 minutes spare for the agenda slide.
 

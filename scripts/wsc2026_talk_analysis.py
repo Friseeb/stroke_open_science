@@ -2,41 +2,44 @@
 """Numbers, tables and figures for the WSC 2026 (Seoul) talk on incentives for
 open science in stroke research.
 
-Inputs
-------
-* ``data/full_release/<discipline>-fully_enriched.csv`` - the published June 2026
-  benchmark (OpenAlex title-search corpus, 2015-2026, four disciplines).
-* ``data/enrichment/<discipline>_work_metadata.csv`` (optional, produced by
-  ``scripts/enrich_openalex_work_metadata.py``) - work type, source type, OA
-  status (gold/green/hybrid/bronze/diamond/closed), preprint locations,
-  first-author country and funders.
+Input: one pipeline ``fully_enriched.csv`` per discipline, as written by
+``scripts/search_stroke_dois.py``. No enrichment join and no re-derivation here: the
+corpus flag (``in_article_corpus``), OpenAlex work metadata (``oa_status``,
+``has_preprint_version``, ``first_author_country``, ``funders``), registration
+flags (``registration_signal``) and the data-availability audit (``das_*``) all
+come from the pipeline. A legacy release that predates a flag gets it computed
+by the pipeline's own function (same code path as the dashboard builder).
 
 Corpus rules (documented here because they drive every number in the talk)
 --------------------------------------------------------------------------
 * Years 2015-2025. 2026 is a partial year (pull ran June 2026) and is dropped.
   2025 is near-complete but OpenAlex indexing lags, so it is flagged in outputs.
-* When enrichment is available the corpus is enriched journal articles and reviews only
-  (``work_type in {article, review}`` and ``primary_source_type == journal``, DOI required).
-  No-DOI records are dropped: they are mostly conference abstracts. Without enrichment,
-  records whose "journal" is a repository or preprint server are dropped by name as a fallback.
-* Open access = OpenAlex current ``oa_status`` other than "closed" (falls back to the
-  release ``is_oa`` flag only when the status is unknown).
+* Corpus = ``in_article_corpus`` (OpenAlex type article/review in a journal source,
+  DOI required; conference abstracts without a DOI are out).
+* Open access = the one definition in ``build_discipline_dashboard.derive_open_access``
+  (OpenAlex ``oa_status`` known and not "closed"; legacy inference only when unknown).
 * Code sharing = GitHub / code link / Zenodo / OSF link mentioned by a paper.
 * Data sharing = public dataset repository link detected by regex or DataCite.
-* Registration = trial / review registry identifier or explicit preregistration
-  wording in title+abstract (NCT, ISRCTN, PROSPERO CRD42, ChiCTR, UMIN, ACTRN,
-  EudraCT, DRKS, CTRI, IRCT, NTR, osf.io, "preregistered", "registered report").
-  Reported among records WITH an abstract, because the denominator matters.
-* Preprint = an OpenAlex location on a preprint server for a journal article.
+* Registration = ``registration_signal`` (trial / review registry identifier or explicit
+  preregistration wording in title+abstract), reported among records WITH an abstract.
+* Preprint = ``has_preprint_version`` (an OpenAlex location on a preprint server).
+* Data-availability statements = the pipeline's Europe PMC audit (``das_available``,
+  ``das_has_statement``, ``das_primary``), open-access full text only.
 
-Outputs land in ``talk/outputs/`` : tables/*.csv, numbers.json, figures/*.png|svg.
+Usage:
+  python scripts/wsc2026_talk_analysis.py --inputs stroke=data/talk/stroke/fully_enriched.csv \
+      neurology=... neuroscience=... cardiology=...
+  python scripts/wsc2026_talk_analysis.py --input-dir data/talk    # <dir>/<discipline>/fully_enriched.csv
+
+Outputs land in ``talk/outputs/``: tables/*.csv, numbers.json, figures/*.png|svg and
+``das_audit/`` (tables, summary, fig11).
 """
 from __future__ import annotations
 
 import argparse
 import json
 import logging
-import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -47,6 +50,12 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+import build_discipline_dashboard as dash  # noqa: E402  (sibling module: one OA definition, bool/blank helpers)
+
 DISCIPLINES = ["stroke", "neurology", "neuroscience", "cardiology"]
 FOCUS = "stroke"
 YEARS = list(range(2015, 2026))
@@ -55,117 +64,89 @@ PARTIAL_YEARS = {2025}
 # Validated categorical palette (dataviz reference instance), fixed slot order.
 SERIES = {"stroke": "#2a78d6", "neurology": "#eb6834", "neuroscience": "#1baf7a", "cardiology": "#eda100"}
 # Ordinal blue ramp for OA types (open -> less open), grey for closed.
-OA_STATUS_ORDER = ["diamond", "gold", "hybrid", "green", "bronze", "closed"]
+OA_STATUS_ORDER = list(dash.OA_STATUS_ORDER)
 OA_STATUS_COLORS = {"diamond": "#0d366b", "gold": "#1c5cab", "hybrid": "#2a78d6", "green": "#5598e7", "bronze": "#9ec5f4", "closed": "#d9d8d4"}
+DAS_ORDER = list(dash.DAS_ORDER)
+DAS_COLORS = {"repository": "#0d366b", "public_source": "#1c5cab", "controlled_or_restricted": "#2a78d6", "on_request": "#86b6ef",
+              "in_article": "#cde2fb", "not_available_or_na": "#e6e5e1", "other_or_unclear": "#f0efec", "no_statement": "#d9d8d4"}
+DAS_LABELS = {"repository": "authors' deposit in a repository", "public_source": "public or third-party dataset",
+              "controlled_or_restricted": "controlled / restricted", "on_request": "on request", "in_article": "in article or supplement",
+              "not_available_or_na": "not available / N/A", "other_or_unclear": "other / unclear", "no_statement": "no statement found"}
 TEXT = "#0b0b0b"
 TEXT2 = "#52514e"
 GRID = "#e6e5e1"
 
-NON_JOURNAL_SOURCE_PATTERN = re.compile(
-    r"figshare|zenodo|research square|^pubmed|doaj|ssrn|medrxiv|biorxiv|arxiv|"
-    r"preprints|dryad|osf|mendeley data|europe pmc|hal \(|repository|eprints|"
-    r"dissertation|thesis|proquest",
-    re.IGNORECASE,
-)
-
-REGISTRY_PATTERNS = {
-    "trial_registry": re.compile(
-        r"\bNCT\s?\d{8}\b|\bISRCTN\s?\d{8}\b|\bChiCTR[-\w]*\d{6,}|\bUMIN\s?\d{9}\b|"
-        r"\bACTRN\s?\d{14}\b|\bEudraCT\b|\b\d{4}-\d{6}-\d{2}\b|\bDRKS\s?\d{8}\b|"
-        r"\bCTRI/\d{4}/\d{2}/\d{6}\b|\bIRCT\w*\d{6,}|\bNTR\s?\d{4,}\b|\bNL\s?\d{4,}\b(?=.*netherlands trial)|"
-        r"\bjRCT\w*\d{6,}|\bKCT\s?\d{7}\b|\bclinicaltrials\.gov\b|\bTCTR\d{11}\b|\bPACTR\d{15}\b",
-        re.IGNORECASE,
-    ),
-    "prospero": re.compile(r"\bCRD\s?42\d{6}\b|\bPROSPERO\b", re.IGNORECASE),
-    "preregistration_wording": re.compile(
-        r"\bpre-?registered\b|\bpre-?registration\b|\bregistered report\b|\bosf\.io/\w+|"
-        r"\bprospectively registered\b|\bregistered protocol\b",
-        re.IGNORECASE,
-    ),
-}
+REG_COLS = {"trial_registry": "reg_trial_registry", "prospero": "reg_prospero", "preregistration_wording": "reg_preregistration_wording"}
 
 
-def to_bool(series: pd.Series) -> pd.Series:
-    if series.dtype == bool:
-        return series
-    return series.astype(str).str.strip().str.lower().isin({"true", "1", "yes", "y"})
+def _col(df: pd.DataFrame, name: str) -> pd.Series:
+    return df[name] if name in df.columns else pd.Series(pd.NA, index=df.index, dtype=object)
 
 
-def nonempty(series: pd.Series) -> pd.Series:
-    return series.notna() & (series.astype(str).str.strip() != "") & (series.astype(str).str.lower() != "nan")
+def _clean(series: pd.Series) -> pd.Series:
+    s = series.fillna("").astype(str).str.strip()
+    return s.replace({"nan": "", "None": "", "<NA>": ""})
 
 
-def load_discipline(discipline: str, release_dir: Path, enrichment_dir: Path) -> pd.DataFrame:
-    path = release_dir / f"{discipline}-fully_enriched.csv"
+# ----------------------------------------------------------------------------- loading
+def load_discipline(discipline: str, path: Path) -> pd.DataFrame:
     logging.info("Loading %s", path)
     df = pd.read_csv(path, low_memory=False)
     df["discipline"] = discipline
     df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
-    df["doi_norm"] = df["doi"].astype(str).str.lower().str.replace(r"^https?://(dx\.)?doi\.org/", "", regex=True)
-    df.loc[df["doi"].isna(), "doi_norm"] = pd.NA
 
-    enr_path = enrichment_dir / f"{discipline}_work_metadata.csv"
-    df["enriched"] = False
-    if enr_path.exists():
-        enr = pd.read_csv(enr_path, low_memory=False).drop_duplicates("doi_norm")
-        keep = [
-            "doi_norm", "work_type", "oa_status", "primary_source_name", "primary_source_type",
-            "primary_source_is_in_doaj", "has_preprint_version", "is_preprint_record", "preprint_servers",
-            "first_author_country", "countries", "funders", "n_funders", "is_retracted", "has_fulltext",
-        ]
-        enr = enr[[c for c in keep if c in enr.columns]]
-        df = df.merge(enr, on="doi_norm", how="left")
-        df["enriched"] = df["work_type"].notna()
-        logging.info("  enrichment matched %d / %d DOIs", int(df["enriched"].sum()), int(df["doi_norm"].notna().sum()))
+    missing = [c for c in ("in_article_corpus", "registration_signal") if c not in df.columns]
+    if missing:
+        # Legacy release: derive the flags with the pipeline's own functions (same as the dashboard builder).
+        import search_stroke_dois as pipeline  # heavy import, only on demand
+
+        if "in_article_corpus" not in df.columns:
+            df = pipeline.apply_corpus_flag(df)
+        if "registration_signal" not in df.columns:
+            df = pipeline.apply_registration_flags(df)
+        logging.info("  %s lacked %s; derived with the pipeline functions", path.name, ", ".join(missing))
+
+    has_meta = _clean(_col(df, "work_type")).ne("")
+    logging.info("  %d rows, OpenAlex work metadata on %d (%.1f%%), DAS audited on %d",
+                 len(df), int(has_meta.sum()), 100 * has_meta.mean() if len(df) else 0,
+                 int(dash.to_bool_series(_col(df, "das_available")).sum()))
     return df
 
 
 def apply_corpus_rules(df: pd.DataFrame) -> pd.DataFrame:
     before = len(df)
     df = df[df["year"].isin(YEARS)].copy()
-    if df["enriched"].any():
-        # Keep only enriched journal articles/reviews. Records without a DOI are dropped: they are
-        # dominated by conference abstracts (e.g. ISC abstracts in Stroke) that would otherwise be
-        # counted as closed journal articles and distort journal-level open-access rates.
-        is_article = df["work_type"].isin(["article", "review"]) & (df["primary_source_type"] == "journal")
-        df["in_corpus"] = is_article & df["enriched"]
-        df["corpus_rule"] = "openalex_type_doi_only"
-    else:
-        df["in_corpus"] = ~df["journal"].astype(str).str.contains(NON_JOURNAL_SOURCE_PATTERN, na=False)
-        df["corpus_rule"] = "source_name_fallback"
-    df = df[df["in_corpus"]].copy()
+    rules = sorted(set(_clean(_col(df, "corpus_rule")).tolist()) - {""})
+    df["corpus_rule"] = rules[0] if len(rules) == 1 else ("|".join(rules) if rules else "in_article_corpus")
+    df = df[dash.to_bool_series(df["in_article_corpus"])].copy()
     logging.info("  corpus: %d -> %d records (%s)", before, len(df), df["corpus_rule"].iloc[0] if len(df) else "n/a")
 
-    # Derived flags. One open-access definition throughout: OpenAlex's current oa_status when the
-    # record is enriched (anything but "closed"), else the release's is_oa flag.
-    release_is_oa = to_bool(df["is_oa"])
-    if "oa_status" in df.columns:
-        status_known = df["oa_status"].isin(OA_STATUS_ORDER)
-        df["is_oa"] = (df["oa_status"].ne("closed") & status_known) | (~status_known & release_is_oa)
-    else:
-        df["is_oa"] = release_is_oa
-    if "oa_status" in df.columns:
-        df["oa_status"] = df["oa_status"].where(df["oa_status"].isin(OA_STATUS_ORDER), None)
-    df["shares_code"] = nonempty(df["github"]) | nonempty(df["code_link"]) | nonempty(df["zenodo"]) | nonempty(df["osf"])
-    df["shares_data"] = to_bool(df["has_public_dataset"]) | nonempty(df["data_link"]) | nonempty(df["dataset_urls"])
+    # Derived flags from pipeline columns only.
+    df["is_oa"] = dash.derive_open_access(df)
+    status = _clean(_col(df, "oa_status")).str.lower()
+    df["oa_status"] = status.where(status.isin(OA_STATUS_ORDER), None)
+    df["shares_code"] = dash.nonblank(_col(df, "github")) | dash.nonblank(_col(df, "code_link")) | dash.nonblank(_col(df, "zenodo")) | dash.nonblank(_col(df, "osf"))
+    df["shares_data"] = dash.to_bool_series(_col(df, "has_public_dataset")) | dash.nonblank(_col(df, "data_link")) | dash.nonblank(_col(df, "dataset_urls"))
     df["shares_any"] = df["shares_code"] | df["shares_data"]
-    df["high_impact"] = to_bool(df["high_impact_flag"])
-    df["has_abstract"] = nonempty(df["abstract"])
-    text = (df["title"].fillna("") + " " + df["abstract"].fillna("")).astype(str)
-    for name, pattern in REGISTRY_PATTERNS.items():
-        df[f"reg_{name}"] = text.str.contains(pattern, na=False)
-    df["registered_any"] = df[[f"reg_{n}" for n in REGISTRY_PATTERNS]].any(axis=1)
-    if "has_preprint_version" in df.columns:
-        df["has_preprint_version"] = to_bool(df["has_preprint_version"].fillna(False))
-    else:
-        df["has_preprint_version"] = False
+    df["high_impact"] = dash.to_bool_series(_col(df, "high_impact_flag"))
+    df["has_abstract"] = dash.nonblank(_col(df, "abstract"))
+    for name, col in REG_COLS.items():
+        df[f"reg_{name}"] = dash.to_bool_series(_col(df, col))
+    df["registered_any"] = dash.to_bool_series(_col(df, "registration_signal"))
+    df["has_preprint_version"] = dash.to_bool_series(_col(df, "has_preprint_version"))
+    df["enriched"] = _clean(_col(df, "work_type")).ne("")
+
+    das_primary = _clean(_col(df, "das_primary")).str.lower()
+    df["das_audited"] = dash.to_bool_series(_col(df, "das_available")) & das_primary.isin(DAS_ORDER)
+    df["das_primary"] = das_primary.where(df["das_audited"], None)
+    df["das_has_statement"] = df["das_audited"] & dash.to_bool_series(_col(df, "das_has_statement"))
     return df
 
 
 def rate_table(df: pd.DataFrame, by: List[str]) -> pd.DataFrame:
     grp = df.groupby(by, dropna=False)
     out = grp.agg(
-        n=("doi_norm", "size"),
+        n=("doi", "size"),
         oa_rate=("is_oa", "mean"),
         code_rate=("shares_code", "mean"),
         data_rate=("shares_data", "mean"),
@@ -187,7 +168,7 @@ def rate_table(df: pd.DataFrame, by: List[str]) -> pd.DataFrame:
 
 
 def oa_status_table(df: pd.DataFrame, by: List[str]) -> pd.DataFrame:
-    sub = df[df["oa_status"].notna()] if "oa_status" in df.columns else df.iloc[0:0]
+    sub = df[df["oa_status"].notna()]
     if sub.empty:
         return pd.DataFrame()
     ct = pd.crosstab([sub[c] for c in by], sub["oa_status"], normalize="index").reset_index()
@@ -254,21 +235,24 @@ def fig_trend_by_discipline(by_year: pd.DataFrame, metric: str, title: str, ylab
     save(fig, out_dir, name)
 
 
-def fig_oa_status_stacked(oa_year: pd.DataFrame, out_dir: Path, name: str, title: str):
-    if oa_year.empty:
+def fig_stacked_by_year(table: pd.DataFrame, order: List[str], colors: Dict[str, str], labels: Dict[str, str], title: str,
+                        out_dir: Path, name: str, ylabel: str = "share of articles", footnote: str = "", legend_cols: int = 6):
+    if table.empty:
         return
     fig, ax = new_fig()
-    years = oa_year["year"].astype(int).values
+    years = table["year"].astype(int).values
     bottom = np.zeros(len(years))
-    for status in OA_STATUS_ORDER:
-        vals = oa_year[status].values
-        ax.bar(years, vals, bottom=bottom, color=OA_STATUS_COLORS[status], width=0.8, edgecolor="white", linewidth=1.5, label=status)
+    for cat in order:
+        vals = table[cat].values if cat in table.columns else np.zeros(len(years))
+        ax.bar(years, vals, bottom=bottom, color=colors.get(cat, "#999"), width=0.8, edgecolor="white", linewidth=1.5, label=labels.get(cat, cat))
         bottom += vals
     ax.set_ylim(0, 1)
     ax.set_xticks(years)
-    style_axes(ax, "share of articles")
-    ax.legend(ncol=6, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.08), fontsize=10)
+    style_axes(ax, ylabel)
+    ax.legend(ncol=legend_cols, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.08), fontsize=10)
     ax.set_title(title, loc="left", fontsize=15, color=TEXT, fontweight="bold", pad=14)
+    if footnote:
+        fig.text(0.01, -0.06, footnote, color=TEXT2, fontsize=9)
     save(fig, out_dir, name)
 
 
@@ -298,7 +282,6 @@ def fig_dot_compare(table: pd.DataFrame, label_col: str, metrics: Dict[str, str]
     ax.set_xlim(0, 1.08)
     ax.set_xticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
     ax.set_xlabel(metrics[primary], color=TEXT2, fontsize=11)
-    # Text columns to the right of the plot area.
     for j, col in enumerate(extras):
         xpos = 1.12 + 0.16 * j
         ax.text(xpos, len(table) - 0.35, metrics[col], transform=ax.get_yaxis_transform(), color=TEXT2, fontsize=9.5, ha="left", fontweight="bold")
@@ -347,26 +330,82 @@ def fig_high_impact(hi: pd.DataFrame, out_dir: Path, name: str):
     save(fig, out_dir, name)
 
 
+# ----------------------------------------------------------------------------- DAS audit outputs
+def das_outputs(stroke: pd.DataFrame, out_dir: Path) -> Optional[Dict[str, object]]:
+    """Tables, summary and fig11 for the data-availability audit (pipeline ``das_*`` columns)."""
+    audited = stroke[stroke["das_audited"]].copy()
+    if audited.empty:
+        logging.warning("No DAS-audited stroke rows; skipping the DAS outputs (run the pipeline with --das-audit-sample-per-year / --das-audit-all).")
+        return None
+    tables = out_dir / "tables"
+    tables.mkdir(parents=True, exist_ok=True)
+    audited["year"] = audited["year"].astype(int)
+    by_year = pd.crosstab(audited["year"], audited["das_primary"], normalize="index").reindex(columns=DAS_ORDER, fill_value=0.0)
+    by_year["n"] = audited.groupby("year").size()
+    by_year.to_csv(tables / "das_primary_by_year.csv")
+    overall = audited["das_primary"].value_counts(normalize=True).reindex(DAS_ORDER, fill_value=0.0)
+    by_journal = (audited.groupby("journal_norm")
+                  .agg(n=("doi", "size"), has_das=("das_has_statement", "mean"),
+                       repository=("das_primary", lambda s: (s == "repository").mean()),
+                       on_request=("das_primary", lambda s: (s == "on_request").mean()))
+                  .sort_values("n", ascending=False).head(20))
+    by_journal.to_csv(tables / "das_by_journal_top20.csv")
+    audited[["doi", "das_pmcid", "year", "journal", "das_primary", "das_has_statement"]].to_csv(tables / "das_audit_articles.csv", index=False)
+    summary = {
+        "n_audited": int(len(audited)),
+        "n_in_corpus": int(len(stroke)),
+        "years": [int(audited["year"].min()), int(audited["year"].max())],
+        "has_das_rate": round(float(audited["das_has_statement"].mean()), 4),
+        "primary_overall": {k: round(float(v), 4) for k, v in overall.items()},
+        "scope_note": "Open-access full text in Europe PMC only; optimistic relative to all stroke articles.",
+        "source": "pipeline DAS audit (search_stroke_dois.py --das-audit-*)",
+    }
+    (out_dir / "das_audit_summary.json").write_text(json.dumps(summary, indent=2))
+    logging.info("DAS: has_das_rate=%.3f over %d audited articles; %s", summary["has_das_rate"], len(audited), json.dumps(summary["primary_overall"]))
+    fig_stacked_by_year(by_year.reset_index(), DAS_ORDER, DAS_COLORS, DAS_LABELS,
+                        "What stroke data-availability statements actually say", out_dir / "figures", "fig11_das_audit",
+                        ylabel="share of audited articles", legend_cols=4,
+                        footnote=f"Open-access stroke articles with full text in Europe PMC, n={len(audited):,}. Regex classification of the data-availability section; one primary label per article.")
+    return summary
+
+
 # ----------------------------------------------------------------------------- main
+def parse_inputs(args: argparse.Namespace) -> Dict[str, Path]:
+    inputs: Dict[str, Path] = {}
+    for item in args.inputs or []:
+        if "=" not in item:
+            raise SystemExit(f"--inputs expects discipline=path, got {item!r}")
+        disc, path = item.split("=", 1)
+        inputs[disc.strip()] = Path(path).expanduser()
+    if not inputs:
+        for disc in args.disciplines:
+            inputs[disc] = Path(args.input_dir) / disc / "fully_enriched.csv"
+    missing = [str(p) for p in inputs.values() if not p.exists()]
+    if missing:
+        raise SystemExit("Missing pipeline output(s): " + ", ".join(missing))
+    return inputs
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--release-dir", default="data/full_release")
-    parser.add_argument("--enrichment-dir", default="data/enrichment")
-    parser.add_argument("--out-dir", default="talk/outputs")
+    parser.add_argument("--inputs", nargs="+", help="discipline=path/to/fully_enriched.csv (pipeline output)")
+    parser.add_argument("--input-dir", default="data/talk", help="Used when --inputs is absent: <dir>/<discipline>/fully_enriched.csv")
     parser.add_argument("--disciplines", nargs="+", default=DISCIPLINES)
+    parser.add_argument("--out-dir", default="talk/outputs")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s", datefmt="%H:%M:%S")
 
+    inputs = parse_inputs(args)
     out = Path(args.out_dir)
     tables = out / "tables"
     figures = out / "figures"
     tables.mkdir(parents=True, exist_ok=True)
 
     frames = []
-    for disc in args.disciplines:
-        df = load_discipline(disc, Path(args.release_dir), Path(args.enrichment_dir))
-        frames.append(apply_corpus_rules(df))
+    for disc, path in inputs.items():
+        frames.append(apply_corpus_rules(load_discipline(disc, path)))
     data = pd.concat(frames, ignore_index=True)
+    disciplines = [d for d in DISCIPLINES if d in inputs] + [d for d in inputs if d not in DISCIPLINES]
 
     by_year = rate_table(data, ["discipline", "year"])
     overall = rate_table(data, ["discipline"])
@@ -387,7 +426,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     journals.to_csv(tables / "stroke_top_journals.csv", index=False)
 
     numbers: Dict[str, object] = {
-        "corpus_rule": data["corpus_rule"].iloc[0],
+        "corpus_rule": sorted(set(data["corpus_rule"])),
         "years": [YEARS[0], YEARS[-1]],
         "partial_years": sorted(PARTIAL_YEARS),
         "n_by_discipline": overall.set_index("discipline")["n"].to_dict(),
@@ -398,27 +437,34 @@ def main(argv: Optional[List[str]] = None) -> int:
         },
         "stroke_high_impact_vs_rest": hi.set_index("high_impact").round(4).to_dict(orient="index"),
         "stroke_oa_status_overall": oa_disc[oa_disc["discipline"] == FOCUS].round(4).to_dict(orient="records") if not oa_disc.empty else None,
-        "enrichment_coverage": {d: round(float(data[data["discipline"] == d]["enriched"].mean()), 4) for d in args.disciplines},
+        "metadata_coverage": {d: round(float(data[data["discipline"] == d]["enriched"].mean()), 4) for d in disciplines},
     }
 
-    if "first_author_country" in stroke.columns and stroke["first_author_country"].notna().any():
-        countries = rate_table(stroke[stroke["first_author_country"].notna()], ["first_author_country"]).sort_values("n", ascending=False).head(12)
+    country = _clean(_col(stroke, "first_author_country"))
+    if country.ne("").any():
+        sub = stroke[country.ne("")]
+        countries = rate_table(sub, ["first_author_country"]).sort_values("n", ascending=False).head(12)
         countries.to_csv(tables / "stroke_top_first_author_countries.csv", index=False)
         fig_dot_compare(countries, "first_author_country", {"oa_rate": "open access", "data_rate": "data repo", "code_rate": "code link"}, "Stroke articles by first-author country, 2015-2025", figures, "fig08_countries")
         numbers["stroke_top_countries"] = countries.set_index("first_author_country")[["n", "oa_rate", "data_rate", "code_rate"]].round(4).to_dict(orient="index")
-    if "funders" in stroke.columns and stroke["funders"].notna().any():
-        f = stroke[stroke["funders"].notna()].copy()
-        f["funder"] = f["funders"].astype(str).str.split("|")
+    funders_col = _clean(_col(stroke, "funders"))
+    if funders_col.ne("").any():
+        f = stroke[funders_col.ne("")].copy()
+        f["funder"] = funders_col[funders_col.ne("")].str.split("|")
         f = f.explode("funder")
         f = f[f["funder"].str.len() > 0]
         funders = rate_table(f, ["funder"]).sort_values("n", ascending=False).head(12)
         funders.to_csv(tables / "stroke_top_funders.csv", index=False)
         fig_dot_compare(funders, "funder", {"oa_rate": "open access", "data_rate": "data repo", "code_rate": "code link"}, "Stroke articles by acknowledged funder, 2015-2025", figures, "fig09_funders")
-        numbers["stroke_funded_share"] = round(float(stroke["funders"].notna().mean()), 4)
+        numbers["stroke_funded_share"] = round(float(funders_col.ne("").mean()), 4)
+
+    das_summary = das_outputs(stroke, out / "das_audit")
+    if das_summary:
+        numbers["stroke_das_audit"] = das_summary
 
     # Figures
     fig_trend_by_discipline(by_year, "oa_rate", "Open access in stroke vs comparator fields", "share of articles open access", figures, "fig01_oa_trend")
-    fig_oa_status_stacked(oa_year, figures, "fig02_stroke_oa_status", "How stroke articles are open: OA status by year")
+    fig_stacked_by_year(oa_year, OA_STATUS_ORDER, OA_STATUS_COLORS, {s: s for s in OA_STATUS_ORDER}, "How stroke articles are open: OA status by year", figures, "fig02_stroke_oa_status")
     fig_trend_by_discipline(by_year, "data_rate", "Data deposited in a public repository", "share of articles", figures, "fig03_data_sharing_trend", ylim=None)
     fig_trend_by_discipline(by_year, "code_rate", "Code or repository link in the article", "share of articles", figures, "fig04_code_sharing_trend", ylim=None)
     fig_trend_by_discipline(by_year, "preprint_rate", "Articles with a preprint version", "share of articles", figures, "fig05_preprint_trend", ylim=None)

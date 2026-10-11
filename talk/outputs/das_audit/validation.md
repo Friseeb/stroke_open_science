@@ -1,7 +1,9 @@
 # Validation of the data-availability-statement parser
 
 Audit scope: 19,637 open-access stroke articles with full text in Europe PMC, 2016 to 2025,
-2,000 sampled per year (seed 2026), fetched 2026-10-06. Source: `scripts/audit_data_availability_europepmc.py`.
+2,000 sampled per year (seed 2026), fetched 2026-10-06. Source: the standalone
+`scripts/audit_data_availability_europepmc.py` (retired 2026-10-11; its extractor and classifier
+live in `scripts/search_stroke_dois.py`, run with `--das-audit-*`).
 
 ## Method
 
