@@ -108,7 +108,7 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
    for legacy frames with no metadata at all (`source_name_fallback`). Rows are never dropped; the dashboard
    filters on the flag. `first_author_income_group` (`high` / `upper_middle` / `lower_middle` / `low`, blank if
    unknown) comes from `first_author_country` via `configs/country_income_groups.csv` (World Bank API
-   classification fetched 2026-10-11, plus Taiwan added by hand as `high`; override with `--country-income-csv`).
+   classification fetched 2026-10-11, plus Taiwan, Jersey and the French overseas departments GF/GP/MQ/RE added by hand as `high`; override with `--country-income-csv`).
 7. **API enrichment** — async Unpaywall/Zenodo/OSF/GitHub lookups with resumable JSON cache
 8. **Dataset repo search** — DataCite → Dryad → Figshare API chain, async with rate limiting
 9. **Embedding ranking** (optional) — SentenceTransformer cosine similarity to an open-science concept vector

@@ -67,11 +67,13 @@ GA,GAB,Gabon,upper_middle,Sub-Saharan Africa
 GB,GBR,United Kingdom,high,Europe & Central Asia
 GD,GRD,Grenada,upper_middle,Latin America & Caribbean 
 GE,GEO,Georgia,upper_middle,Europe & Central Asia
+GF,GUF,French Guiana (France),high,Latin America & Caribbean
 GH,GHA,Ghana,lower_middle,Sub-Saharan Africa 
 GI,GIB,Gibraltar,high,Europe & Central Asia
 GL,GRL,Greenland,high,Europe & Central Asia
 GM,GMB,"Gambia, The",low,Sub-Saharan Africa 
 GN,GIN,Guinea,lower_middle,Sub-Saharan Africa 
+GP,GLP,Guadeloupe (France),high,Latin America & Caribbean
 GQ,GNQ,Equatorial Guinea,upper_middle,Sub-Saharan Africa 
 GR,GRC,Greece,high,Europe & Central Asia
 GT,GTM,Guatemala,upper_middle,Latin America & Caribbean 
@@ -92,6 +94,7 @@ IQ,IRQ,Iraq,upper_middle,"Middle East, North Africa, Afghanistan & Pakistan"
 IR,IRN,"Iran, Islamic Rep.",upper_middle,"Middle East, North Africa, Afghanistan & Pakistan"
 IS,ISL,Iceland,high,Europe & Central Asia
 IT,ITA,Italy,high,Europe & Central Asia
+JE,JEY,Jersey,high,Europe & Central Asia
 JG,CHI,Channel Islands,high,Europe & Central Asia
 JM,JAM,Jamaica,upper_middle,Latin America & Caribbean 
 JO,JOR,Jordan,upper_middle,"Middle East, North Africa, Afghanistan & Pakistan"
@@ -131,6 +134,7 @@ MM,MMR,Myanmar,lower_middle,East Asia & Pacific
 MN,MNG,Mongolia,upper_middle,East Asia & Pacific
 MO,MAC,"Macao SAR, China",high,East Asia & Pacific
 MP,MNP,Northern Mariana Islands,high,East Asia & Pacific
+MQ,MTQ,Martinique (France),high,Latin America & Caribbean
 MR,MRT,Mauritania,lower_middle,Sub-Saharan Africa 
 MT,MLT,Malta,high,"Middle East, North Africa, Afghanistan & Pakistan"
 MU,MUS,Mauritius,upper_middle,Sub-Saharan Africa 
@@ -163,6 +167,7 @@ PT,PRT,Portugal,high,Europe & Central Asia
 PW,PLW,Palau,high,East Asia & Pacific
 PY,PRY,Paraguay,upper_middle,Latin America & Caribbean 
 QA,QAT,Qatar,high,"Middle East, North Africa, Afghanistan & Pakistan"
+RE,REU,Réunion (France),high,Sub-Saharan Africa
 RO,ROU,Romania,high,Europe & Central Asia
 RS,SRB,Serbia,upper_middle,Europe & Central Asia
 RU,RUS,Russian Federation,high,Europe & Central Asia
