@@ -58,9 +58,10 @@ def article_work() -> Dict[str, Any]:
             {"source": _repository_source("Europe PMC (PubMed Central)"), "version": "acceptedVersion"},
         ],
         "authorships": [
-            {"author": {"display_name": "A One"}, "countries": ["CA", "US"], "institutions": []},
-            {"author": {"display_name": "B Two"}, "countries": ["DE"], "institutions": []},
-            {"author": {"display_name": "C Three"}, "countries": [], "institutions": []},
+            {"author": {"display_name": "A One"}, "countries": ["CA", "US"],
+             "institutions": [{"display_name": "Western University"}, {"display_name": "Lawson Health Research Institute"}]},
+            {"author": {"display_name": "B Two"}, "countries": ["DE"], "institutions": [{"display_name": "Charité"}]},
+            {"author": {"display_name": "C Three"}, "countries": [], "institutions": [{"display_name": "Western University"}]},
         ],
         "is_retracted": False,
         "has_fulltext": True,
@@ -771,3 +772,79 @@ def test_run_das_audit_refetch_empty_refetches_no_statement_records(tmp_path, no
     assert third[third["doi"] == doi]["das_primary"].iloc[0] != "no_statement"
     _, fetched = pipeline.load_das_cache(paths.das_cache)
     assert fetched["PMC1"]["statements"]
+
+
+# ── institutions, country income group, DAS full-text flags, within-year high impact ─────
+
+def test_flatten_metadata_emits_institutions(article_work):
+    rec = pipeline.flatten_openalex_work_metadata(article_work)
+    assert rec["institutions"] == "Western University|Lawson Health Research Institute|Charité"  # deduplicated, order kept
+    assert rec["first_author_institution"] == "Western University"
+    assert "institutions" in pipeline.OPENALEX_METADATA_TEXT_COLS
+    assert pipeline.flatten_openalex_work_metadata({"authorships": [{"countries": ["GB"]}]})["first_author_institution"] == ""
+
+
+def test_country_income_group_from_config(tmp_path):
+    cfg_csv = tmp_path / "income.csv"
+    cfg_csv.write_text("iso2,iso3,country,income_group,region\nKR,KOR,Korea,high,EAP\nin,IND,India,lower_middle,SA\n")
+    mapping = pipeline.load_country_income_groups(cfg_csv)
+    assert mapping == {"KR": "high", "IN": "lower_middle"}
+    df = pd.DataFrame({"first_author_country": ["KR", "in", "", "ZZ", None]})
+    out = pipeline.apply_country_income_group(df, mapping)
+    assert out["first_author_income_group"].tolist() == ["high", "lower_middle", "", "", ""]
+    # missing file / blank path: column exists, stays blank, no error
+    assert pipeline.load_country_income_groups("") == {}
+    assert pipeline.load_country_income_groups(tmp_path / "nope.csv") == {}
+    out2 = pipeline.apply_country_income_group(pd.DataFrame({"first_author_country": ["KR"]}), {})
+    assert out2["first_author_income_group"].tolist() == [""]
+
+
+def test_shipped_country_income_config_covers_major_stroke_countries():
+    root = Path(__file__).resolve().parents[1]
+    mapping = pipeline.load_country_income_groups(root / "configs" / "country_income_groups.csv")
+    assert len(mapping) >= 200
+    assert mapping["KR"] == "high" and mapping["TW"] == "high" and mapping["US"] == "high"
+    assert mapping["CN"] == "upper_middle" and mapping["IN"] == "lower_middle"
+    assert set(mapping.values()) == {"high", "upper_middle", "lower_middle", "low"}
+
+
+JATS_WITH_CODE_AND_TRIAL = (
+    "<article><body><sec><title>Methods</title><p>Registered at clinicaltrials.gov (NCT01234567). "
+    "Analysis code is available at https://github.com/lab/stroke-code. See the supplementary material.</p></sec>"
+    "<sec sec-type=\"data-availability\"><title>Data availability</title><p>Data are available on Zenodo.</p></sec></body></article>"
+)
+
+
+def test_das_audit_writes_fulltext_flags(tmp_path, no_sleep):
+    df = _corpus_df(2, years=(2021,))
+    dois = df.loc[df["in_article_corpus"].fillna(False), "doi"].tolist()
+    articles = {dois[0]: {"pmcid": "PMC1", "pmid": "1"}, dois[1]: {"pmcid": "PMC2", "pmid": "2"}}
+    plain = "<article><body><sec sec-type=\"data-availability\"><title>Data availability</title><p>Data are available from the corresponding author on reasonable request.</p></sec></body></article>"
+    xml = {"PMC1": JATS_WITH_CODE_AND_TRIAL, "PMC2": plain}
+    out = pipeline.run_das_audit(df, _cfg(tmp_path, das_audit_sample_per_year=5, das_audit_delay_seconds=0.0), _paths(tmp_path), RoutingFakeSession(articles, xml))
+    r1 = out[out["doi"] == dois[0]].iloc[0]
+    r2 = out[out["doi"] == dois[1]].iloc[0]
+    assert bool(r1["das_mentions_github"]) and bool(r1["das_mentions_trial_registration"]) and bool(r1["das_mentions_supplement"])
+    assert r1["das_primary"] == "repository"
+    assert not bool(r2["das_mentions_github"]) and not bool(r2["das_mentions_trial_registration"])
+    not_audited = out[~out["das_available"].astype(bool)]
+    assert not_audited["das_mentions_github"].isna().all()
+    for col in pipeline.DAS_FULLTEXT_FLAG_COLS:
+        assert str(out[col].dtype) == "boolean"
+
+
+def test_high_impact_citation_percentile_is_within_year():
+    rows = []
+    for i in range(10):
+        rows.append({"doi_norm": f"10.1/old{i}", "year": 2015, "journal_impact_factor": pd.NA, "cited_by_count": 50 + i, "high_impact_flag": False, "high_impact_reason": ""})
+        rows.append({"doi_norm": f"10.1/new{i}", "year": 2024, "journal_impact_factor": pd.NA, "cited_by_count": 1 + i, "high_impact_flag": False, "high_impact_reason": ""})
+    df = pd.DataFrame(rows)
+    import dataclasses
+    cfg = _cfg(Path("."), impact_factor_threshold=999.0, citation_percentile_threshold=90.0)
+    full, subset = pipeline.build_high_impact_subset(df, cfg)
+    flagged = set(subset["doi_norm"])
+    # Pooled, no 2024 paper would qualify; within-year, the top 2024 paper does and old mid-pack papers do not.
+    assert "10.1/new9" in flagged
+    assert "10.1/old9" in flagged
+    assert "10.1/old5" not in flagged
+    assert "top 10.0% of 2024" in full.loc[full["doi_norm"] == "10.1/new9", "high_impact_reason"].iloc[0]

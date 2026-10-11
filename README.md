@@ -99,11 +99,11 @@ resumes only the unfinished slices. Keyless fallback is used only when no key is
 OpenAlex retrieval (incl. work type, OA status, preprint locations, countries, funders)
 →  OpenAlex metadata backfill (--backfill-openalex-metadata, legacy datasets only)
 →  PubMed (optional)  →  Unpaywall/Crossref snapshot joins
-→  Regex extraction (GitHub/Zenodo/OSF/dataset repos · registration signals · in_article_corpus flag)
+→  Regex extraction (GitHub/Zenodo/OSF/dataset repos · registration signals · in_article_corpus flag · first-author income group)
 →  API enrichment (Unpaywall · Zenodo · OSF · GitHub · DataCite · Dryad · Figshare)
 →  Embedding ranking (optional)  →  LLM extraction (optional; preprint filled from metadata otherwise)
 →  Data-availability-statement audit via Europe PMC (--das-audit-sample-per-year N | --das-audit-all)
-→  Journal metrics  →  High-impact subgroup  →  CSV export
+→  Journal metrics  →  High-impact subgroup (IF threshold or within-year citation percentile)  →  CSV export
 ```
 
 The DAS audit resolves DOIs to PMCIDs with batched Europe PMC searches, samples N open-access

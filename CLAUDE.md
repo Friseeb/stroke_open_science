@@ -88,7 +88,8 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
    The `select` list includes `type, open_access, locations, authorships, is_retracted, has_fulltext, funders`
    (`funders` is a valid select field; `grants` is not), flattened by `flatten_openalex_work_metadata` into
    `work_type`, `oa_status`, `primary_source_type`, `primary_source_is_in_doaj`, `has_preprint_version`,
-   `is_preprint_record`, `preprint_servers`, `first_author_country`, `countries`, `funders`, `is_retracted`, `has_fulltext`.
+   `is_preprint_record`, `preprint_servers`, `first_author_country`, `countries`, `funders`, `institutions` (first 10
+   distinct author institutions, order kept), `first_author_institution`, `is_retracted`, `has_fulltext`.
 2. **OpenAlex metadata backfill** (`--backfill-openalex-metadata`) — for retrieval datasets that predate those
    columns: batched `filter=doi:a|b|...` lookups (50 DOIs/request) for rows with a blank `work_type`, cached per
    batch in `openalex_metadata_cache.jsonl` (resumable; unknown DOIs recorded as `_missing`). Uses the budget
@@ -105,7 +106,9 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
    `primary_source_type` journal AND non-blank DOI AND the row has metadata (`openalex_type_doi_only`; no
    name-based fallback for unenriched rows). `NON_JOURNAL_SOURCE_PATTERN` on the journal name is used only
    for legacy frames with no metadata at all (`source_name_fallback`). Rows are never dropped; the dashboard
-   filters on the flag.
+   filters on the flag. `first_author_income_group` (`high` / `upper_middle` / `lower_middle` / `low`, blank if
+   unknown) comes from `first_author_country` via `configs/country_income_groups.csv` (World Bank API
+   classification fetched 2026-10-11, plus Taiwan added by hand as `high`; override with `--country-income-csv`).
 7. **API enrichment** — async Unpaywall/Zenodo/OSF/GitHub lookups with resumable JSON cache
 8. **Dataset repo search** — DataCite → Dryad → Figshare API chain, async with rate limiting
 9. **Embedding ranking** (optional) — SentenceTransformer cosine similarity to an open-science concept vector
@@ -118,8 +121,10 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
     data-availability statements are extracted (`extract_das_statements`) and classified (`classify_das_text`).
     `--das-audit-refetch-empty` drops cached full texts that yielded no statement so an improved extractor fetches
     them again (the newer record wins in `das_cache.jsonl`).
-    Writes `das_pmcid`, `das_available`, `das_has_statement`, `das_primary`, `das_text`. Open-access full text only,
-    so rates are optimistic relative to the whole corpus.
+    Writes `das_pmcid`, `das_available`, `das_has_statement`, `das_primary`, `das_text`, and the whole-full-text
+    flags `das_mentions_github`, `das_mentions_supplement`, `das_mentions_trial_registration` (full-text code-sharing
+    and registration signals for the audited sample; abstract-based `github` / `registration_signal` undercount).
+    Open-access full text only, so rates are optimistic relative to the whole corpus.
     - Extraction: `<sec sec-type="data-availability">`-style sections or DAS-like titles; `notes`/`fn`/`custom-meta`
       (`<meta-name>`)/`supplementary-material`/`ack`/`statement` elements flagged by attribute/title; short (<1500 chars)
       `fn`/`notes`/`ack` whose text matches `DAS_SENTENCE_PATTERN` (unmarked publisher boilerplate: AHA, Wolters Kluwer,
@@ -137,8 +142,9 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
       articles (blind re-check rounds in `talk/outputs/das_audit/validation.md` on the `talk/wsc2026` branch); the
       residual miss rate is about 1% of articles. The standalone script was retired on 2026-10-11; the pipeline holds
       the only copy, and `tests/test_metadata_flags_das.py` carries the validated cases.
-12. **High-impact subgroup** — filters by journal IF threshold + citation percentile (pooled across years within
-    the discipline) → `high_impact_subset.csv`
+12. **High-impact subgroup** — journal IF ≥ threshold OR citations ≥ the percentile **within the paper's publication
+    year** (citations accrue with age; pooled percentile only for rows without a year). `high_impact_reason` records
+    the per-year threshold, e.g. `cited_by_count>=41 (top 10.0% of 2019)` → `high_impact_subset.csv`
 13. **Preview export** — first N rows → `enriched_preview.csv`
 
 Caches:
@@ -205,6 +211,9 @@ python scripts/run_discipline_benchmark.py --disciplines stroke --force --skip-d
 | `das_has_statement` | boolean | A data-availability statement was found (audited rows only) |
 | `das_primary` | str | `repository` (authors' deposit), `public_source` (public/third-party dataset), `controlled_or_restricted`, `on_request`, `in_article`, `not_available_or_na`, `other_or_unclear`, `no_statement` |
 | `das_text` | str | Extracted statement(s), truncated to 1000 chars |
+| `das_mentions_github` / `das_mentions_supplement` / `das_mentions_trial_registration` | boolean | Whole-full-text flags for audited rows (NA otherwise) |
+| `institutions` / `first_author_institution` | str | OpenAlex author institutions (first 10 distinct, `\|`-joined) / first author's first institution |
+| `first_author_income_group` | str | World Bank income group of `first_author_country` (`high`, `upper_middle`, `lower_middle`, `low`; blank if unknown) |
 | `code_link` | str | Code repository URL |
 | `data_link` | str | Data repository URL |
 | `open_science_score` | float | Embedding cosine similarity (optional) |

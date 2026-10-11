@@ -190,7 +190,10 @@ OPENALEX_METADATA_TEXT_COLS = [
     "first_author_country",
     "countries",
     "funders",
+    "institutions",
+    "first_author_institution",
 ]
+OPENALEX_METADATA_MAX_INSTITUTIONS = 10  # same cap as the legacy enrichment cache
 OPENALEX_METADATA_BOOL_COLS = [
     "primary_source_is_in_doaj",
     "has_preprint_version",
@@ -232,6 +235,9 @@ NON_JOURNAL_SOURCE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 CORPUS_FLAG_COLS = ["in_article_corpus"]
+# World Bank income group of the first author's country (configs/country_income_groups.csv).
+COUNTRY_INCOME_COLS = ["first_author_income_group"]
+COUNTRY_INCOME_UNKNOWN = ""
 
 # Data-availability-statement (DAS) audit via Europe PMC full text (open-access subset only).
 EUROPEPMC_REST_BASE = "https://www.ebi.ac.uk/europepmc/webservices/rest"
@@ -348,7 +354,8 @@ DAS_OTHER_LABEL = "other_or_unclear"
 DAS_NO_STATEMENT_LABEL = "no_statement"
 DAS_CATEGORIES = DAS_PRIMARY_PRIORITY + [DAS_OTHER_LABEL, DAS_NO_STATEMENT_LABEL]
 DAS_TEXT_COLS = ["das_pmcid", "das_primary", "das_text"]
-DAS_BOOL_COLS = ["das_available", "das_has_statement"]
+DAS_FULLTEXT_FLAG_COLS = ["das_mentions_github", "das_mentions_supplement", "das_mentions_trial_registration"]
+DAS_BOOL_COLS = ["das_available", "das_has_statement", *DAS_FULLTEXT_FLAG_COLS]
 
 TEXT_COLS = [
     "id",
@@ -378,6 +385,7 @@ TEXT_COLS = [
     "dataset_repos",
     *OPENALEX_METADATA_TEXT_COLS,
     "corpus_rule",
+    *COUNTRY_INCOME_COLS,
     *DAS_TEXT_COLS,
 ]
 
@@ -488,6 +496,7 @@ class PipelineConfig:
     das_audit_seed: int = 2026
     das_audit_all: bool = False
     das_audit_refetch_empty: bool = False
+    country_income_csv: str = ""
 
 
 def parse_dotenv_file(path: Path) -> Dict[str, str]:
@@ -723,6 +732,11 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
     )
 
     parser.add_argument("--journal-metrics-csv", default=str(script_root / "configs" / "journal_metrics.csv"))
+    parser.add_argument(
+        "--country-income-csv",
+        default=str(script_root / "configs" / "country_income_groups.csv"),
+        help="ISO2 -> World Bank income group mapping used for first_author_income_group (blank to skip)",
+    )
     parser.add_argument("--impact-factor-threshold", type=float, default=10.0)
     parser.add_argument("--citation-percentile-threshold", type=float, default=90.0)
 
@@ -808,6 +822,7 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
         llm_max_fulltext_fetch=max(0, args.llm_max_fulltext_fetch),
         preview_rows=max(0, args.preview_rows),
         journal_metrics_csv=resolve_project_path(args.journal_metrics_csv, script_root),
+        country_income_csv=resolve_project_path(args.country_income_csv, script_root),
         impact_factor_threshold=max(0.0, args.impact_factor_threshold),
         citation_percentile_threshold=min(99.9, max(0.0, args.citation_percentile_threshold)),
         verbose=args.verbose,
@@ -1864,6 +1879,8 @@ def flatten_openalex_work_metadata(work: Dict[str, Any]) -> Dict[str, Any]:
 
     countries: List[str] = []
     first_author_country = ""
+    institutions: List[str] = []
+    first_author_institution = ""
     for i, authorship in enumerate(work.get("authorships") or []):
         if not isinstance(authorship, dict):
             continue
@@ -1871,6 +1888,16 @@ def flatten_openalex_work_metadata(work: Dict[str, Any]) -> Dict[str, Any]:
         if i == 0 and author_countries:
             first_author_country = author_countries[0]
         countries.extend(author_countries)
+        author_institutions = [
+            str(inst.get("display_name")).strip()
+            for inst in (authorship.get("institutions") or [])
+            if isinstance(inst, dict) and str(inst.get("display_name") or "").strip()
+        ]
+        if i == 0 and author_institutions:
+            first_author_institution = author_institutions[0]
+        for name in author_institutions:
+            if name not in institutions:
+                institutions.append(name)
 
     funders = [
         str(f.get("display_name")).strip()
@@ -1889,6 +1916,8 @@ def flatten_openalex_work_metadata(work: Dict[str, Any]) -> Dict[str, Any]:
         "first_author_country": first_author_country,
         "countries": LIST_JOIN.join(sorted(set(countries))),
         "funders": LIST_JOIN.join(funders),
+        "institutions": LIST_JOIN.join(institutions[:OPENALEX_METADATA_MAX_INSTITUTIONS]),
+        "first_author_institution": first_author_institution,
         "is_retracted": work.get("is_retracted"),
         "has_fulltext": work.get("has_fulltext"),
     }
@@ -4659,7 +4688,10 @@ def apply_das_results(
     selected: Dict[str, Dict[str, Any]],
     fetched: Dict[str, Dict[str, Any]],
 ) -> pd.DataFrame:
-    """Write das_pmcid / das_available / das_has_statement / das_primary / das_text."""
+    """Write das_pmcid / das_available / das_has_statement / das_primary / das_text, plus the
+    whole-full-text flags (``das_mentions_github`` / ``_supplement`` / ``_trial_registration``) the
+    extractor records for every audited article, which give full-text code-sharing and registration
+    signals for the audited sample."""
     for col in DAS_TEXT_COLS:
         if col not in df.columns:
             df[col] = ""
@@ -4675,6 +4707,7 @@ def apply_das_results(
         pmcid = str(rec.get("pmcid") or "")
         fetch_rec = fetched.get(pmcid)
         row: Dict[str, Any] = {"das_pmcid": pmcid, "das_available": False, "das_has_statement": pd.NA, "das_primary": "", "das_text": ""}
+        row.update({col: pd.NA for col in DAS_FULLTEXT_FLAG_COLS})
         if fetch_rec and fetch_rec.get("http") == 200 and not fetch_rec.get("parse_error"):
             statements = das_substantive_statements(fetch_rec.get("statements") or [])
             text = " || ".join(str(s.get("text") or "") for s in statements)
@@ -4682,6 +4715,10 @@ def apply_das_results(
             row["das_has_statement"] = bool(statements)
             row["das_primary"] = classify_das_text(text)["primary"] if statements else DAS_NO_STATEMENT_LABEL
             row["das_text"] = text[:DAS_TEXT_MAX_CHARS]
+            flags = fetch_rec.get("flags") or {}
+            for col in DAS_FULLTEXT_FLAG_COLS:
+                key = col[len("das_"):]
+                row[col] = bool(flags.get(key)) if isinstance(flags, dict) and key in flags else pd.NA
         rows[doi] = row
     mask = doi_norm.isin(rows.keys())
     results = pd.DataFrame.from_dict(rows, orient="index").reindex(doi_norm[mask].to_numpy())
@@ -4777,6 +4814,46 @@ def run_das_audit(
     return df
 
 
+def load_country_income_groups(path: Any) -> Dict[str, str]:
+    """ISO2 country code -> income group (``high`` / ``upper_middle`` / ``lower_middle`` / ``low``)
+    from ``configs/country_income_groups.csv`` (World Bank classification, plus Taiwan by hand)."""
+    if not path:
+        return {}
+    csv_path = Path(str(path)).expanduser()
+    if not csv_path.exists():
+        logging.info("Country income-group file not found (%s); first_author_income_group will be blank.", csv_path)
+        return {}
+    try:
+        table = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
+    except Exception as exc:
+        logging.warning("Failed reading country income groups (%s): %s", csv_path, exc)
+        return {}
+    if "iso2" not in table.columns or "income_group" not in table.columns:
+        logging.warning("Country income-group CSV must have iso2 and income_group columns: %s", csv_path)
+        return {}
+    return {
+        str(code).strip().upper(): str(group).strip().lower()
+        for code, group in zip(table["iso2"], table["income_group"])
+        if str(code).strip() and str(group).strip()
+    }
+
+
+def apply_country_income_group(df: pd.DataFrame, mapping: Dict[str, str]) -> pd.DataFrame:
+    """``first_author_income_group`` from ``first_author_country`` via the World Bank mapping;
+    blank when the country is unknown or unmapped."""
+    if "first_author_income_group" not in df.columns:
+        df["first_author_income_group"] = COUNTRY_INCOME_UNKNOWN
+    if not mapping or df.empty:
+        return df
+    country = df.get("first_author_country", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().str.upper()
+    df["first_author_income_group"] = country.map(mapping).fillna(COUNTRY_INCOME_UNKNOWN)
+    known = int(df["first_author_income_group"].ne(COUNTRY_INCOME_UNKNOWN).sum())
+    unmapped = sorted(set(country[country.ne("") & df["first_author_income_group"].eq(COUNTRY_INCOME_UNKNOWN)]))
+    logging.info("Country income group set for %d/%d rows%s.", known, len(df),
+                 f"; unmapped codes: {', '.join(unmapped[:15])}" if unmapped else "")
+    return df
+
+
 def apply_journal_metrics(df: pd.DataFrame, journal_metrics_csv: str) -> pd.DataFrame:
     path = Path(journal_metrics_csv).expanduser()
     if not path.exists():
@@ -4839,25 +4916,51 @@ def build_high_impact_subset(df: pd.DataFrame, cfg: PipelineConfig) -> Tuple[pd.
             f"impact_factor>={cfg.impact_factor_threshold:g}",
         )
 
+    # Citation rule: the percentile is taken within each publication year, so a 2015 paper and a
+    # 2024 paper are each compared with their own cohort (citations accrue with age). Rows without
+    # a usable year, or frames without a year column, fall back to the pooled percentile.
     cited = pd.to_numeric(out.get("cited_by_count"), errors="coerce")
     citation_threshold = None
+    citation_thresholds_by_year: Dict[int, float] = {}
     if cited.notna().sum() > 0:
         q = cfg.citation_percentile_threshold / 100.0
+        top_label = f"top {100 - cfg.citation_percentile_threshold:.1f}%"
         citation_threshold = float(cited.quantile(q))
-        cit_mask = cited >= citation_threshold
+        years = pd.to_numeric(out.get("year", pd.Series(pd.NA, index=out.index)), errors="coerce")
+        row_threshold = pd.Series(citation_threshold, index=out.index, dtype=float)
+        reason = pd.Series(f"cited_by_count>={citation_threshold:.0f} ({top_label})", index=out.index)
+        has_year = years.notna() & cited.notna()
+        if has_year.any():
+            by_year = cited[has_year].groupby(years[has_year].astype(int)).quantile(q)
+            citation_thresholds_by_year = {int(y): float(v) for y, v in by_year.items()}
+            year_thr = years[has_year].astype(int).map(citation_thresholds_by_year)
+            row_threshold.loc[has_year] = year_thr.to_numpy()
+            reason.loc[has_year] = [
+                f"cited_by_count>={thr:.0f} ({top_label} of {int(y)})" for thr, y in zip(year_thr, years[has_year])
+            ]
+        cit_mask = cited >= row_threshold
         out.loc[cit_mask, "high_impact_flag"] = True
-        reason = f"cited_by_count>={citation_threshold:.0f} (top {100 - cfg.citation_percentile_threshold:.1f}%)"
-        out.loc[cit_mask & out["high_impact_reason"].eq(""), "high_impact_reason"] = reason
-        out.loc[cit_mask & out["high_impact_reason"].ne(""), "high_impact_reason"] = (
-            out.loc[cit_mask & out["high_impact_reason"].ne(""), "high_impact_reason"] + "; " + reason
-        )
+        blank = cit_mask & out["high_impact_reason"].eq("")
+        out.loc[blank, "high_impact_reason"] = reason[blank]
+        filled = cit_mask & out["high_impact_reason"].ne("")
+        out.loc[filled, "high_impact_reason"] = out.loc[filled, "high_impact_reason"] + "; " + reason[filled]
 
     subset = out[out["high_impact_flag"].fillna(False)].copy()
     subset = subset.sort_values(by=["journal_impact_factor", "cited_by_count"], ascending=[False, False], na_position="last")
 
-    if citation_threshold is not None:
+    if citation_thresholds_by_year:
+        lo, hi = min(citation_thresholds_by_year.values()), max(citation_thresholds_by_year.values())
         logging.info(
-            "High-impact definition: IF >= %.2f OR citations >= %.0f (>= %.1fth percentile)",
+            "High-impact definition: IF >= %.2f OR citations >= the %.1fth percentile within the paper's year (thresholds %.0f-%.0f; pooled %.0f)",
+            cfg.impact_factor_threshold,
+            cfg.citation_percentile_threshold,
+            lo,
+            hi,
+            citation_threshold,
+        )
+    elif citation_threshold is not None:
+        logging.info(
+            "High-impact definition: IF >= %.2f OR citations >= %.0f (>= %.1fth percentile, pooled: no year column)",
             cfg.impact_factor_threshold,
             citation_threshold,
             cfg.citation_percentile_threshold,
@@ -4946,6 +5049,7 @@ def main() -> int:
     df = apply_regex_extraction(df)
     df = apply_registration_flags(df)
     df = apply_corpus_flag(df)
+    df = apply_country_income_group(df, load_country_income_groups(cfg.country_income_csv))
 
     enrich_cache = run_api_enrichment(df, cfg, enrich_cache, paths.enrich_cache)
     if enrich_cache:

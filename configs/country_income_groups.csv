@@ -1,0 +1,219 @@
+iso2,iso3,country,income_group,region
+AD,AND,Andorra,high,Europe & Central Asia
+AE,ARE,United Arab Emirates,high,"Middle East, North Africa, Afghanistan & Pakistan"
+AF,AFG,Afghanistan,low,"Middle East, North Africa, Afghanistan & Pakistan"
+AG,ATG,Antigua and Barbuda,high,Latin America & Caribbean 
+AL,ALB,Albania,upper_middle,Europe & Central Asia
+AM,ARM,Armenia,upper_middle,Europe & Central Asia
+AO,AGO,Angola,lower_middle,Sub-Saharan Africa 
+AR,ARG,Argentina,upper_middle,Latin America & Caribbean 
+AS,ASM,American Samoa,high,East Asia & Pacific
+AT,AUT,Austria,high,Europe & Central Asia
+AU,AUS,Australia,high,East Asia & Pacific
+AW,ABW,Aruba,high,Latin America & Caribbean 
+AZ,AZE,Azerbaijan,upper_middle,Europe & Central Asia
+BA,BIH,Bosnia and Herzegovina,upper_middle,Europe & Central Asia
+BB,BRB,Barbados,high,Latin America & Caribbean 
+BD,BGD,Bangladesh,lower_middle,South Asia
+BE,BEL,Belgium,high,Europe & Central Asia
+BF,BFA,Burkina Faso,low,Sub-Saharan Africa 
+BG,BGR,Bulgaria,high,Europe & Central Asia
+BH,BHR,Bahrain,high,"Middle East, North Africa, Afghanistan & Pakistan"
+BI,BDI,Burundi,low,Sub-Saharan Africa 
+BJ,BEN,Benin,lower_middle,Sub-Saharan Africa 
+BM,BMU,Bermuda,high,North America
+BN,BRN,Brunei Darussalam,high,East Asia & Pacific
+BO,BOL,Bolivia,lower_middle,Latin America & Caribbean 
+BR,BRA,Brazil,upper_middle,Latin America & Caribbean 
+BS,BHS,"Bahamas, The",high,Latin America & Caribbean 
+BT,BTN,Bhutan,lower_middle,South Asia
+BW,BWA,Botswana,upper_middle,Sub-Saharan Africa 
+BY,BLR,Belarus,upper_middle,Europe & Central Asia
+BZ,BLZ,Belize,upper_middle,Latin America & Caribbean 
+CA,CAN,Canada,high,North America
+CD,COD,"Congo, Dem. Rep.",low,Sub-Saharan Africa 
+CF,CAF,Central African Republic,low,Sub-Saharan Africa 
+CG,COG,"Congo, Rep.",lower_middle,Sub-Saharan Africa 
+CH,CHE,Switzerland,high,Europe & Central Asia
+CI,CIV,Cote d'Ivoire,lower_middle,Sub-Saharan Africa 
+CL,CHL,Chile,high,Latin America & Caribbean 
+CM,CMR,Cameroon,lower_middle,Sub-Saharan Africa 
+CN,CHN,China,upper_middle,East Asia & Pacific
+CO,COL,Colombia,upper_middle,Latin America & Caribbean 
+CR,CRI,Costa Rica,high,Latin America & Caribbean 
+CU,CUB,Cuba,upper_middle,Latin America & Caribbean 
+CV,CPV,Cabo Verde,upper_middle,Sub-Saharan Africa 
+CW,CUW,Curacao,high,Latin America & Caribbean 
+CY,CYP,Cyprus,high,Europe & Central Asia
+CZ,CZE,Czechia,high,Europe & Central Asia
+DE,DEU,Germany,high,Europe & Central Asia
+DJ,DJI,Djibouti,lower_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+DK,DNK,Denmark,high,Europe & Central Asia
+DM,DMA,Dominica,upper_middle,Latin America & Caribbean 
+DO,DOM,Dominican Republic,upper_middle,Latin America & Caribbean 
+DZ,DZA,Algeria,upper_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+EC,ECU,Ecuador,upper_middle,Latin America & Caribbean 
+EE,EST,Estonia,high,Europe & Central Asia
+EG,EGY,"Egypt, Arab Rep.",lower_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+ER,ERI,Eritrea,low,Sub-Saharan Africa 
+ES,ESP,Spain,high,Europe & Central Asia
+ET,ETH,Ethiopia,low,Sub-Saharan Africa 
+FI,FIN,Finland,high,Europe & Central Asia
+FJ,FJI,Fiji,upper_middle,East Asia & Pacific
+FM,FSM,"Micronesia, Fed. Sts.",upper_middle,East Asia & Pacific
+FO,FRO,Faroe Islands,high,Europe & Central Asia
+FR,FRA,France,high,Europe & Central Asia
+GA,GAB,Gabon,upper_middle,Sub-Saharan Africa 
+GB,GBR,United Kingdom,high,Europe & Central Asia
+GD,GRD,Grenada,upper_middle,Latin America & Caribbean 
+GE,GEO,Georgia,upper_middle,Europe & Central Asia
+GH,GHA,Ghana,lower_middle,Sub-Saharan Africa 
+GI,GIB,Gibraltar,high,Europe & Central Asia
+GL,GRL,Greenland,high,Europe & Central Asia
+GM,GMB,"Gambia, The",low,Sub-Saharan Africa 
+GN,GIN,Guinea,lower_middle,Sub-Saharan Africa 
+GQ,GNQ,Equatorial Guinea,upper_middle,Sub-Saharan Africa 
+GR,GRC,Greece,high,Europe & Central Asia
+GT,GTM,Guatemala,upper_middle,Latin America & Caribbean 
+GU,GUM,Guam,high,East Asia & Pacific
+GW,GNB,Guinea-Bissau,low,Sub-Saharan Africa 
+GY,GUY,Guyana,high,Latin America & Caribbean 
+HK,HKG,"Hong Kong SAR, China",high,East Asia & Pacific
+HN,HND,Honduras,lower_middle,Latin America & Caribbean 
+HR,HRV,Croatia,high,Europe & Central Asia
+HT,HTI,Haiti,lower_middle,Latin America & Caribbean 
+HU,HUN,Hungary,high,Europe & Central Asia
+ID,IDN,Indonesia,upper_middle,East Asia & Pacific
+IE,IRL,Ireland,high,Europe & Central Asia
+IL,ISR,Israel,high,"Middle East, North Africa, Afghanistan & Pakistan"
+IM,IMN,Isle of Man,high,Europe & Central Asia
+IN,IND,India,lower_middle,South Asia
+IQ,IRQ,Iraq,upper_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+IR,IRN,"Iran, Islamic Rep.",upper_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+IS,ISL,Iceland,high,Europe & Central Asia
+IT,ITA,Italy,high,Europe & Central Asia
+JG,CHI,Channel Islands,high,Europe & Central Asia
+JM,JAM,Jamaica,upper_middle,Latin America & Caribbean 
+JO,JOR,Jordan,upper_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+JP,JPN,Japan,high,East Asia & Pacific
+KE,KEN,Kenya,lower_middle,Sub-Saharan Africa 
+KG,KGZ,Kyrgyz Republic,lower_middle,Europe & Central Asia
+KH,KHM,Cambodia,lower_middle,East Asia & Pacific
+KI,KIR,Kiribati,lower_middle,East Asia & Pacific
+KM,COM,Comoros,lower_middle,Sub-Saharan Africa 
+KN,KNA,St. Kitts and Nevis,high,Latin America & Caribbean 
+KP,PRK,"Korea, Dem. People's Rep.",low,East Asia & Pacific
+KR,KOR,"Korea, Rep.",high,East Asia & Pacific
+KW,KWT,Kuwait,high,"Middle East, North Africa, Afghanistan & Pakistan"
+KY,CYM,Cayman Islands,high,Latin America & Caribbean 
+KZ,KAZ,Kazakhstan,upper_middle,Europe & Central Asia
+LA,LAO,Lao PDR,lower_middle,East Asia & Pacific
+LB,LBN,Lebanon,lower_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+LC,LCA,St. Lucia,upper_middle,Latin America & Caribbean 
+LI,LIE,Liechtenstein,high,Europe & Central Asia
+LK,LKA,Sri Lanka,upper_middle,South Asia
+LR,LBR,Liberia,low,Sub-Saharan Africa 
+LS,LSO,Lesotho,lower_middle,Sub-Saharan Africa 
+LT,LTU,Lithuania,high,Europe & Central Asia
+LU,LUX,Luxembourg,high,Europe & Central Asia
+LV,LVA,Latvia,high,Europe & Central Asia
+LY,LBY,Libya,upper_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+MA,MAR,Morocco,lower_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+MC,MCO,Monaco,high,Europe & Central Asia
+MD,MDA,Moldova,upper_middle,Europe & Central Asia
+ME,MNE,Montenegro,upper_middle,Europe & Central Asia
+MF,MAF,St. Martin (French part),high,Latin America & Caribbean 
+MG,MDG,Madagascar,low,Sub-Saharan Africa 
+MH,MHL,Marshall Islands,upper_middle,East Asia & Pacific
+MK,MKD,North Macedonia,upper_middle,Europe & Central Asia
+ML,MLI,Mali,low,Sub-Saharan Africa 
+MM,MMR,Myanmar,lower_middle,East Asia & Pacific
+MN,MNG,Mongolia,upper_middle,East Asia & Pacific
+MO,MAC,"Macao SAR, China",high,East Asia & Pacific
+MP,MNP,Northern Mariana Islands,high,East Asia & Pacific
+MR,MRT,Mauritania,lower_middle,Sub-Saharan Africa 
+MT,MLT,Malta,high,"Middle East, North Africa, Afghanistan & Pakistan"
+MU,MUS,Mauritius,upper_middle,Sub-Saharan Africa 
+MV,MDV,Maldives,upper_middle,South Asia
+MW,MWI,Malawi,low,Sub-Saharan Africa 
+MX,MEX,Mexico,upper_middle,Latin America & Caribbean 
+MY,MYS,Malaysia,upper_middle,East Asia & Pacific
+MZ,MOZ,Mozambique,low,Sub-Saharan Africa 
+NA,NAM,Namibia,lower_middle,Sub-Saharan Africa 
+NC,NCL,New Caledonia,high,East Asia & Pacific
+NE,NER,Niger,low,Sub-Saharan Africa 
+NG,NGA,Nigeria,lower_middle,Sub-Saharan Africa 
+NI,NIC,Nicaragua,lower_middle,Latin America & Caribbean 
+NL,NLD,Netherlands,high,Europe & Central Asia
+NO,NOR,Norway,high,Europe & Central Asia
+NP,NPL,Nepal,lower_middle,South Asia
+NR,NRU,Naoero,high,East Asia & Pacific
+NZ,NZL,New Zealand,high,East Asia & Pacific
+OM,OMN,Oman,high,"Middle East, North Africa, Afghanistan & Pakistan"
+PA,PAN,Panama,high,Latin America & Caribbean 
+PE,PER,Peru,upper_middle,Latin America & Caribbean 
+PF,PYF,French Polynesia,high,East Asia & Pacific
+PG,PNG,Papua New Guinea,lower_middle,East Asia & Pacific
+PH,PHL,Philippines,upper_middle,East Asia & Pacific
+PK,PAK,Pakistan,lower_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+PL,POL,Poland,high,Europe & Central Asia
+PR,PRI,Puerto Rico (US),high,Latin America & Caribbean 
+PS,PSE,West Bank and Gaza,lower_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+PT,PRT,Portugal,high,Europe & Central Asia
+PW,PLW,Palau,high,East Asia & Pacific
+PY,PRY,Paraguay,upper_middle,Latin America & Caribbean 
+QA,QAT,Qatar,high,"Middle East, North Africa, Afghanistan & Pakistan"
+RO,ROU,Romania,high,Europe & Central Asia
+RS,SRB,Serbia,upper_middle,Europe & Central Asia
+RU,RUS,Russian Federation,high,Europe & Central Asia
+RW,RWA,Rwanda,low,Sub-Saharan Africa 
+SA,SAU,Saudi Arabia,high,"Middle East, North Africa, Afghanistan & Pakistan"
+SB,SLB,Solomon Islands,lower_middle,East Asia & Pacific
+SC,SYC,Seychelles,high,Sub-Saharan Africa 
+SD,SDN,Sudan,low,Sub-Saharan Africa 
+SE,SWE,Sweden,high,Europe & Central Asia
+SG,SGP,Singapore,high,East Asia & Pacific
+SI,SVN,Slovenia,high,Europe & Central Asia
+SK,SVK,Slovak Republic,high,Europe & Central Asia
+SL,SLE,Sierra Leone,low,Sub-Saharan Africa 
+SM,SMR,San Marino,high,Europe & Central Asia
+SN,SEN,Senegal,lower_middle,Sub-Saharan Africa 
+SO,SOM,"Somalia, Fed. Rep.",low,Sub-Saharan Africa 
+SR,SUR,Suriname,upper_middle,Latin America & Caribbean 
+SS,SSD,South Sudan,low,Sub-Saharan Africa 
+ST,STP,Sao Tome and Principe,lower_middle,Sub-Saharan Africa 
+SV,SLV,El Salvador,upper_middle,Latin America & Caribbean 
+SX,SXM,Sint Maarten (Dutch part),high,Latin America & Caribbean 
+SY,SYR,Syrian Arab Republic,low,"Middle East, North Africa, Afghanistan & Pakistan"
+SZ,SWZ,Eswatini,lower_middle,Sub-Saharan Africa 
+TC,TCA,Turks and Caicos Islands,high,Latin America & Caribbean 
+TD,TCD,Chad,low,Sub-Saharan Africa 
+TG,TGO,Togo,lower_middle,Sub-Saharan Africa 
+TH,THA,Thailand,upper_middle,East Asia & Pacific
+TJ,TJK,Tajikistan,lower_middle,Europe & Central Asia
+TL,TLS,Timor-Leste,lower_middle,East Asia & Pacific
+TM,TKM,Turkmenistan,upper_middle,Europe & Central Asia
+TN,TUN,Tunisia,lower_middle,"Middle East, North Africa, Afghanistan & Pakistan"
+TO,TON,Tonga,upper_middle,East Asia & Pacific
+TR,TUR,Turkiye,upper_middle,Europe & Central Asia
+TT,TTO,Trinidad and Tobago,high,Latin America & Caribbean 
+TV,TUV,Tuvalu,upper_middle,East Asia & Pacific
+TW,TWN,Taiwan,high,East Asia & Pacific
+TZ,TZA,Tanzania,lower_middle,Sub-Saharan Africa 
+UA,UKR,Ukraine,upper_middle,Europe & Central Asia
+UG,UGA,Uganda,low,Sub-Saharan Africa 
+US,USA,United States,high,North America
+UY,URY,Uruguay,high,Latin America & Caribbean 
+UZ,UZB,Uzbekistan,lower_middle,Europe & Central Asia
+VC,VCT,St. Vincent and the Grenadines,upper_middle,Latin America & Caribbean 
+VE,VEN,"Venezuela, RB",lower_middle,Latin America & Caribbean 
+VG,VGB,British Virgin Islands,high,Latin America & Caribbean 
+VI,VIR,Virgin Islands (U.S.),high,Latin America & Caribbean 
+VN,VNM,Viet Nam,upper_middle,East Asia & Pacific
+VU,VUT,Vanuatu,lower_middle,East Asia & Pacific
+WS,WSM,Samoa,upper_middle,East Asia & Pacific
+XK,XKX,Kosovo,upper_middle,Europe & Central Asia
+YE,YEM,"Yemen, Rep.",low,"Middle East, North Africa, Afghanistan & Pakistan"
+ZA,ZAF,South Africa,upper_middle,Sub-Saharan Africa 
+ZM,ZMB,Zambia,lower_middle,Sub-Saharan Africa 
+ZW,ZWE,Zimbabwe,lower_middle,Sub-Saharan Africa 
