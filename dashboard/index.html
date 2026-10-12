@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Open-Science Benchmark</title>
   <meta name="description" content="Interactive benchmark of open-access routes, data and code sharing, data-availability statements, preprints and registration across stroke and adjacent disciplines, with equity and commitment views.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly.min.js" charset="utf-8"></script>
 </head>
@@ -26,46 +29,50 @@
 
   <main class="wrap">
     <section id="filters" class="filters" aria-label="Selection">
-      <div class="filter filter-years">
-        <span class="filter-label">Years <span id="year-readout" class="readout"></span></span>
-        <div class="segmented" id="year-presets" role="group" aria-label="Year presets"></div>
-        <details class="custom-range">
-          <summary>Custom range</summary>
-          <div class="year-range" role="group" aria-label="Year range">
-            <label class="sr-only" for="year-min">From year</label>
-            <input id="year-min" type="range" step="1">
-            <label class="sr-only" for="year-max">To year</label>
-            <input id="year-max" type="range" step="1">
+      <div class="band-row">
+        <div class="filter filter-years">
+          <span class="filter-label">Years</span>
+          <div class="segmented" id="year-presets" role="group" aria-label="Year presets"></div>
+        </div>
+        <div class="filter filter-disciplines">
+          <span class="filter-label">Disciplines</span>
+          <div id="discipline-chips" class="chips" role="group" aria-label="Disciplines to show"></div>
+        </div>
+        <div class="filter filter-toggle">
+          <span class="filter-label">Papers</span>
+          <div class="segmented" role="group" aria-label="High-impact subset">
+            <button type="button" id="hi-all" class="seg-btn is-active" aria-pressed="true">All</button>
+            <button type="button" id="hi-only" class="seg-btn" aria-pressed="false">High-impact</button>
           </div>
-        </details>
-      </div>
-      <div class="filter filter-disciplines">
-        <span class="filter-label">Disciplines</span>
-        <div id="discipline-chips" class="chips" role="group" aria-label="Disciplines to show"></div>
-      </div>
-      <div class="filter">
-        <label class="filter-label" for="focus-select">Focus</label>
-        <select id="focus-select"></select>
-      </div>
-      <div class="filter filter-slice">
-        <label class="filter-label" for="slice-select">Slice</label>
-        <select id="slice-select"></select>
-      </div>
-      <div class="filter filter-toggle">
-        <span class="filter-label">Papers</span>
-        <div class="segmented" role="group" aria-label="High-impact subset">
-          <button type="button" id="hi-all" class="seg-btn is-active" aria-pressed="true">All</button>
-          <button type="button" id="hi-only" class="seg-btn" aria-pressed="false">High-impact</button>
         </div>
       </div>
-      <div class="filter filter-actions">
-        <button type="button" id="reset-btn" class="btn btn-ghost">Reset</button>
-        <button type="button" id="share-btn" class="btn btn-ghost" title="Copy a link to this selection">Copy link</button>
-        <button type="button" id="download-btn" class="btn">Download CSV</button>
+      <div class="band-row band-custom" id="year-custom" hidden>
+        <span class="filter-label">Custom range <span id="year-readout" class="readout"></span></span>
+        <div class="year-range" role="group" aria-label="Year range">
+          <label class="sr-only" for="year-min">From year</label>
+          <input id="year-min" type="range" step="1">
+          <label class="sr-only" for="year-max">To year</label>
+          <input id="year-max" type="range" step="1">
+        </div>
       </div>
-      <div class="filter filter-quick">
-        <span class="filter-label">Quick views</span>
-        <div id="quick-views" class="quick" role="group" aria-label="Quick views"></div>
+      <div class="band-row">
+        <div class="filter filter-focus">
+          <label class="filter-label" for="focus-select">Focus</label>
+          <select id="focus-select"></select>
+        </div>
+        <div class="filter filter-slice">
+          <label class="filter-label" for="slice-select">Slice</label>
+          <select id="slice-select"></select>
+        </div>
+        <div class="filter filter-quick">
+          <label class="filter-label" for="quick-views">Quick views</label>
+          <select id="quick-views"></select>
+        </div>
+        <div class="filter-actions">
+          <button type="button" id="reset-btn" class="btn btn-ghost">Reset</button>
+          <button type="button" id="share-btn" class="btn btn-ghost" title="Copy a link to this selection">Copy link</button>
+          <button type="button" id="download-btn" class="btn">Download CSV</button>
+        </div>
       </div>
       <p id="filter-note" class="filter-note" role="status" aria-live="polite"></p>
     </section>
@@ -78,7 +85,7 @@
       <!-- Overview -->
       <section class="view" id="view-overview" role="tabpanel" aria-labelledby="tab-overview">
         <div class="hero" id="hero"></div>
-        <section class="tiles" id="tiles" aria-label="Summary for the current selection" aria-live="polite"></section>
+        <section class="tile-groups" id="tiles" aria-label="Summary for the current selection" aria-live="polite"></section>
         <div class="grid-2">
           <section class="card">
             <div class="card-head"><div><h2 id="ov-trend-title">Open access by year</h2><p class="card-sub" id="ov-trend-sub"></p></div></div>
@@ -104,6 +111,7 @@
               <label>Metric <select id="metric-select"></select></label>
               <label>Compare <select id="trend-compare"><option value="disciplines">disciplines</option><option value="income">income groups (focus)</option><option value="subset">all vs high-impact (focus)</option></select></label>
               <label>Show <select id="trend-show"><option value="rate">rate</option><option value="count">count</option></select></label>
+              <label>Layout <select id="trend-layout"><option value="overlay">one chart</option><option value="panels">small multiples</option></select></label>
               <label class="check"><input type="checkbox" id="markers-toggle"> policy markers</label>
             </div>
           </div>

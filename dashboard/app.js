@@ -46,7 +46,7 @@
     view: "overview",
     disciplines: [], focus: null, yearMin: null, yearMax: null,
     slice: { kind: "", key: "" }, hi: false,
-    metric: "oa", trendCompare: "disciplines", trendShow: "rate",
+    metric: "oa", trendCompare: "disciplines", trendShow: "rate", trendLayout: "overlay",
     oaGrouping: "route", dasGrouping: "five", dasDenominator: "audited",
     eqSignal: "route", cmEntity: "institutions", cmMin: 50, cmTop: 15, cmSignals: ["das_deposit", "ft_github", "ft_reg"],
     journalMetric: "oa", journalMin: 100, journalTop: 25,
@@ -209,9 +209,53 @@
     return total;
   }
 
+  // ------------------------------------------------------------------ sparklines (word-sized graphics, inline SVG)
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) { const n = document.createElementNS(SVG_NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n; }
+  /** values: array of numbers or null (gaps); draws a baseline, a faint area, the line and an emphasised last point. */
+  function sparkline(values, color) {
+    const w = 100, h = 28, pad = 3;
+    const svg = svgEl("svg", { class: "spark", viewBox: "0 0 " + w + " " + h, preserveAspectRatio: "none", "aria-hidden": "true" });
+    if (color) svg.style.setProperty("--c", color);
+    const pts = values.map((v, i) => (v === null || v === undefined || Number.isNaN(v)) ? null : [i, v]).filter(Boolean);
+    if (pts.length < 2) return svg;
+    const n = values.length, max = Math.max(...pts.map((p) => p[1]), 1e-9);
+    const x = (i) => pad + (i / Math.max(1, n - 1)) * (w - 2 * pad);
+    const y = (v) => h - pad - (v / max) * (h - 2 * pad);
+    svg.append(svgEl("line", { class: "spark-base", x1: pad, x2: w - pad, y1: h - pad + 0.5, y2: h - pad + 0.5 }));
+    const d = pts.map((p, k) => (k === 0 ? "M" : "L") + x(p[0]).toFixed(1) + " " + y(p[1]).toFixed(1)).join(" ");
+    svg.append(svgEl("path", { class: "spark-area", d: d + " L" + x(pts[pts.length - 1][0]).toFixed(1) + " " + (h - pad) + " L" + x(pts[0][0]).toFixed(1) + " " + (h - pad) + " Z" }));
+    svg.append(svgEl("path", { class: "spark-line", d, "vector-effect": "non-scaling-stroke" }));
+    const last = pts[pts.length - 1];
+    svg.append(svgEl("circle", { class: "spark-end", cx: x(last[0]).toFixed(1), cy: y(last[1]).toFixed(1), r: 2.6, "vector-effect": "non-scaling-stroke" }));
+    return svg;
+  }
+  /** Per-entity by-year counts for a dimension: Map<entityIdx, Map<year, counts>> under the current selection. */
+  function aggregateByYearFor(disc, dim) {
+    const groups = new Map();
+    const t = tableFor(disc, dim);
+    const sameTable = (dim === "journal" || dim === "country") && (state.slice.kind === "journal" || state.slice.kind === "country") && state.slice.kind !== dim;
+    const idx = sameTable ? sliceIndex(disc) : null;
+    const slicePos = state.slice.kind === "country" ? 3 : 2;
+    if (idx === -1) return groups;
+    for (const row of t.rows) {
+      const year = row[0];
+      if (year < state.yearMin || year > state.yearMax) continue;
+      if (state.hi && row[1] !== 1) continue;
+      if (idx !== null && row[slicePos] !== idx) continue;
+      let byYear = groups.get(row[t.pos]);
+      if (!byYear) { byYear = new Map(); groups.set(row[t.pos], byYear); }
+      let acc = byYear.get(year);
+      if (!acc) { acc = emptyCounts(); byYear.set(year, acc); }
+      addRow(acc, row, t.offset);
+    }
+    return groups;
+  }
+  const seriesFromByYear = (byYear, m) => yearsInRange().map((y) => rate(byYear.get(y), m));
+
   // ------------------------------------------------------------------ URL state
   const HASH_KEYS = ["view", "focus", "hi", "metric", "trendCompare", "trendShow", "oaGrouping", "dasGrouping", "dasDenominator",
-    "eqSignal", "cmEntity", "cmMin", "cmTop", "journalMetric", "journalMin", "journalTop", "markers"];
+    "eqSignal", "cmEntity", "cmMin", "cmTop", "journalMetric", "journalMin", "journalTop", "markers", "trendLayout"];
   function writeHash() {
     const p = new URLSearchParams();
     for (const k of HASH_KEYS) p.set(k, String(state[k]));
@@ -235,7 +279,7 @@
     if (p.get("markers") === "false") state.markers = false;
     const slice = (p.get("slice") || "").split(":");
     if (slice.length >= 2 && ["journal", "country", "funder", "income"].includes(slice[0])) state.slice = { kind: slice[0], key: slice.slice(1).join(":") };
-    for (const k of ["view", "metric", "trendCompare", "trendShow", "oaGrouping", "dasGrouping", "dasDenominator", "eqSignal", "cmEntity", "journalMetric"]) {
+    for (const k of ["view", "metric", "trendCompare", "trendShow", "trendLayout", "oaGrouping", "dasGrouping", "dasDenominator", "eqSignal", "cmEntity", "journalMetric"]) {
       if (p.get(k)) state[k] = p.get(k);
     }
     for (const k of ["cmMin", "cmTop", "journalMin", "journalTop"]) if (p.get(k) && !Number.isNaN(+p.get(k))) state[k] = +p.get(k);
@@ -253,7 +297,7 @@
     const dflt = Array.isArray(DATA.default_year_range) && DATA.default_year_range.length === 2 ? DATA.default_year_range : DATA.years;
     state.yearMin = dflt[0]; state.yearMax = dflt[dflt.length - 1];
     state.slice = { kind: "", key: "" }; state.hi = false;
-    state.metric = "oa"; state.trendCompare = "disciplines"; state.trendShow = "rate";
+    state.metric = "oa"; state.trendCompare = "disciplines"; state.trendShow = "rate"; state.trendLayout = "overlay";
     state.oaGrouping = "route"; state.dasGrouping = "five"; state.dasDenominator = "audited"; state.eqSignal = "route";
     state.cmEntity = "institutions"; state.cmMin = 50; state.cmTop = 15; state.cmSignals = ["das_deposit", "ft_github", "ft_reg"];
     state.journalMetric = "oa"; state.journalMin = 100; state.journalTop = 25;
@@ -301,10 +345,13 @@
     presets.replaceChildren();
     for (const p of yearPresets()) {
       const b = el("button", { type: "button", class: "seg-btn", text: p.label, "aria-pressed": "false" });
-      b.addEventListener("click", () => { state.yearMin = p.min; state.yearMax = p.max; syncYears(); renderAll(); });
+      b.addEventListener("click", () => { state.yearMin = p.min; state.yearMax = p.max; $("year-custom").hidden = true; syncYears(); renderAll(); });
       b.dataset.min = p.min; b.dataset.max = p.max;
       presets.append(b);
     }
+    const custom = el("button", { type: "button", class: "seg-btn seg-custom", text: "Custom…", "aria-pressed": "false", "aria-controls": "year-custom" });
+    custom.addEventListener("click", () => { const row = $("year-custom"); row.hidden = !row.hidden; syncYears(); if (!row.hidden) $("year-min").focus(); });
+    presets.append(custom);
     const yMin = $("year-min"), yMax = $("year-max");
     const lo = DATA.years[0], hi = DATA.years[DATA.years.length - 1];
     for (const inp of [yMin, yMax]) { inp.min = lo; inp.max = hi; }
@@ -329,16 +376,18 @@
     syncHi();
     $("reset-btn").onclick = () => { resetState(); buildSelection(); buildViewOptions(); showView(state.view); renderAll(); };
     const quick = $("quick-views");
-    quick.replaceChildren();
-    for (const q of QUICK_VIEWS) {
-      quick.append(el("button", { type: "button", text: q.label, onclick: () => {
-        resetState();
-        const base = new URLSearchParams(); for (const k of HASH_KEYS) base.set(k, String(state[k]));
-        base.set("years", state.yearMin + "-" + state.yearMax); base.set("disc", state.disciplines.join(","));
-        for (const [k, v] of new URLSearchParams(q.hash)) base.set(k, v);
-        location.hash = base.toString();
-      } }));
-    }
+    quick.replaceChildren(el("option", { value: "", text: "Choose a view…" }));
+    QUICK_VIEWS.forEach((q, i) => quick.append(el("option", { value: String(i), text: q.label })));
+    quick.onchange = (e) => {
+      const q = QUICK_VIEWS[+e.target.value];
+      e.target.value = "";
+      if (!q) return;
+      resetState();
+      const base = new URLSearchParams(); for (const k of HASH_KEYS) base.set(k, String(state[k]));
+      base.set("years", state.yearMin + "-" + state.yearMax); base.set("disc", state.disciplines.join(","));
+      for (const [k, v] of new URLSearchParams(q.hash)) base.set(k, v);
+      location.hash = base.toString();
+    };
     $("download-btn").onclick = downloadCsv;
     $("share-btn").onclick = copyLink;
   }
@@ -353,9 +402,18 @@
       const a = (state.yearMin - lo) / (hi - lo) * 100, b = (state.yearMax - lo) / (hi - lo) * 100;
       fill.style.left = a + "%"; fill.style.width = (b - a) + "%";
     }
+    let anyPreset = false;
     for (const b of $("year-presets").children) {
+      if (!b.dataset.min) continue;
       const active = +b.dataset.min === state.yearMin && +b.dataset.max === state.yearMax;
+      anyPreset = anyPreset || active;
       b.classList.toggle("is-active", active); b.setAttribute("aria-pressed", String(active));
+    }
+    const custom = $("year-presets").querySelector(".seg-custom");
+    const row = $("year-custom");
+    if (custom) {
+      if (!anyPreset) row.hidden = false;
+      custom.classList.toggle("is-active", !anyPreset || !row.hidden); custom.setAttribute("aria-pressed", String(!anyPreset || !row.hidden));
     }
   }
   function buildFocusSelect() {
@@ -439,7 +497,7 @@
     const metricOpts = METRICS.map((m) => ({ value: m.key, label: m.label }));
     state.metric = fillSelectOptions($("metric-select"), metricOpts, state.metric);
     bind("metric-select", "metric");
-    bind("trend-compare", "trendCompare"); bind("trend-show", "trendShow");
+    bind("trend-compare", "trendCompare"); bind("trend-show", "trendShow"); bind("trend-layout", "trendLayout");
     bind("oa-grouping", "oaGrouping");
     bind("das-grouping", "dasGrouping"); bind("das-denominator", "dasDenominator");
     const eqOpts = [{ value: "route", label: "open-access route" }].concat(METRICS.filter((m) => m.key !== "material").map((m) => ({ value: m.key, label: m.label })));
@@ -468,11 +526,11 @@
   function baseLayout(t) {
     return {
       paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
-      font: { family: t.font, color: t.ink2, size: 12 },
+      font: { family: t.font, color: t.ink2, size: 13 },
       margin: { l: 52, r: 24, t: 12, b: 44 },
       xaxis: { gridcolor: "rgba(0,0,0,0)", linecolor: t.border, zeroline: false, tickfont: { color: t.ink3 }, fixedrange: true },
       yaxis: { gridcolor: t.grid, gridwidth: 1, zeroline: false, tickfont: { color: t.ink3 }, fixedrange: true },
-      hoverlabel: { bgcolor: t.surface, bordercolor: t.border, font: { color: t.ink, family: t.font, size: 12 } },
+      hoverlabel: { bgcolor: t.surface, bordercolor: t.border, font: { color: t.ink, family: t.font, size: 13 } },
       legend: { orientation: "h", y: -0.18, x: 0, font: { color: t.ink2 } },
       showlegend: true,
     };
@@ -511,7 +569,8 @@
   function policyMarkers(t, years, categorical, id) {
     if (!state.markers || !(DATA.policy_events || []).length) return { shapes: [], annotations: [] };
     const shapes = [], annotations = [];
-    const labels = !(id && isNarrow(id));   // half-width charts keep the hairlines, drop the labels
+    if (id && isNarrow(id)) return { shapes: [], annotations: [] };   // no room for labels on half-width charts: no markers
+    const labels = true;
     let i = 0;
     for (const e of DATA.policy_events) {
       if (!years.includes(e.year)) continue;
@@ -608,22 +667,25 @@
 
     const tiles = $("tiles");
     tiles.replaceChildren();
-    const mk = (label, value, sub, frac, na) => {
+    const group = (title, note) => {
+      const g = el("div", { class: "tile-group" }, [el("h3", { class: "tile-group-title" }, [document.createTextNode(title), el("span", { text: note })]), el("div", { class: "tiles" })]);
+      tiles.append(g); return g.lastChild;
+    };
+    const gMeta = group("From titles, abstracts and metadata", fmtInt(c[K.n]) + " papers");
+    const gFull = group("From the full text", fmtInt(c[K.das_audited]) + " audited open-access articles");
+    const mk = (label, value, sub, series, na) => {
       const tile = el("div", { class: "tile" + (na ? " is-na" : "") }, [el("div", { class: "tile-label", text: label }), el("div", { class: "tile-value", text: value }), el("div", { class: "tile-sub", text: sub })]);
-      if (frac !== null && frac !== undefined) {
-        const bar = el("div", { class: "tile-bar" }, el("span"));
-        bar.firstChild.style.width = clamp(frac * 100, 0, 100) + "%";
-        bar.style.setProperty("--c", discColor(d));
-        tile.append(bar);
-      }
+      if (series && series.some((v) => v !== null)) tile.append(sparkline(series, discColor(d)));
       return tile;
     };
+    const TILE_LABELS = { data: "Data in a repository", code: "Code link", preprint: "Preprint version", reg: "Registration signal",
+      das_stmt: "Has a data statement", das_deposit: "Data deposited or public source", ft_github: "GitHub mentioned", ft_reg: "Trial registration mentioned" };
     for (const key of ["data", "code", "preprint", "reg", "das_stmt", "das_deposit", "ft_github", "ft_reg"]) {
       const m = metric(key);
       const available = metricAvailable(d, key);
       const r = available ? rate(c, m) : null;
-      const sub = !available ? "not in this dataset" : fmtInt(numer(c, m)) + " of " + fmtInt(denom(c, m)) + (m.denominator === "das_audited" ? " audited" : m.denominator === "n_abs" ? " with abstract" : "");
-      tiles.append(mk(m.short, fmtPct(r), sub, r, r === null));
+      const sub = !available ? "not in this dataset" : fmtInt(numer(c, m)) + (m.denominator === "n_abs" ? " of " + fmtInt(denom(c, m)) + " abstracts" : " papers");
+      (m.denominator === "das_audited" ? gFull : gMeta).append(mk(TILE_LABELS[key] || m.short, fmtPct(r), sub, available ? seriesFromByYear(agg.byYear, m) : null, r === null));
     }
 
     // OA trend: emphasis form (focus in colour, others in neutral)
@@ -643,12 +705,13 @@
     }
     const layout = baseLayout(t);
     const partial = partialYearShapes(t, years, false);
-    Object.assign(layout, { showlegend: traces.length >= 2, hovermode: "x unified", margin: { l: 48, r: 96, t: 20, b: 60 },
+    Object.assign(layout, { showlegend: false, hovermode: "x unified", margin: { l: 48, r: 96, t: 20, b: 40 },
       yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }),
       xaxis: Object.assign(layout.xaxis, { dtick: tickStep("ov-trend-chart", years.length), range: [years[0] - 0.6, years[years.length - 1] + 0.4] }),
       annotations: ann.concat(partial.annotations, policyMarkers(t, years, false, "ov-trend-chart").annotations), shapes: partial.shapes.concat(policyMarkers(t, years, false, "ov-trend-chart").shapes) });
     plot("ov-trend-chart", traces, layout);
-    $("ov-trend-sub").textContent = d.label + " highlighted; other selected disciplines in grey. " + selectionLabel() + ".";
+    const others = selectedDiscs().filter((x) => x.key !== d.key).map((x) => x.label);
+    $("ov-trend-sub").textContent = d.label + " in colour" + (others.length ? "; in grey: " + others.join(", ") : "") + ". " + selectionLabel() + ". Hover for every value.";
 
     // DAS five classes by year (focus)
     const res = stackedByYear({ id: "ov-das-chart", tableId: "ov-das-table-none", classes: dasClasses("five", "audited"), denomFn: (x) => x[K.das_audited] });
@@ -705,6 +768,14 @@
       state.hi = saved;
     }
     const traces = [], ann = [], tableRows = [];
+    if (state.trendLayout === "panels" && series.length >= 2) {
+      const rows = smallMultiplesSeries("trend-chart", series, years, (s, y) => (asCount ? (s.byYear.get(y) ? numer(s.byYear.get(y), m) : null) : rate(s.byYear.get(y), m)), asCount ? ",.0f" : null);
+      $("trend-title").textContent = m.label + " by year, one panel per series";
+      $("trend-sub").textContent = m.definition + " Selection: " + selectionLabel() + ". Shared scale across panels." + (state.trendCompare !== "disciplines" ? " Focus discipline: " + d.label + "." : "");
+      const cols = [{ key: "label", label: "Series" }].concat(years.map((y) => ({ key: "y" + y, label: String(y), fmt: asCount ? "int" : "pct" })));
+      renderTable("trend-table", cols, rows.map((r) => { const o = { label: r.label }; years.forEach((y, i) => { o["y" + y] = r.ys[i]; }); return o; }), { sortable: false });
+      return;
+    }
     for (const s of series) {
       const ys = years.map((y) => (asCount ? (s.byYear.get(y) ? numer(s.byYear.get(y), m) : null) : rate(s.byYear.get(y), m)));
       const ns = years.map((y) => (s.byYear.get(y) ? denom(s.byYear.get(y), m) : 0));
@@ -828,6 +899,30 @@
     rows.push(Object.assign({ cat: "n (denominator)" }, Object.fromEntries(years.map((y, i) => ["y" + y, denoms[i]]))));
     renderTable(opts.tableId, colsT, rows, { sortable: false, rowFmt: (row) => (row.cat === "n (denominator)" ? "int" : null) });
     return { denomTotal: denoms.reduce((a, b) => a + b, 0) };
+  }
+
+  /** One panel per series, shared y scale, each in its own colour, titled directly (no legend needed). */
+  function smallMultiplesSeries(id, series, years, valueFn, tickformat) {
+    const t = tokens();
+    const n = series.length, cols = isNarrow(id) ? 1 : Math.min(n, n <= 4 ? 2 : 3), rowsN = Math.ceil(n / cols);
+    const traces = [], annotations = [], layout = baseLayout(t);
+    const data = series.map((s) => years.map((y) => valueFn(s, y)));
+    const ymax = Math.max(1e-9, ...data.flat().filter((v) => v !== null));
+    const fmt = tickformat || (ymax < 0.02 ? ".2%" : ymax < 0.1 ? ".1%" : ".0%");
+    series.forEach((s, i) => {
+      const ax = i === 0 ? "" : String(i + 1);
+      const r = Math.floor(i / cols), c = i % cols;
+      const xd = [c / cols + 0.02, (c + 1) / cols - 0.02], yd = [1 - (r + 1) / rowsN + 0.08, 1 - r / rowsN - 0.1];
+      traces.push({ type: "scatter", mode: "lines+markers", x: years, y: data[i], xaxis: "x" + ax, yaxis: "y" + ax, name: s.label, showlegend: false, connectgaps: false,
+        line: { color: s.color, width: 2 }, marker: { size: 6, color: s.color, line: { color: t.surface, width: 2 } },
+        hovertemplate: (tickformat ? "<b>%{y:,}</b>" : "<b>%{y:.1%}</b>") + " · %{x}<extra>" + s.label + "</extra>" });
+      layout["xaxis" + ax] = { domain: xd, anchor: "y" + ax, gridcolor: "rgba(0,0,0,0)", linecolor: t.border, tickfont: { color: t.ink3, size: 11 }, fixedrange: true, dtick: Math.max(1, Math.round(years.length / 4)), zeroline: false, range: [years[0] - 0.4, years[years.length - 1] + 0.4] };
+      layout["yaxis" + ax] = { domain: yd, anchor: "x" + ax, gridcolor: t.grid, tickfont: { color: t.ink3, size: 11 }, fixedrange: true, tickformat: fmt, range: [0, ymax * 1.12], zeroline: false, showticklabels: c === 0 };
+      annotations.push({ xref: "paper", yref: "paper", x: xd[0], y: yd[1] + 0.012, xanchor: "left", yanchor: "bottom", text: s.label, showarrow: false, font: { color: t.ink, size: 13 } });
+    });
+    Object.assign(layout, { showlegend: false, height: Math.max(360, 200 * rowsN), margin: { l: 52, r: 16, t: 10, b: 36 }, annotations, hovermode: "closest" });
+    plot(id, traces, layout);
+    return series.map((s, i) => ({ label: s.label, ys: data[i] }));
   }
 
   // ------------------------------------------------------------------ Equity
@@ -974,11 +1069,12 @@
     const t = tokens();
     const m = metric(state.journalMetric);
     const groups = aggregateBy(d, "journal");
+    const byYear = aggregateByYearFor(d, "journal");
     const items = [];
     for (const [idx, c] of groups.entries()) {
       const j = d.journals[idx];
       if (!j || j.key === "Other" || c[K.n] < state.journalMin) continue;
-      const row = { label: j.label, n: c[K.n], v: rate(c, m) };
+      const row = { label: j.label, n: c[K.n], v: rate(c, m), trend: byYear.get(idx) ? seriesFromByYear(byYear.get(idx), m) : null };
       for (const x of METRICS) row[x.key] = metricAvailable(d, x.key) ? rate(c, x) : null;
       items.push(row);
     }
@@ -996,37 +1092,38 @@
     plot("journal-chart", traces, layout);
     $("journal-title").textContent = "Journals by " + m.label.toLowerCase() + " · " + d.label;
     $("journal-sub").textContent = items.length ? plotted.length + " of " + items.length + " journals with at least " + state.journalMin + " papers (" + selectionLabel() + "). Top-" + (DATA.top_n.journals || "") + " journals by volume only; the table carries every metric." : "No journal reaches " + state.journalMin + " papers under this selection.";
-    const cols = [{ key: "label", label: "Journal" }, { key: "n", label: "Papers", fmt: "int" }].concat(METRICS.filter((x) => x.key !== "material" && metricAvailable(d, x.key)).map((x) => ({ key: x.key, label: x.short, fmt: "pct", bar: x.key === m.key })));
+    const cols = [{ key: "label", label: "Journal" }, { key: "n", label: "Papers", fmt: "int" }, { key: "trend", label: m.short + " by year", fmt: "spark" }].concat(METRICS.filter((x) => x.key !== "material" && metricAvailable(d, x.key)).map((x) => ({ key: x.key, label: x.short, fmt: "pct", bar: x.key === m.key })));
     renderTable("journal-table", cols, items, { sortable: true, color: discColor(d), name: "journals", defaultSort: { key: m.key, dir: "desc" }, barKey: m.key });
   }
 
   // ------------------------------------------------------------------ Countries & funders
-  function dimRows(d, groups, list, labelOf) {
+  function dimRows(d, groups, list, labelOf, byYear) {
     const rows = [];
     for (const [idx, c] of groups.entries()) {
       const item = list[idx];
       if (!item) continue;
-      const row = { label: labelOf(item), other: (item.key || item) === "Other" || item === "(no funder listed)", n: c[K.n] };
+      const row = { label: labelOf(item), other: (item.key || item) === "Other" || item === "(no funder listed)", n: c[K.n],
+        trend: byYear && byYear.get(idx) ? seriesFromByYear(byYear.get(idx), metric("oa")) : null };
       for (const m of METRICS) row[m.key] = metricAvailable(d, m.key) ? rate(c, m) : null;
       rows.push(row);
     }
     return rows;
   }
   function dimCols(d, first) {
-    return [{ key: "label", label: first }, { key: "n", label: "Papers", fmt: "int" }]
+    return [{ key: "label", label: first }, { key: "n", label: "Papers", fmt: "int" }, { key: "trend", label: "OA by year", fmt: "spark" }]
       .concat(METRICS.filter((m) => m.key !== "material" && metricAvailable(d, m.key)).map((m) => ({ key: m.key, label: m.short, fmt: "pct", bar: m.key === "oa" })));
   }
   function renderGeo(d) {
     $("country-card").hidden = !d.available.country;
     $("funder-card").hidden = !d.available.funders;
     if (d.available.country) {
-      const rows = dimRows(d, aggregateBy(d, "country"), d.countries, (c) => (c.key === "Other" ? "Other countries" : c.label));
+      const rows = dimRows(d, aggregateBy(d, "country"), d.countries, (c) => (c.key === "Other" ? "Other countries" : c.label), aggregateByYearFor(d, "country"));
       $("country-title").textContent = "First-author countries · " + d.label;
       $("country-sub").textContent = "Top-" + (DATA.top_n.countries || "") + " first-author countries by volume; " + selectionLabel() + (state.slice.kind === "country" ? " (country slice ignored here)" : "") + ". Click a column to sort; full-text columns use audited papers as denominator.";
       renderTable("country-table", dimCols(d, "Country"), rows, { sortable: true, color: discColor(d), name: "countries", barKey: "oa" });
     }
     if (d.available.funders) {
-      const rows = dimRows(d, aggregateBy(d, "funder"), d.funders, (f) => (f === "Other" ? "Other funders" : f));
+      const rows = dimRows(d, aggregateBy(d, "funder"), d.funders, (f) => (f === "Other" ? "Other funders" : f), aggregateByYearFor(d, "funder"));
       $("funder-title").textContent = "Funders · " + d.label;
       $("funder-sub").textContent = "Top-" + (DATA.top_n.funders || "") + " funders by volume (a paper counts once under each listed funder); " + (state.hi ? "high-impact papers" : "all papers") + ", " + state.yearMin + "–" + state.yearMax + ". Journal, country and income slices do not apply here.";
       renderTable("funder-table", dimCols(d, "Funder"), rows, { sortable: true, color: discColor(d), name: "funders", barKey: "oa" });
@@ -1046,6 +1143,7 @@
       sortKey = saved.key; sortDir = saved.dir;
       rows = rows.slice().sort((a, b) => {
         const va = a[sortKey], vb = b[sortKey];
+        if (Array.isArray(va) || Array.isArray(vb)) return 0;
         if (va === null || va === undefined) return 1;
         if (vb === null || vb === undefined) return -1;
         if (typeof va === "string") return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
@@ -1056,7 +1154,7 @@
     const thead = el("thead"), tr = el("tr");
     for (const c of cols) {
       const th = el("th", { scope: "col" });
-      if (o.sortable) {
+      if (o.sortable && c.fmt !== "spark") {
         th.setAttribute("aria-sort", c.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : "none");
         const btn = el("button", { type: "button" }, [el("span", { text: c.label }), el("span", { class: "sort-ind", "aria-hidden": "true" })]);
         btn.addEventListener("click", () => {
@@ -1077,6 +1175,12 @@
       for (const c of cols) {
         const v = r[c.key];
         const fmt = forced || c.fmt;
+        if (fmt === "spark") {
+          const td = el("td", { class: "spark-cell" });
+          if (Array.isArray(v) && v.some((p) => p !== null)) td.append(sparkline(v, o.color));
+          row.append(td);
+          continue;
+        }
         const text = fmt === "pct" ? fmtPct(v) : fmt === "int" ? fmtInt(v) : fmt === "x" ? fmtX(v) : (v === null || v === undefined ? "—" : String(v));
         const td = el("td", { text });
         if (c.bar && typeof v === "number" && o.color) {

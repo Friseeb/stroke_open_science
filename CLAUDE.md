@@ -92,7 +92,14 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   selections (Stroke in Korea, statements 2022–2025, who pays to be read, prize shortlist, full text vs abstract).
   Policy milestones from `configs/policy_events.json` (ICMJE statements 2018, Plan S 2021, OSTP memo 2022, NIH DMS
   2023; shipped as `policy_events`) draw as hairlines with hover detail on the trend and by-year charts (toggle in
-  Trends; labels hidden on half-width charts). Every chart has PNG / SVG download buttons (client-side Plotly). Colours: one validated blue ordinal ramp
+  Trends; labels hidden on half-width charts). Every chart has PNG / SVG download buttons (client-side Plotly).
+- Visual system (2026-10-12 pass): IBM Plex Sans for UI and columns, Source Serif 4 for the page and card titles
+  (the deck's pairing), one type scale (`--fs-*` tokens), one control height; cool-biased neutrals; the selection
+  band is two explicit rows (years presets + custom row on demand, disciplines, papers / focus, slice, quick-view
+  menu, actions). Tufte-style data density: inline SVG sparklines in the overview tiles (replacing meter bars) and a
+  by-year trend column in the journal, country and funder tables; Trends offers a small-multiples layout; the
+  overview's emphasis chart drops the legend (grey series are named in the subtitle). Screenshots for review are
+  taken with puppeteer-core driving the installed Chrome (Chrome's own --screenshot flag misreports phone widths). Colours: one validated blue ordinal ramp
   (darkest = most open) plus a neutral grey for closed / no statement; one fixed colour per discipline;
   dark-mode steps are selected, not flipped. Every chart has a table twin.
 - **One OA definition** (`build_discipline_dashboard.derive_open_access`, text in `OA_DEFINITION`): open =
