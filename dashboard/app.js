@@ -50,8 +50,17 @@
     oaGrouping: "route", dasGrouping: "five", dasDenominator: "audited",
     eqSignal: "route", cmEntity: "institutions", cmMin: 50, cmTop: 15, cmSignals: ["das_deposit", "ft_github", "ft_reg"],
     journalMetric: "oa", journalMin: 100, journalTop: 25,
+    markers: true,
     sort: {},
   };
+  const QUICK_VIEWS = [
+    { label: "Stroke overview", hash: "view=overview&focus=stroke" },
+    { label: "Stroke in Korea", hash: "view=overview&focus=stroke&slice=country:KR" },
+    { label: "What statements say, 2022–2025", hash: "view=das&focus=stroke&years=2022-2025" },
+    { label: "Who pays to be read", hash: "view=equity&focus=stroke&eqSignal=route" },
+    { label: "Prize shortlist", hash: "view=commitment&focus=stroke&cmEntity=institutions&cmMin=100&cmTop=15" },
+    { label: "Full text vs abstract", hash: "view=trends&metric=ft_github&trendCompare=disciplines" },
+  ];
 
   // ------------------------------------------------------------------ utilities
   const $ = (id) => document.getElementById(id);
@@ -202,7 +211,7 @@
 
   // ------------------------------------------------------------------ URL state
   const HASH_KEYS = ["view", "focus", "hi", "metric", "trendCompare", "trendShow", "oaGrouping", "dasGrouping", "dasDenominator",
-    "eqSignal", "cmEntity", "cmMin", "cmTop", "journalMetric", "journalMin", "journalTop"];
+    "eqSignal", "cmEntity", "cmMin", "cmTop", "journalMetric", "journalMin", "journalTop", "markers"];
   function writeHash() {
     const p = new URLSearchParams();
     for (const k of HASH_KEYS) p.set(k, String(state[k]));
@@ -223,6 +232,7 @@
     const yrs = (p.get("years") || "").split("-").map(Number);
     if (yrs.length === 2 && yrs.every((y) => DATA.years.includes(y)) && yrs[0] <= yrs[1]) { state.yearMin = yrs[0]; state.yearMax = yrs[1]; }
     if (p.get("hi") === "true") state.hi = true;
+    if (p.get("markers") === "false") state.markers = false;
     const slice = (p.get("slice") || "").split(":");
     if (slice.length >= 2 && ["journal", "country", "funder", "income"].includes(slice[0])) state.slice = { kind: slice[0], key: slice.slice(1).join(":") };
     for (const k of ["view", "metric", "trendCompare", "trendShow", "oaGrouping", "dasGrouping", "dasDenominator", "eqSignal", "cmEntity", "journalMetric"]) {
@@ -247,6 +257,7 @@
     state.oaGrouping = "route"; state.dasGrouping = "five"; state.dasDenominator = "audited"; state.eqSignal = "route";
     state.cmEntity = "institutions"; state.cmMin = 50; state.cmTop = 15; state.cmSignals = ["das_deposit", "ft_github", "ft_reg"];
     state.journalMetric = "oa"; state.journalMin = 100; state.journalTop = 25;
+    state.markers = true;
   }
 
   function yearPresets() {
@@ -317,6 +328,17 @@
     $("hi-only").onclick = () => setHi(true);
     syncHi();
     $("reset-btn").onclick = () => { resetState(); buildSelection(); buildViewOptions(); showView(state.view); renderAll(); };
+    const quick = $("quick-views");
+    quick.replaceChildren();
+    for (const q of QUICK_VIEWS) {
+      quick.append(el("button", { type: "button", text: q.label, onclick: () => {
+        resetState();
+        const base = new URLSearchParams(); for (const k of HASH_KEYS) base.set(k, String(state[k]));
+        base.set("years", state.yearMin + "-" + state.yearMax); base.set("disc", state.disciplines.join(","));
+        for (const [k, v] of new URLSearchParams(q.hash)) base.set(k, v);
+        location.hash = base.toString();
+      } }));
+    }
     $("download-btn").onclick = downloadCsv;
     $("share-btn").onclick = copyLink;
   }
@@ -437,6 +459,9 @@
     }
     state.journalMetric = fillSelectOptions($("journal-metric"), metricOpts.filter((o) => o.value !== "material"), state.journalMetric);
     bind("journal-metric", "journalMetric"); bind("journal-min", "journalMin", Number); bind("journal-top", "journalTop", Number);
+    const mt = $("markers-toggle");
+    mt.checked = state.markers;
+    mt.onchange = (e) => { state.markers = e.target.checked; renderAll(); };
   }
 
   // ------------------------------------------------------------------ Plotly helpers
@@ -457,13 +482,46 @@
   const tickStep = (id, nYears) => (isNarrow(id) && nYears > 7 ? 2 : 1);
   function plot(id, traces, layout) {
     const div = $(id);
+    const bar = exportBar(div);
     if (!traces.length) {
       Plotly.purge(div);
       div.replaceChildren(el("div", { class: "chart-empty", text: "No data for this selection." }));
+      bar.hidden = true;
       return;
     }
     if (div.querySelector(".chart-empty")) div.replaceChildren();
     Plotly.react(div, traces, layout, PLOT_CONFIG);
+    bar.hidden = false;
+  }
+  /** PNG / SVG download buttons under a chart (Plotly renders them client-side). */
+  function exportBar(div) {
+    let bar = div.nextElementSibling;
+    if (bar && bar.classList.contains("export")) return bar;
+    bar = el("div", { class: "export" });
+    for (const fmt of ["png", "svg"]) {
+      bar.append(el("button", { type: "button", text: fmt.toUpperCase(), title: "Download this chart as " + fmt.toUpperCase(), onclick: () => {
+        const w = div.clientWidth || 1000, h = div.clientHeight || 420;
+        Plotly.downloadImage(div, { format: fmt, width: w, height: h, scale: fmt === "png" ? 2 : 1, filename: div.id + "_" + (DATA ? DATA.run_date : "") });
+      } }));
+    }
+    div.insertAdjacentElement("afterend", bar);
+    return bar;
+  }
+  /** Policy milestones as hairlines with a short label; the full detail is in the label's hover. */
+  function policyMarkers(t, years, categorical, id) {
+    if (!state.markers || !(DATA.policy_events || []).length) return { shapes: [], annotations: [] };
+    const shapes = [], annotations = [];
+    const labels = !(id && isNarrow(id));   // half-width charts keep the hairlines, drop the labels
+    let i = 0;
+    for (const e of DATA.policy_events) {
+      if (!years.includes(e.year)) continue;
+      const x = categorical ? years.indexOf(e.year) - 0.5 : e.year - 0.5;
+      shapes.push({ type: "line", xref: "x", yref: "paper", x0: x, x1: x, y0: 0, y1: 1, line: { color: t.ink3, width: 1 }, layer: "below" });
+      if (labels) annotations.push({ xref: "x", yref: "paper", x, y: 1 - 0.07 * (i % 2), xanchor: "left", yanchor: "top", xshift: 4, text: e.short, showarrow: false,
+        font: { color: t.ink3, size: 10 }, bgcolor: t.surface, opacity: 0.95, hovertext: e.label + (e.detail ? " — " + e.detail : ""), captureevents: true });
+      i++;
+    }
+    return { shapes, annotations };
   }
   function partialYearShapes(t, years, categorical) {
     const partial = (DATA.partial_years || []).filter((y) => years.includes(y));
@@ -506,7 +564,7 @@
       legend: Object.assign(layout.legend, { y: -0.2, traceorder: "normal" }),
       yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", range: [0, 1.0001] }),
       xaxis: Object.assign(layout.xaxis, { type: "category", tickvals: years.filter((y, i) => i % tickStep(opts.id, years.length) === 0).map(String), tickangle: 0 }),
-      shapes: partial.shapes, annotations: partial.annotations, uniformtext: { mode: "hide", minsize: 10 },
+      shapes: partial.shapes.concat(policyMarkers(t, years, true, opts.id).shapes), annotations: partial.annotations.concat(policyMarkers(t, years, true, opts.id).annotations), uniformtext: { mode: "hide", minsize: 10 },
     });
     plot(opts.id, traces, layout);
     const cols = [{ key: "cat", label: "Class" }].concat(years.map((y) => ({ key: "y" + y, label: String(y), fmt: "pct" })));
@@ -587,8 +645,8 @@
     const partial = partialYearShapes(t, years, false);
     Object.assign(layout, { showlegend: traces.length >= 2, hovermode: "x unified", margin: { l: 48, r: 96, t: 20, b: 60 },
       yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }),
-      xaxis: Object.assign(layout.xaxis, { dtick: tickStep("ov-trend-chart", years.length), range: [years[0] - 0.4, years[years.length - 1] + 0.4] }),
-      annotations: ann.concat(partial.annotations), shapes: partial.shapes });
+      xaxis: Object.assign(layout.xaxis, { dtick: tickStep("ov-trend-chart", years.length), range: [years[0] - 0.6, years[years.length - 1] + 0.4] }),
+      annotations: ann.concat(partial.annotations, policyMarkers(t, years, false, "ov-trend-chart").annotations), shapes: partial.shapes.concat(policyMarkers(t, years, false, "ov-trend-chart").shapes) });
     plot("ov-trend-chart", traces, layout);
     $("ov-trend-sub").textContent = d.label + " highlighted; other selected disciplines in grey. " + selectionLabel() + ".";
 
@@ -664,8 +722,8 @@
     const pctFmt = ymax < 0.02 ? ".2%" : ymax < 0.1 ? ".1%" : ".0%";
     Object.assign(layout, { showlegend: traces.length >= 2, hovermode: "x unified", margin: { l: 60, r: series.length <= 2 ? 120 : 24, t: 20, b: 60 },
       yaxis: Object.assign(layout.yaxis, { tickformat: asCount ? ",.0f" : pctFmt, rangemode: "tozero", title: { text: asCount ? m.label + " (papers)" : m.label, font: { color: t.ink3, size: 12 } } }),
-      xaxis: Object.assign(layout.xaxis, { dtick: tickStep("trend-chart", years.length), range: [years[0] - 0.4, years[years.length - 1] + 0.4] }),
-      annotations: ann.concat(partial.annotations), shapes: partial.shapes });
+      xaxis: Object.assign(layout.xaxis, { dtick: tickStep("trend-chart", years.length), range: [years[0] - 0.6, years[years.length - 1] + 0.4] }),
+      annotations: ann.concat(partial.annotations, policyMarkers(t, years, false).annotations), shapes: partial.shapes.concat(policyMarkers(t, years, false).shapes) });
     plot("trend-chart", traces, layout);
     $("trend-title").textContent = m.label + " by year";
     $("trend-sub").textContent = m.definition + " Selection: " + selectionLabel() + ". Points with fewer than " + MIN_N_RATE + " papers are omitted." + (state.trendCompare !== "disciplines" ? " Focus discipline: " + d.label + "." : "");
@@ -1078,6 +1136,7 @@
     dl.append(el("dt", { text: "Commitment index" }), el("dd", { text: "For an institution, journal, funder or first-author country: the mean over the selected verified full-text signals (data deposited or public source in the statement; GitHub mentioned in the full text; trial registration mentioned in the full text) of the entity's rate divided by the discipline-wide rate under the same selection. 1.0 is the discipline average. Only entities with at least the chosen number of audited articles are ranked; small counts are noisy." }));
     dl.append(el("dt", { text: "Income group" }), el("dd", { text: "World Bank classification of the first author's country (high, upper-middle, lower-middle, low), from the pipeline's country-income configuration; unknown when the country is missing or unclassified." }));
     dl.append(el("dt", { text: "High-impact subset" }), el("dd", { text: (DATA.high_impact && DATA.high_impact.description) || "" }));
+    if ((DATA.policy_events || []).length) dl.append(el("dt", { text: "Policy markers" }), el("dd", { text: DATA.policy_events.map((e) => e.year + ": " + e.label).join(". ") + ". Drawn at the start of the year on the trend and by-year charts; hover a label for the detail." }));
     body.append(dl);
     body.append(el("h3", { text: "Corpus" }));
     const ul1 = el("ul");

@@ -63,6 +63,10 @@
         <button type="button" id="share-btn" class="btn btn-ghost" title="Copy a link to this selection">Copy link</button>
         <button type="button" id="download-btn" class="btn">Download CSV</button>
       </div>
+      <div class="filter filter-quick">
+        <span class="filter-label">Quick views</span>
+        <div id="quick-views" class="quick" role="group" aria-label="Quick views"></div>
+      </div>
       <p id="filter-note" class="filter-note" role="status" aria-live="polite"></p>
     </section>
 
@@ -100,6 +104,7 @@
               <label>Metric <select id="metric-select"></select></label>
               <label>Compare <select id="trend-compare"><option value="disciplines">disciplines</option><option value="income">income groups (focus)</option><option value="subset">all vs high-impact (focus)</option></select></label>
               <label>Show <select id="trend-show"><option value="rate">rate</option><option value="count">count</option></select></label>
+              <label class="check"><input type="checkbox" id="markers-toggle"> policy markers</label>
             </div>
           </div>
           <div id="trend-chart" class="chart chart-tall" role="img" aria-label="Trend lines"></div>

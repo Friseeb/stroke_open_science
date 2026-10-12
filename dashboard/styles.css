@@ -134,6 +134,10 @@ select:disabled { opacity: 0.5; cursor: not-allowed; }
 .year-range::before { content: ""; position: absolute; left: 0; right: 0; height: 4px; border-radius: 2px; background: var(--border); }
 .year-range .range-fill { position: absolute; height: 4px; border-radius: 2px; background: var(--accent); }
 
+.filter-quick { grid-column: 1 / -1; }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.quick button { font: inherit; font-size: 13px; color: var(--ink-2); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.quick button:hover { color: var(--ink); border-color: var(--ink-3); }
 .filter-note { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--ink-3); min-height: 1.2em; }
 .filter-note:empty { display: none; }
 
@@ -153,6 +157,11 @@ select:disabled { opacity: 0.5; cursor: not-allowed; }
 .checks { display: inline-flex; gap: 10px; flex-wrap: wrap; }
 .checks label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
 .checks input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.options label.check { color: var(--ink-2); cursor: pointer; }
+.options label.check input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.export { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
+.export button { font: inherit; font-size: 12px; color: var(--ink-3); background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.export button:hover { color: var(--ink); border-color: var(--ink-3); }
 
 /* Hero + tiles */
 .hero { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin: 0 0 12px; display: grid; grid-template-columns: auto 1fr; gap: 8px 28px; align-items: center; }

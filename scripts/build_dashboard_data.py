@@ -568,6 +568,24 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
 # Payload assembly
 # ---------------------------------------------------------------------------
 
+def read_policy_events(root: Path) -> List[Dict[str, Any]]:
+    """Policy milestones drawn as markers on the trend charts (configs/policy_events.json); [] if absent."""
+    path = root / "configs" / "policy_events.json"
+    if not path.exists():
+        return []
+    try:
+        events = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logging.warning("Could not read %s: %s", path, exc)
+        return []
+    out: List[Dict[str, Any]] = []
+    for e in events if isinstance(events, list) else []:
+        if isinstance(e, dict) and isinstance(e.get("year"), int) and e.get("label"):
+            out.append({"year": int(e["year"]), "label": str(e["label"]), "short": str(e.get("short") or e["label"]),
+                        "detail": str(e.get("detail", "")), "scope": str(e.get("scope", ""))})
+    return sorted(out, key=lambda e: e["year"])
+
+
 def read_citation(root: Path) -> Dict[str, str]:
     """Minimal CITATION.cff reader (title, version, date-released, repository-code, license)."""
     path = root / "CITATION.cff"
@@ -649,6 +667,7 @@ def assemble_payload(aggregates: List[Dict[str, Any]], *, run_date: Optional[str
         "high_impact": {"settings": hi_settings, "description": dash.high_impact_description(hi_settings)},
         "corpus_rule": {a["discipline"]: a["corpus_rule"] for a in ordered},
         "citation": citation,
+        "policy_events": read_policy_events(repo_root),
         "repo_url": citation.get("repository-code", "https://github.com/Friseeb/stroke_open_science"),
         "outputs_repo_url": "https://github.com/Friseeb/stroke_open_science_outputs",
         "disciplines": [

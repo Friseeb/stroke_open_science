@@ -88,7 +88,11 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   OA route or any metric by income group, full-text signals by income group), Commitment (index = mean over the
   chosen verified full-text signals of entity rate ÷ discipline rate, 1 = average; entity, min audited, top N),
   Journals (metric, min papers, top N), Countries & funders (sortable tables with full-text columns), Methods.
-  The selection lives in the URL hash, so a link reproduces a view. Colours: one validated blue ordinal ramp
+  The selection lives in the URL hash, so a link reproduces a view. A *Quick views* row applies named
+  selections (Stroke in Korea, statements 2022–2025, who pays to be read, prize shortlist, full text vs abstract).
+  Policy milestones from `configs/policy_events.json` (ICMJE statements 2018, Plan S 2021, OSTP memo 2022, NIH DMS
+  2023; shipped as `policy_events`) draw as hairlines with hover detail on the trend and by-year charts (toggle in
+  Trends; labels hidden on half-width charts). Every chart has PNG / SVG download buttons (client-side Plotly). Colours: one validated blue ordinal ramp
   (darkest = most open) plus a neutral grey for closed / no statement; one fixed colour per discipline;
   dark-mode steps are selected, not flipped. Every chart has a table twin.
 - **One OA definition** (`build_discipline_dashboard.derive_open_access`, text in `OA_DEFINITION`): open =

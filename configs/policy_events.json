@@ -1,0 +1,30 @@
+[
+  {
+    "year": 2018,
+    "label": "ICMJE: data-sharing statement required for trials",
+    "detail": "Manuscripts submitted from 1 July 2018 reporting clinical trials must carry a data-sharing statement (ICMJE, 2017 editorial).",
+    "scope": "journals",
+    "short": "ICMJE statements"
+  },
+  {
+    "year": 2021,
+    "label": "Plan S in force",
+    "detail": "cOAlition S funders require immediate open access for grants from 1 January 2021.",
+    "scope": "funders",
+    "short": "Plan S"
+  },
+  {
+    "year": 2022,
+    "label": "OSTP memo: no embargo for US-funded research",
+    "detail": "US Office of Science and Technology Policy memorandum of 25 August 2022; agencies to implement by end of 2025.",
+    "scope": "funders",
+    "short": "OSTP memo"
+  },
+  {
+    "year": 2023,
+    "label": "NIH Data Management and Sharing Policy",
+    "detail": "In force for NIH applications from 25 January 2023; an approved plan is a term of award.",
+    "scope": "funders",
+    "short": "NIH DMS policy"
+  }
+]
