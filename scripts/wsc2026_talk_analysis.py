@@ -423,6 +423,27 @@ def fig_commitment(table: pd.DataFrame, label_col: str, title: str, out_dir: Pat
     save(fig, out_dir, name)
 
 
+def das_by_discipline(data: pd.DataFrame, tables: Path) -> Optional[Dict[str, object]]:
+    """Cross-discipline data-availability audit: primary category shares and full-text signals."""
+    audited = data[data["das_audited"]]
+    if audited.empty:
+        return None
+    shares = pd.crosstab(audited["discipline"], audited["das_primary"], normalize="index").reindex(columns=DAS_ORDER, fill_value=0.0)
+    rates = audited.groupby("discipline").agg(n_audited=("doi", "size"), das_statement_rate=("das_has_statement", "mean"),
+                                              das_deposit_rate=("das_deposit", "mean"), das_on_request_rate=("das_on_request", "mean"),
+                                              ft_github_rate=("ft_github", "mean"), ft_registration_rate=("ft_registration", "mean"),
+                                              code_abstract_rate=("shares_code", "mean"))
+    table = rates.join(shares.add_prefix("share_"))
+    table = table.reindex([d for d in DISCIPLINES if d in table.index] + [d for d in table.index if d not in DISCIPLINES])
+    table.to_csv(tables / "das_by_discipline.csv")
+    recent = audited[audited["year"] >= 2022]
+    recent_rates = recent.groupby("discipline").agg(n_audited=("doi", "size"), das_statement_rate=("das_has_statement", "mean"),
+                                                    das_deposit_rate=("das_deposit", "mean"), das_on_request_rate=("das_on_request", "mean"),
+                                                    ft_github_rate=("ft_github", "mean"), ft_registration_rate=("ft_registration", "mean"))
+    recent_rates.to_csv(tables / "das_by_discipline_2022_2025.csv")
+    return {"all_years": table.round(4).to_dict(orient="index"), "2022_2025": recent_rates.round(4).to_dict(orient="index")}
+
+
 # ----------------------------------------------------------------------------- equity and commitment
 def equity_outputs(stroke: pd.DataFrame, tables: Path, figures: Path) -> Optional[Dict[str, object]]:
     """Open-access route and full-text sharing signals by first-author income group (stroke)."""
@@ -654,6 +675,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     das_summary = das_outputs(stroke, out / "das_audit")
     if das_summary:
         numbers["stroke_das_audit"] = das_summary
+    das_disc = das_by_discipline(data, tables)
+    if das_disc:
+        numbers["das_by_discipline"] = das_disc
     equity = equity_outputs(stroke, tables, figures)
     if equity:
         numbers["stroke_equity"] = equity
