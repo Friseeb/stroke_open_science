@@ -239,6 +239,30 @@ Notes: Say which items cost nothing (1, 3, 5) and which need money (2, 4, 6).
 Notes: Implementation science closes the loop with measurement. Put the dashboard URL
 and the GitHub repository on the slide.
 
+## 12b. From articles to people, carefully (NEW, one slide before the close)
+
+Companion project: **Author Context Explorer** (`~/Projects/author_analysis`, in development).
+A provenance-first tool that documents, for the authors of one paper, their publication-derived
+expertise, affiliations, funding and disclosure statements, and corrections or retractions,
+with every finding sourced, dated and held as a proposal until a human reviewer confirms it.
+It never labels an author biased or a paper invalid.
+
+- This talk measured practices at the level of articles, journals, funders and institutions.
+  A prize or a task force eventually has to name people and teams. That step needs
+  verified identities (ORCID, OpenAlex), sourced affiliations and declared interests, and a
+  review gate, or recognition turns into surveillance.
+- The same infrastructure answers the mirror question: when an article shares nothing, who
+  funded it and what did they declare? Disclosure and data availability are both
+  transparency practices; the explorer treats them the same way, evidence first, no
+  inferred motive.
+- Design rules carried over to the open-science benchmark: report evidence, not accusations;
+  "no evidence found" is not "nothing exists"; never infer protected attributes from
+  names, institutions or countries; human confirmation before anything attaches to a person.
+
+Notes: One slide, 45 seconds. The point is that measuring open science and documenting author
+context are the same discipline, and both need the same restraint. If asked, the explorer is
+local-first, providers off by default, and not yet public.
+
 ## 13. Close (13:15)
 
 One line. "We measured ourselves. The numbers are not flattering, but they are
