@@ -1,5 +1,7 @@
 {
-  "corpus_rule": "openalex_type_doi_only",
+  "corpus_rule": [
+    "openalex_type_doi_only"
+  ],
   "years": [
     2015,
     2025
@@ -8,113 +10,113 @@
     2025
   ],
   "n_by_discipline": {
-    "cardiology": 127910,
-    "neurology": 123598,
-    "neuroscience": 118653,
-    "stroke": 126267
+    "cardiology": 127843,
+    "neurology": 123555,
+    "neuroscience": 118622,
+    "stroke": 126207
   },
   "overall": {
     "cardiology": {
-      "n": 127910,
+      "n": 127843,
       "oa_rate": 0.7015,
       "code_rate": 0.0006,
       "data_rate": 0.0023,
       "any_sharing_rate": 0.0028,
       "preprint_rate": 0.0006,
-      "high_impact_rate": 0.1524,
-      "n_with_abstract": 89745,
-      "registration_rate": 0.0359,
-      "trial_registry_rate": 0.0281,
+      "high_impact_rate": 0.1439,
+      "n_with_abstract": 89458,
+      "registration_rate": 0.036,
+      "trial_registry_rate": 0.0282,
       "prospero_rate": 0.0074,
       "prereg_wording_rate": 0.0013
     },
     "neurology": {
-      "n": 123598,
-      "oa_rate": 0.6147,
+      "n": 123555,
+      "oa_rate": 0.6148,
       "code_rate": 0.0008,
       "data_rate": 0.0024,
       "any_sharing_rate": 0.003,
       "preprint_rate": 0.001,
-      "high_impact_rate": 0.1462,
-      "n_with_abstract": 86255,
+      "high_impact_rate": 0.1427,
+      "n_with_abstract": 86102,
       "registration_rate": 0.0233,
       "trial_registry_rate": 0.0189,
       "prospero_rate": 0.0038,
       "prereg_wording_rate": 0.0013
     },
     "neuroscience": {
-      "n": 118653,
-      "oa_rate": 0.6014,
+      "n": 118622,
+      "oa_rate": 0.6013,
       "code_rate": 0.0011,
       "data_rate": 0.0034,
       "any_sharing_rate": 0.0041,
       "preprint_rate": 0.0049,
-      "high_impact_rate": 0.1622,
-      "n_with_abstract": 80455,
+      "high_impact_rate": 0.1601,
+      "n_with_abstract": 80251,
       "registration_rate": 0.0112,
-      "trial_registry_rate": 0.0094,
+      "trial_registry_rate": 0.0095,
       "prospero_rate": 0.0012,
       "prereg_wording_rate": 0.0008
     },
     "stroke": {
-      "n": 126267,
+      "n": 126207,
       "oa_rate": 0.6579,
       "code_rate": 0.0007,
       "data_rate": 0.0037,
       "any_sharing_rate": 0.0042,
       "preprint_rate": 0.0012,
-      "high_impact_rate": 0.1728,
-      "n_with_abstract": 94524,
-      "registration_rate": 0.0482,
+      "high_impact_rate": 0.163,
+      "n_with_abstract": 94329,
+      "registration_rate": 0.0483,
       "trial_registry_rate": 0.0384,
       "prospero_rate": 0.0089,
-      "prereg_wording_rate": 0.0023
+      "prereg_wording_rate": 0.0024
     }
   },
   "stroke_first_last_year": {
     "2015": {
-      "oa_rate": 0.5274,
+      "oa_rate": 0.5273,
       "code_rate": 0.0003,
       "data_rate": 0.0022,
       "preprint_rate": 0.0003,
-      "registration_rate": 0.0289
+      "registration_rate": 0.029
     },
     "2024": {
       "oa_rate": 0.7481,
       "code_rate": 0.0006,
       "data_rate": 0.002,
       "preprint_rate": 0.0017,
-      "registration_rate": 0.0596
+      "registration_rate": 0.0597
     }
   },
   "stroke_high_impact_vs_rest": {
     "false": {
-      "n": 104451,
-      "oa_rate": 0.6506,
+      "n": 105639,
+      "oa_rate": 0.6436,
       "code_rate": 0.0007,
-      "data_rate": 0.0034,
-      "any_sharing_rate": 0.0039,
+      "data_rate": 0.0036,
+      "any_sharing_rate": 0.0041,
       "preprint_rate": 0.0011,
       "high_impact_rate": 0.0,
-      "n_with_abstract": 77856,
-      "registration_rate": 0.0395,
-      "trial_registry_rate": 0.0301,
-      "prospero_rate": 0.0084,
-      "prereg_wording_rate": 0.0024
+      "n_with_abstract": 78172,
+      "registration_rate": 0.0375,
+      "trial_registry_rate": 0.0294,
+      "prospero_rate": 0.007,
+      "prereg_wording_rate": 0.0022
     },
     "true": {
-      "n": 21816,
-      "oa_rate": 0.6932,
-      "code_rate": 0.0006,
-      "data_rate": 0.0053,
-      "any_sharing_rate": 0.0056,
+      "n": 20568,
+      "oa_rate": 0.7317,
+      "code_rate": 0.0007,
+      "data_rate": 0.0043,
+      "any_sharing_rate": 0.0046,
       "preprint_rate": 0.0015,
       "high_impact_rate": 1.0,
-      "n_with_abstract": 16668,
-      "registration_rate": 0.0891,
-      "trial_registry_rate": 0.0772,
-      "prospero_rate": 0.0113,
-      "prereg_wording_rate": 0.0023
+      "n_with_abstract": 16157,
+      "registration_rate": 0.1006,
+      "trial_registry_rate": 0.0821,
+      "prospero_rate": 0.018,
+      "prereg_wording_rate": 0.0029
     }
   },
   "stroke_oa_status_overall": [
@@ -123,13 +125,13 @@
       "diamond": 0.1495,
       "gold": 0.2503,
       "hybrid": 0.0935,
-      "green": 0.0659,
+      "green": 0.0658,
       "bronze": 0.0988,
       "closed": 0.3421,
-      "n": 126267
+      "n": 126207
     }
   ],
-  "enrichment_coverage": {
+  "metadata_coverage": {
     "stroke": 1.0,
     "neurology": 1.0,
     "neuroscience": 1.0,
@@ -137,33 +139,33 @@
   },
   "stroke_top_countries": {
     "CN": {
-      "n": 21095,
-      "oa_rate": 0.6356,
+      "n": 21085,
+      "oa_rate": 0.6358,
       "data_rate": 0.0065,
       "code_rate": 0.0005
     },
     "US": {
-      "n": 19228,
-      "oa_rate": 0.5787,
+      "n": 19217,
+      "oa_rate": 0.5789,
       "data_rate": 0.0008,
       "code_rate": 0.0004
     },
     "KR": {
-      "n": 4951,
+      "n": 4950,
       "oa_rate": 0.7465,
       "data_rate": 0.0,
       "code_rate": 0.0002
     },
     "JP": {
-      "n": 4825,
-      "oa_rate": 0.664,
+      "n": 4823,
+      "oa_rate": 0.6639,
       "data_rate": 0.0019,
       "code_rate": 0.0
     },
     "GB": {
-      "n": 4552,
-      "oa_rate": 0.7746,
-      "data_rate": 0.0081,
+      "n": 4545,
+      "oa_rate": 0.7745,
+      "data_rate": 0.0079,
       "code_rate": 0.0004
     },
     "ID": {
@@ -173,41 +175,937 @@
       "code_rate": 0.0009
     },
     "DE": {
-      "n": 3415,
-      "oa_rate": 0.6843,
+      "n": 3414,
+      "oa_rate": 0.6848,
       "data_rate": 0.0026,
       "code_rate": 0.0009
     },
     "CA": {
-      "n": 3362,
-      "oa_rate": 0.5851,
+      "n": 3360,
+      "oa_rate": 0.5848,
       "data_rate": 0.0054,
       "code_rate": 0.0015
     },
     "IN": {
-      "n": 3352,
-      "oa_rate": 0.6909,
+      "n": 3353,
+      "oa_rate": 0.6907,
       "data_rate": 0.0018,
       "code_rate": 0.0003
     },
     "AU": {
-      "n": 3190,
-      "oa_rate": 0.653,
+      "n": 3189,
+      "oa_rate": 0.6532,
       "data_rate": 0.0398,
       "code_rate": 0.0006
     },
     "IT": {
-      "n": 2794,
-      "oa_rate": 0.6217,
+      "n": 2793,
+      "oa_rate": 0.6216,
       "data_rate": 0.0032,
       "code_rate": 0.0029
     },
     "TW": {
-      "n": 2074,
-      "oa_rate": 0.6263,
+      "n": 2071,
+      "oa_rate": 0.6258,
       "data_rate": 0.001,
       "code_rate": 0.0
     }
   },
-  "stroke_funded_share": 0.3402
+  "stroke_funded_share": 0.3401,
+  "stroke_das_audit": {
+    "n_audited": 20515,
+    "n_in_corpus": 126207,
+    "years": [
+      2015,
+      2025
+    ],
+    "has_das_rate": 0.4891,
+    "primary_overall": {
+      "repository": 0.0284,
+      "public_source": 0.0146,
+      "controlled_or_restricted": 0.0612,
+      "on_request": 0.2107,
+      "in_article": 0.0985,
+      "not_available_or_na": 0.0396,
+      "other_or_unclear": 0.0361,
+      "no_statement": 0.5109
+    },
+    "scope_note": "Open-access full text in Europe PMC only; optimistic relative to all stroke articles.",
+    "source": "pipeline DAS audit (search_stroke_dois.py --das-audit-*)"
+  },
+  "das_by_discipline": {
+    "all_years": {
+      "stroke": {
+        "n_audited": 20515,
+        "das_statement_rate": 0.4891,
+        "das_deposit_rate": 0.043,
+        "das_on_request_rate": 0.2107,
+        "ft_github_rate": 0.0142,
+        "ft_registration_rate": 0.1492,
+        "code_abstract_rate": 0.0004,
+        "share_repository": 0.0284,
+        "share_public_source": 0.0146,
+        "share_controlled_or_restricted": 0.0612,
+        "share_on_request": 0.2107,
+        "share_in_article": 0.0985,
+        "share_not_available_or_na": 0.0396,
+        "share_other_or_unclear": 0.0361,
+        "share_no_statement": 0.5109
+      },
+      "neurology": {
+        "n_audited": 19844,
+        "das_statement_rate": 0.4275,
+        "das_deposit_rate": 0.0428,
+        "das_on_request_rate": 0.1692,
+        "ft_github_rate": 0.0233,
+        "ft_registration_rate": 0.1,
+        "code_abstract_rate": 0.0004,
+        "share_repository": 0.0366,
+        "share_public_source": 0.0062,
+        "share_controlled_or_restricted": 0.0574,
+        "share_on_request": 0.1692,
+        "share_in_article": 0.0817,
+        "share_not_available_or_na": 0.0387,
+        "share_other_or_unclear": 0.0377,
+        "share_no_statement": 0.5725
+      },
+      "neuroscience": {
+        "n_audited": 12901,
+        "das_statement_rate": 0.2855,
+        "das_deposit_rate": 0.0536,
+        "das_on_request_rate": 0.0939,
+        "ft_github_rate": 0.0389,
+        "ft_registration_rate": 0.0595,
+        "code_abstract_rate": 0.0009,
+        "share_repository": 0.0495,
+        "share_public_source": 0.0041,
+        "share_controlled_or_restricted": 0.0209,
+        "share_on_request": 0.0939,
+        "share_in_article": 0.0708,
+        "share_not_available_or_na": 0.0168,
+        "share_other_or_unclear": 0.0294,
+        "share_no_statement": 0.7145
+      },
+      "cardiology": {
+        "n_audited": 20402,
+        "das_statement_rate": 0.4429,
+        "das_deposit_rate": 0.0587,
+        "das_on_request_rate": 0.1474,
+        "ft_github_rate": 0.0125,
+        "ft_registration_rate": 0.1337,
+        "code_abstract_rate": 0.0003,
+        "share_repository": 0.0249,
+        "share_public_source": 0.0337,
+        "share_controlled_or_restricted": 0.0705,
+        "share_on_request": 0.1474,
+        "share_in_article": 0.071,
+        "share_not_available_or_na": 0.0536,
+        "share_other_or_unclear": 0.0417,
+        "share_no_statement": 0.5571
+      }
+    },
+    "2022_2025": {
+      "cardiology": {
+        "n_audited": 7980,
+        "das_statement_rate": 0.6099,
+        "das_deposit_rate": 0.1006,
+        "das_on_request_rate": 0.2061,
+        "ft_github_rate": 0.0208,
+        "ft_registration_rate": 0.1395
+      },
+      "neurology": {
+        "n_audited": 7984,
+        "das_statement_rate": 0.6286,
+        "das_deposit_rate": 0.0587,
+        "das_on_request_rate": 0.2625,
+        "ft_github_rate": 0.0369,
+        "ft_registration_rate": 0.1095
+      },
+      "neuroscience": {
+        "n_audited": 812,
+        "das_statement_rate": 0.4323,
+        "das_deposit_rate": 0.0887,
+        "das_on_request_rate": 0.0973,
+        "ft_github_rate": 0.1034,
+        "ft_registration_rate": 0.0727
+      },
+      "stroke": {
+        "n_audited": 7981,
+        "das_statement_rate": 0.6997,
+        "das_deposit_rate": 0.0652,
+        "das_on_request_rate": 0.314,
+        "ft_github_rate": 0.0219,
+        "ft_registration_rate": 0.1767
+      }
+    }
+  },
+  "stroke_equity": {
+    "share_of_corpus": {
+      "high": 0.6317,
+      "upper_middle": 0.3033,
+      "lower_middle": 0.0617,
+      "low": 0.0033
+    },
+    "by_group": {
+      "high": {
+        "n": 68339,
+        "oa_rate": 0.6629,
+        "oa_free_route_rate": 0.1884,
+        "oa_paid_route_rate": 0.3523,
+        "high_impact_rate": 0.1986,
+        "n_audited": 12482,
+        "route_free": 0.1884,
+        "route_paid": 0.3523,
+        "route_other": 0.1223,
+        "route_closed": 0.3371,
+        "das_statement_rate": 0.4531,
+        "das_deposit_rate": 0.0417,
+        "das_repository_rate": 0.0295,
+        "das_public_source_rate": 0.0123,
+        "das_on_request_rate": 0.1875,
+        "ft_github_rate": 0.0188,
+        "ft_registration_rate": 0.1552
+      },
+      "upper_middle": {
+        "n": 32810,
+        "oa_rate": 0.6863,
+        "oa_free_route_rate": 0.2026,
+        "oa_paid_route_rate": 0.4277,
+        "high_impact_rate": 0.1735,
+        "n_audited": 6322,
+        "route_free": 0.2026,
+        "route_paid": 0.4277,
+        "route_other": 0.056,
+        "route_closed": 0.3137,
+        "das_statement_rate": 0.596,
+        "das_deposit_rate": 0.05,
+        "das_repository_rate": 0.0294,
+        "das_public_source_rate": 0.0206,
+        "das_on_request_rate": 0.2725,
+        "ft_github_rate": 0.0084,
+        "ft_registration_rate": 0.1534
+      },
+      "lower_middle": {
+        "n": 6673,
+        "oa_rate": 0.7419,
+        "oa_free_route_rate": 0.4192,
+        "oa_paid_route_rate": 0.2368,
+        "high_impact_rate": 0.0724,
+        "n_audited": 723,
+        "route_free": 0.4192,
+        "route_paid": 0.2368,
+        "route_other": 0.086,
+        "route_closed": 0.2581,
+        "das_statement_rate": 0.2739,
+        "das_deposit_rate": 0.0263,
+        "das_repository_rate": 0.018,
+        "das_public_source_rate": 0.0083,
+        "das_on_request_rate": 0.1024,
+        "ft_github_rate": 0.0014,
+        "ft_registration_rate": 0.0678
+      },
+      "low": {
+        "n": 355,
+        "oa_rate": 0.862,
+        "oa_free_route_rate": 0.2873,
+        "oa_paid_route_rate": 0.5465,
+        "high_impact_rate": 0.1127,
+        "n_audited": 96,
+        "route_free": 0.2873,
+        "route_paid": 0.5465,
+        "route_other": 0.0282,
+        "route_closed": 0.138,
+        "das_statement_rate": 0.7292,
+        "das_deposit_rate": 0.0104,
+        "das_repository_rate": 0.0104,
+        "das_public_source_rate": 0.0,
+        "das_on_request_rate": 0.4062,
+        "ft_github_rate": 0.0,
+        "ft_registration_rate": 0.1042
+      }
+    }
+  },
+  "stroke_commitment": {
+    "min_n_audited": 30,
+    "n_audited": 20515,
+    "institutions_top": {
+      "Massachusetts Institute of Technology": {
+        "n_audited": 33,
+        "das_statement_rate": 0.8182,
+        "das_deposit_rate": 0.3333,
+        "das_repository_rate": 0.303,
+        "das_on_request_rate": 0.3939,
+        "ft_github_rate": 0.303,
+        "ft_registration_rate": 0.3636,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 10.49
+      },
+      "Universitat Pompeu Fabra": {
+        "n_audited": 36,
+        "das_statement_rate": 0.5556,
+        "das_deposit_rate": 0.3611,
+        "das_repository_rate": 0.3611,
+        "das_on_request_rate": 0.0,
+        "ft_github_rate": 0.2222,
+        "ft_registration_rate": 0.1944,
+        "oa_free_route_rate": 0.1111,
+        "commitment_index": 8.44
+      },
+      "Institut f\u00fcr Schlaganfall- und Demenzforschung": {
+        "n_audited": 69,
+        "das_statement_rate": 0.5072,
+        "das_deposit_rate": 0.2319,
+        "das_repository_rate": 0.1739,
+        "das_on_request_rate": 0.1594,
+        "ft_github_rate": 0.2319,
+        "ft_registration_rate": 0.2319,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 7.75
+      },
+      "University of Padua": {
+        "n_audited": 98,
+        "das_statement_rate": 0.5816,
+        "das_deposit_rate": 0.2143,
+        "das_repository_rate": 0.2143,
+        "das_on_request_rate": 0.1939,
+        "ft_github_rate": 0.2143,
+        "ft_registration_rate": 0.051,
+        "oa_free_route_rate": 0.051,
+        "commitment_index": 6.79
+      },
+      "University of Southern California": {
+        "n_audited": 226,
+        "das_statement_rate": 0.6239,
+        "das_deposit_rate": 0.2035,
+        "das_repository_rate": 0.146,
+        "das_on_request_rate": 0.2566,
+        "ft_github_rate": 0.2035,
+        "ft_registration_rate": 0.177,
+        "oa_free_route_rate": 0.0531,
+        "commitment_index": 6.74
+      },
+      "University of Rochester": {
+        "n_audited": 43,
+        "das_statement_rate": 0.5581,
+        "das_deposit_rate": 0.1163,
+        "das_repository_rate": 0.1163,
+        "das_on_request_rate": 0.2326,
+        "ft_github_rate": 0.2093,
+        "ft_registration_rate": 0.1395,
+        "oa_free_route_rate": 0.0698,
+        "commitment_index": 6.11
+      },
+      "University of Exeter": {
+        "n_audited": 86,
+        "das_statement_rate": 0.6163,
+        "das_deposit_rate": 0.1395,
+        "das_repository_rate": 0.1279,
+        "das_on_request_rate": 0.0349,
+        "ft_github_rate": 0.1744,
+        "ft_registration_rate": 0.3256,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 5.89
+      },
+      "Yale University": {
+        "n_audited": 188,
+        "das_statement_rate": 0.5213,
+        "das_deposit_rate": 0.2447,
+        "das_repository_rate": 0.1064,
+        "das_on_request_rate": 0.1596,
+        "ft_github_rate": 0.1436,
+        "ft_registration_rate": 0.1489,
+        "oa_free_route_rate": 0.0426,
+        "commitment_index": 5.59
+      },
+      "Guangdong Medical College": {
+        "n_audited": 96,
+        "das_statement_rate": 0.6875,
+        "das_deposit_rate": 0.3021,
+        "das_repository_rate": 0.0417,
+        "das_on_request_rate": 0.1354,
+        "ft_github_rate": 0.1354,
+        "ft_registration_rate": 0.0312,
+        "oa_free_route_rate": 0.1562,
+        "commitment_index": 5.58
+      },
+      "University of Rochester Medicine": {
+        "n_audited": 74,
+        "das_statement_rate": 0.5405,
+        "das_deposit_rate": 0.0405,
+        "das_repository_rate": 0.0405,
+        "das_on_request_rate": 0.2432,
+        "ft_github_rate": 0.2162,
+        "ft_registration_rate": 0.0811,
+        "oa_free_route_rate": 0.0405,
+        "commitment_index": 5.56
+      },
+      "IRCCS San Camillo Hospital": {
+        "n_audited": 57,
+        "das_statement_rate": 0.4035,
+        "das_deposit_rate": 0.1579,
+        "das_repository_rate": 0.1579,
+        "das_on_request_rate": 0.1754,
+        "ft_github_rate": 0.1579,
+        "ft_registration_rate": 0.2105,
+        "oa_free_route_rate": 0.0877,
+        "commitment_index": 5.39
+      },
+      "University of South Carolina": {
+        "n_audited": 197,
+        "das_statement_rate": 0.731,
+        "das_deposit_rate": 0.132,
+        "das_repository_rate": 0.1015,
+        "das_on_request_rate": 0.3503,
+        "ft_github_rate": 0.1777,
+        "ft_registration_rate": 0.0609,
+        "oa_free_route_rate": 0.0964,
+        "commitment_index": 5.32
+      },
+      "Georgetown University": {
+        "n_audited": 36,
+        "das_statement_rate": 0.5278,
+        "das_deposit_rate": 0.2222,
+        "das_repository_rate": 0.2222,
+        "das_on_request_rate": 0.1944,
+        "ft_github_rate": 0.1389,
+        "ft_registration_rate": 0.1389,
+        "oa_free_route_rate": 0.0833,
+        "commitment_index": 5.29
+      },
+      "Oregon Health & Science University": {
+        "n_audited": 55,
+        "das_statement_rate": 0.4182,
+        "das_deposit_rate": 0.1636,
+        "das_repository_rate": 0.1636,
+        "das_on_request_rate": 0.2182,
+        "ft_github_rate": 0.1636,
+        "ft_registration_rate": 0.0727,
+        "oa_free_route_rate": 0.1455,
+        "commitment_index": 5.26
+      },
+      "Boston University": {
+        "n_audited": 142,
+        "das_statement_rate": 0.5,
+        "das_deposit_rate": 0.1901,
+        "das_repository_rate": 0.169,
+        "das_on_request_rate": 0.169,
+        "ft_github_rate": 0.1338,
+        "ft_registration_rate": 0.162,
+        "oa_free_route_rate": 0.0141,
+        "commitment_index": 4.97
+      }
+    },
+    "journals_top": {
+      "brain communications": {
+        "n_audited": 47,
+        "das_statement_rate": 0.9574,
+        "das_deposit_rate": 0.2766,
+        "das_repository_rate": 0.2553,
+        "das_on_request_rate": 0.3617,
+        "ft_github_rate": 0.234,
+        "ft_registration_rate": 0.1064,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 7.86
+      },
+      "peerj": {
+        "n_audited": 37,
+        "das_statement_rate": 1.0,
+        "das_deposit_rate": 0.8378,
+        "das_repository_rate": 0.8378,
+        "das_on_request_rate": 0.0,
+        "ft_github_rate": 0.0541,
+        "ft_registration_rate": 0.027,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 7.82
+      },
+      "nature communications": {
+        "n_audited": 32,
+        "das_statement_rate": 0.9375,
+        "das_deposit_rate": 0.4688,
+        "das_repository_rate": 0.4375,
+        "das_on_request_rate": 0.2812,
+        "ft_github_rate": 0.1562,
+        "ft_registration_rate": 0.0625,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 7.43
+      },
+      "neuroimage clinical": {
+        "n_audited": 123,
+        "das_statement_rate": 0.2439,
+        "das_deposit_rate": 0.0569,
+        "das_repository_rate": 0.0488,
+        "das_on_request_rate": 0.1463,
+        "ft_github_rate": 0.1382,
+        "ft_registration_rate": 0.0569,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 3.81
+      },
+      "sensors": {
+        "n_audited": 120,
+        "das_statement_rate": 0.5583,
+        "das_deposit_rate": 0.0583,
+        "das_repository_rate": 0.05,
+        "das_on_request_rate": 0.2,
+        "ft_github_rate": 0.1083,
+        "ft_registration_rate": 0.05,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 3.1
+      },
+      "european journal of medical research": {
+        "n_audited": 35,
+        "das_statement_rate": 1.0,
+        "das_deposit_rate": 0.2,
+        "das_repository_rate": 0.1143,
+        "das_on_request_rate": 0.3429,
+        "ft_github_rate": 0.0571,
+        "ft_registration_rate": 0.0571,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 3.02
+      },
+      "journal of cerebral blood flow & metabolism": {
+        "n_audited": 49,
+        "das_statement_rate": 0.1633,
+        "das_deposit_rate": 0.0612,
+        "das_repository_rate": 0.0612,
+        "das_on_request_rate": 0.102,
+        "ft_github_rate": 0.0816,
+        "ft_registration_rate": 0.0612,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 2.52
+      },
+      "trials": {
+        "n_audited": 133,
+        "das_statement_rate": 0.7444,
+        "das_deposit_rate": 0.0602,
+        "das_repository_rate": 0.0301,
+        "das_on_request_rate": 0.2256,
+        "ft_github_rate": 0.0075,
+        "ft_registration_rate": 0.797,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 2.42
+      },
+      "diagnostics": {
+        "n_audited": 57,
+        "das_statement_rate": 0.7544,
+        "das_deposit_rate": 0.0702,
+        "das_repository_rate": 0.0526,
+        "das_on_request_rate": 0.3158,
+        "ft_github_rate": 0.0526,
+        "ft_registration_rate": 0.0702,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 1.93
+      },
+      "scientific reports": {
+        "n_audited": 654,
+        "das_statement_rate": 0.6269,
+        "das_deposit_rate": 0.0994,
+        "das_repository_rate": 0.0596,
+        "das_on_request_rate": 0.3425,
+        "ft_github_rate": 0.0352,
+        "ft_registration_rate": 0.13,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 1.88
+      },
+      "plos one": {
+        "n_audited": 880,
+        "das_statement_rate": 0.9943,
+        "das_deposit_rate": 0.1591,
+        "das_repository_rate": 0.1114,
+        "das_on_request_rate": 0.0182,
+        "ft_github_rate": 0.0136,
+        "ft_registration_rate": 0.1364,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 1.86
+      },
+      "bmc public health": {
+        "n_audited": 78,
+        "das_statement_rate": 0.8974,
+        "das_deposit_rate": 0.2051,
+        "das_repository_rate": 0.0256,
+        "das_on_request_rate": 0.359,
+        "ft_github_rate": 0.0,
+        "ft_registration_rate": 0.1026,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 1.82
+      },
+      "frontiers in stroke": {
+        "n_audited": 43,
+        "das_statement_rate": 0.7907,
+        "das_deposit_rate": 0.1163,
+        "das_repository_rate": 0.0233,
+        "das_on_request_rate": 0.3256,
+        "ft_github_rate": 0.0233,
+        "ft_registration_rate": 0.1163,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 1.71
+      },
+      "frontiers in public health": {
+        "n_audited": 61,
+        "das_statement_rate": 0.9508,
+        "das_deposit_rate": 0.1475,
+        "das_repository_rate": 0.0328,
+        "das_on_request_rate": 0.4426,
+        "ft_github_rate": 0.0164,
+        "ft_registration_rate": 0.0656,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 1.67
+      },
+      "frontiers in immunology": {
+        "n_audited": 68,
+        "das_statement_rate": 0.6029,
+        "das_deposit_rate": 0.1471,
+        "das_repository_rate": 0.1324,
+        "das_on_request_rate": 0.1471,
+        "ft_github_rate": 0.0147,
+        "ft_registration_rate": 0.0735,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 1.65
+      }
+    },
+    "countries_top": {
+      "BE": {
+        "n_audited": 96,
+        "das_statement_rate": 0.6146,
+        "das_deposit_rate": 0.0833,
+        "das_repository_rate": 0.0729,
+        "das_on_request_rate": 0.3333,
+        "ft_github_rate": 0.0625,
+        "ft_registration_rate": 0.25,
+        "oa_free_route_rate": 0.0729,
+        "commitment_index": 2.67
+      },
+      "RU": {
+        "n_audited": 53,
+        "das_statement_rate": 0.4528,
+        "das_deposit_rate": 0.0755,
+        "das_repository_rate": 0.0377,
+        "das_on_request_rate": 0.2453,
+        "ft_github_rate": 0.0566,
+        "ft_registration_rate": 0.0943,
+        "oa_free_route_rate": 0.0566,
+        "commitment_index": 2.12
+      },
+      "IE": {
+        "n_audited": 68,
+        "das_statement_rate": 0.5588,
+        "das_deposit_rate": 0.1912,
+        "das_repository_rate": 0.1618,
+        "das_on_request_rate": 0.1765,
+        "ft_github_rate": 0.0,
+        "ft_registration_rate": 0.2794,
+        "oa_free_route_rate": 0.0882,
+        "commitment_index": 2.11
+      },
+      "DE": {
+        "n_audited": 843,
+        "das_statement_rate": 0.5765,
+        "das_deposit_rate": 0.0676,
+        "das_repository_rate": 0.0629,
+        "das_on_request_rate": 0.274,
+        "ft_github_rate": 0.0474,
+        "ft_registration_rate": 0.1708,
+        "oa_free_route_rate": 0.0273,
+        "commitment_index": 2.02
+      },
+      "GB": {
+        "n_audited": 1146,
+        "das_statement_rate": 0.4634,
+        "das_deposit_rate": 0.062,
+        "das_repository_rate": 0.0428,
+        "das_on_request_rate": 0.1274,
+        "ft_github_rate": 0.0279,
+        "ft_registration_rate": 0.2356,
+        "oa_free_route_rate": 0.0646,
+        "commitment_index": 1.66
+      },
+      "FI": {
+        "n_audited": 82,
+        "das_statement_rate": 0.622,
+        "das_deposit_rate": 0.0488,
+        "das_repository_rate": 0.0244,
+        "das_on_request_rate": 0.2439,
+        "ft_github_rate": 0.0366,
+        "ft_registration_rate": 0.1707,
+        "oa_free_route_rate": 0.0122,
+        "commitment_index": 1.62
+      },
+      "FR": {
+        "n_audited": 277,
+        "das_statement_rate": 0.5126,
+        "das_deposit_rate": 0.0361,
+        "das_repository_rate": 0.0325,
+        "das_on_request_rate": 0.213,
+        "ft_github_rate": 0.0289,
+        "ft_registration_rate": 0.2816,
+        "oa_free_route_rate": 0.0469,
+        "commitment_index": 1.59
+      },
+      "ES": {
+        "n_audited": 341,
+        "das_statement_rate": 0.5484,
+        "das_deposit_rate": 0.0411,
+        "das_repository_rate": 0.0411,
+        "das_on_request_rate": 0.2287,
+        "ft_github_rate": 0.0235,
+        "ft_registration_rate": 0.2258,
+        "oa_free_route_rate": 0.044,
+        "commitment_index": 1.37
+      },
+      "MX": {
+        "n_audited": 36,
+        "das_statement_rate": 0.5,
+        "das_deposit_rate": 0.0278,
+        "das_repository_rate": 0.0278,
+        "das_on_request_rate": 0.1944,
+        "ft_github_rate": 0.0278,
+        "ft_registration_rate": 0.2222,
+        "oa_free_route_rate": 0.0833,
+        "commitment_index": 1.36
+      },
+      "CH": {
+        "n_audited": 232,
+        "das_statement_rate": 0.556,
+        "das_deposit_rate": 0.0388,
+        "das_repository_rate": 0.0388,
+        "das_on_request_rate": 0.2284,
+        "ft_github_rate": 0.0172,
+        "ft_registration_rate": 0.2845,
+        "oa_free_route_rate": 0.0345,
+        "commitment_index": 1.34
+      },
+      "AU": {
+        "n_audited": 526,
+        "das_statement_rate": 0.538,
+        "das_deposit_rate": 0.0437,
+        "das_repository_rate": 0.0361,
+        "das_on_request_rate": 0.2148,
+        "ft_github_rate": 0.0285,
+        "ft_registration_rate": 0.1445,
+        "oa_free_route_rate": 0.0361,
+        "commitment_index": 1.33
+      },
+      "US": {
+        "n_audited": 2492,
+        "das_statement_rate": 0.3921,
+        "das_deposit_rate": 0.0518,
+        "das_repository_rate": 0.0353,
+        "das_on_request_rate": 0.1681,
+        "ft_github_rate": 0.0249,
+        "ft_registration_rate": 0.1453,
+        "oa_free_route_rate": 0.1437,
+        "commitment_index": 1.31
+      },
+      "NL": {
+        "n_audited": 408,
+        "das_statement_rate": 0.5441,
+        "das_deposit_rate": 0.0294,
+        "das_repository_rate": 0.0221,
+        "das_on_request_rate": 0.2206,
+        "ft_github_rate": 0.0294,
+        "ft_registration_rate": 0.1495,
+        "oa_free_route_rate": 0.027,
+        "commitment_index": 1.25
+      },
+      "TW": {
+        "n_audited": 563,
+        "das_statement_rate": 0.5169,
+        "das_deposit_rate": 0.087,
+        "das_repository_rate": 0.0266,
+        "das_on_request_rate": 0.2025,
+        "ft_github_rate": 0.0053,
+        "ft_registration_rate": 0.1261,
+        "oa_free_route_rate": 0.0817,
+        "commitment_index": 1.08
+      },
+      "CN": {
+        "n_audited": 5146,
+        "das_statement_rate": 0.6397,
+        "das_deposit_rate": 0.0556,
+        "das_repository_rate": 0.0323,
+        "das_on_request_rate": 0.2938,
+        "ft_github_rate": 0.0097,
+        "ft_registration_rate": 0.1712,
+        "oa_free_route_rate": 0.067,
+        "commitment_index": 1.04
+      }
+    },
+    "funders_top": {
+      "National Institute on Deafness and Other Communication Disorders": {
+        "n_audited": 59,
+        "das_statement_rate": 0.5424,
+        "das_deposit_rate": 0.2373,
+        "das_repository_rate": 0.2034,
+        "das_on_request_rate": 0.2203,
+        "ft_github_rate": 0.2373,
+        "ft_registration_rate": 0.1186,
+        "oa_free_route_rate": 0.0508,
+        "commitment_index": 7.66
+      },
+      "National Institute of Biomedical Imaging and Bioengineering": {
+        "n_audited": 58,
+        "das_statement_rate": 0.4483,
+        "das_deposit_rate": 0.1552,
+        "das_repository_rate": 0.1552,
+        "das_on_request_rate": 0.1724,
+        "ft_github_rate": 0.1897,
+        "ft_registration_rate": 0.1207,
+        "oa_free_route_rate": 0.0172,
+        "commitment_index": 5.91
+      },
+      "H2020 European Research Council": {
+        "n_audited": 30,
+        "das_statement_rate": 0.6667,
+        "das_deposit_rate": 0.2,
+        "das_repository_rate": 0.2,
+        "das_on_request_rate": 0.2667,
+        "ft_github_rate": 0.1667,
+        "ft_registration_rate": 0.1333,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 5.75
+      },
+      "National Institute of Mental Health": {
+        "n_audited": 57,
+        "das_statement_rate": 0.5263,
+        "das_deposit_rate": 0.2105,
+        "das_repository_rate": 0.2105,
+        "das_on_request_rate": 0.0877,
+        "ft_github_rate": 0.1579,
+        "ft_registration_rate": 0.1754,
+        "oa_free_route_rate": 0.0351,
+        "commitment_index": 5.72
+      },
+      "Center for Stroke Research Berlin": {
+        "n_audited": 38,
+        "das_statement_rate": 0.5526,
+        "das_deposit_rate": 0.1842,
+        "das_repository_rate": 0.1842,
+        "das_on_request_rate": 0.1579,
+        "ft_github_rate": 0.1316,
+        "ft_registration_rate": 0.5263,
+        "oa_free_route_rate": 0.0263,
+        "commitment_index": 5.69
+      },
+      "Seventh Framework Programme": {
+        "n_audited": 37,
+        "das_statement_rate": 0.4054,
+        "das_deposit_rate": 0.1351,
+        "das_repository_rate": 0.0811,
+        "das_on_request_rate": 0.1351,
+        "ft_github_rate": 0.1622,
+        "ft_registration_rate": 0.2432,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 5.39
+      },
+      "Agence Nationale de la Recherche": {
+        "n_audited": 81,
+        "das_statement_rate": 0.6173,
+        "das_deposit_rate": 0.1358,
+        "das_repository_rate": 0.1358,
+        "das_on_request_rate": 0.2469,
+        "ft_github_rate": 0.1235,
+        "ft_registration_rate": 0.321,
+        "oa_free_route_rate": 0.0247,
+        "commitment_index": 4.66
+      },
+      "Horizon 2020 Framework Programme": {
+        "n_audited": 64,
+        "das_statement_rate": 0.625,
+        "das_deposit_rate": 0.125,
+        "das_repository_rate": 0.125,
+        "das_on_request_rate": 0.2969,
+        "ft_github_rate": 0.125,
+        "ft_registration_rate": 0.2188,
+        "oa_free_route_rate": 0.0,
+        "commitment_index": 4.39
+      },
+      "U.S. Department of Health and Human Services": {
+        "n_audited": 52,
+        "das_statement_rate": 0.6731,
+        "das_deposit_rate": 0.25,
+        "das_repository_rate": 0.2115,
+        "das_on_request_rate": 0.2115,
+        "ft_github_rate": 0.0962,
+        "ft_registration_rate": 0.0769,
+        "oa_free_route_rate": 0.0192,
+        "commitment_index": 4.36
+      },
+      "National Human Genome Research Institute": {
+        "n_audited": 33,
+        "das_statement_rate": 0.4242,
+        "das_deposit_rate": 0.2121,
+        "das_repository_rate": 0.1818,
+        "das_on_request_rate": 0.0909,
+        "ft_github_rate": 0.0909,
+        "ft_registration_rate": 0.1515,
+        "oa_free_route_rate": 0.0606,
+        "commitment_index": 4.11
+      },
+      "Bundesministerium f\u00fcr Bildung und Forschung": {
+        "n_audited": 125,
+        "das_statement_rate": 0.576,
+        "das_deposit_rate": 0.152,
+        "das_repository_rate": 0.136,
+        "das_on_request_rate": 0.168,
+        "ft_github_rate": 0.088,
+        "ft_registration_rate": 0.304,
+        "oa_free_route_rate": 0.032,
+        "commitment_index": 3.92
+      },
+      "University of Oxford": {
+        "n_audited": 44,
+        "das_statement_rate": 0.6136,
+        "das_deposit_rate": 0.2955,
+        "das_repository_rate": 0.1136,
+        "das_on_request_rate": 0.1591,
+        "ft_github_rate": 0.0455,
+        "ft_registration_rate": 0.25,
+        "oa_free_route_rate": 0.0682,
+        "commitment_index": 3.91
+      },
+      "Cancer Research UK": {
+        "n_audited": 44,
+        "das_statement_rate": 0.6364,
+        "das_deposit_rate": 0.3182,
+        "das_repository_rate": 0.1136,
+        "das_on_request_rate": 0.0227,
+        "ft_github_rate": 0.0455,
+        "ft_registration_rate": 0.0909,
+        "oa_free_route_rate": 0.0682,
+        "commitment_index": 3.73
+      },
+      "Novo Nordisk": {
+        "n_audited": 55,
+        "das_statement_rate": 0.7273,
+        "das_deposit_rate": 0.1636,
+        "das_repository_rate": 0.0545,
+        "das_on_request_rate": 0.2,
+        "ft_github_rate": 0.0545,
+        "ft_registration_rate": 0.2909,
+        "oa_free_route_rate": 0.0545,
+        "commitment_index": 3.2
+      },
+      "Deutsche Forschungsgemeinschaft": {
+        "n_audited": 261,
+        "das_statement_rate": 0.5977,
+        "das_deposit_rate": 0.0996,
+        "das_repository_rate": 0.0881,
+        "das_on_request_rate": 0.2835,
+        "ft_github_rate": 0.0881,
+        "ft_registration_rate": 0.1571,
+        "oa_free_route_rate": 0.0153,
+        "commitment_index": 3.19
+      }
+    },
+    "baseline_rates": {
+      "das_deposit_rate": 0.043,
+      "ft_github_rate": 0.0142,
+      "ft_registration_rate": 0.1492
+    },
+    "fulltext_vs_abstract": {
+      "code_abstract_rate": 0.0004,
+      "code_fulltext_github_rate": 0.0142,
+      "registration_abstract_rate": 0.0787,
+      "registration_fulltext_rate": 0.1492
+    }
+  }
 }
