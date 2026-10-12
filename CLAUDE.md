@@ -189,6 +189,31 @@ python scripts/run_discipline_benchmark.py --disciplines stroke --force --skip-d
   --disable-dataset-search --backfill-openalex-metadata --das-audit-sample-per-year 1500
 ```
 
+## Refresh model: refresh what changes, accumulate what does not
+
+A benchmark run is **not** a rebuild from scratch, and should never be treated as one. The stages differ in
+how they age and in what they cost, and the workflow is organised around that:
+
+| Stage | Ages? | Cost per discipline | Treatment |
+|---|---|---|---|
+| OpenAlex retrieval (records, OA status, citations, metadata) | Yes: OA status flips when embargoes end, citations accrue, indexing lags | ~30 min, ~$0.50 of OpenAlex credit (daily $1 free allowance first, then prepaid credit) | **Re-pulled fully every run.** A current snapshot is the point of the benchmark, and a full pull is cheaper and simpler than an incremental merge. Completed slices are cached in the Actions cache so an interrupted job resumes. |
+| Europe PMC data-availability audit (full-text fetch + classification) | No: a published article's statement does not change | ~1.5 h cold, minutes warm | **Accumulated forever** in `das_cache.jsonl`. Only articles not yet fetched are fetched; the per-year sample is deterministic (seed + corpus), so new runs mostly hit the cache and only audit the newest year's articles. |
+| API enrichment (Unpaywall, Zenodo, OSF, GitHub, dataset repos) | Rarely | up to ~1 h cold | **Accumulated** in `enrich_cache.json`. |
+| OpenAlex metadata backfill | n/a for new retrievals (captured at retrieval) | free when cached | `openalex_metadata_cache.jsonl`, only for legacy frames. |
+| Dashboard, high-impact subset, exports | derived | minutes | Recomputed from the frames every run. |
+
+Where the accumulated caches live, in order of preference:
+1. **Actions cache** (`stage-caches-v1-<discipline>-...`, restored by prefix): fast path between consecutive runs.
+2. **Outputs repo release `caches`** (`<discipline>-caches.tar.gz`, one rolling release, replaced after every real run,
+   skipped for smoke tests and dry runs): survives Actions-cache expiry and lets a local run seed CI. The first seed
+   (2026-10-12) came from the local talk run: 2,000 audited articles per year per discipline.
+3. **Local `data/<discipline>/`**: the same files; copy or symlink them to seed a local run.
+
+Consequences: a six-monthly run costs about $2 and two to three hours of runner time in total; a re-dispatch after a
+timeout resumes rather than repeats; and the full-text audit grows monotonically into a census over time. The one
+thing that is deliberately redone is retrieval, because that is where the data actually changes. Nothing in the
+pipeline needs the previous run's frames; it needs the caches.
+
 ## Output schema (key columns)
 | Column | Type | Description |
 |--------|------|-------------|

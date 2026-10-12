@@ -117,6 +117,18 @@ in article, not available, other, no statement). Only the open-access subset has
 those rates are optimistic relative to the whole corpus. `--das-audit-refetch-empty` re-fetches
 cached articles that yielded no statement after an extractor change.
 
+## Refresh, not rebuild
+
+Each run re-pulls OpenAlex in full (about 30 minutes and $0.50 per discipline) because open-access
+status and citation counts change over time, and that snapshot is the benchmark. Everything
+expensive and stable is accumulated instead: the Europe PMC data-availability audit
+(`das_cache.jsonl`), API enrichment (`enrich_cache.json`) and the metadata backfill
+(`openalex_metadata_cache.jsonl`). The workflow keeps them in the Actions cache and, as a durable
+fallback, in the rolling `caches` release of the outputs repo, which every run seeds from on a cold
+cache and republishes afterwards. A six-monthly run therefore costs a couple of dollars and a few
+hours, resumes after a timeout, and audits only the articles it has not seen before.
+See `CLAUDE.md` for the stage-by-stage table.
+
 ## Output files
 
 Each discipline run produces these files under `data/{discipline}/`:

@@ -91,6 +91,22 @@ jobs:
           restore-keys: |
             stage-caches-v1-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-
 
+      # First run on a cold Actions cache (or an expired one): seed the same three files from the rolling
+      # "caches" release in the outputs repo, published by the previous real run (and, initially, from a
+      # local run). --skip-old-files keeps anything the Actions cache already restored.
+      - name: Seed caches from the outputs repo release
+        env:
+          GH_TOKEN: ${{ secrets.OUTPUTS_REPO_PAT }}
+        run: |
+          mkdir -p "data/benchmarks/${{ matrix.discipline }}"
+          if gh release download caches --repo Friseeb/stroke_open_science_outputs \
+               --pattern "${{ matrix.discipline }}-caches.tar.gz" --dir /tmp --clobber 2>/dev/null; then
+            tar --skip-old-files -xzf "/tmp/${{ matrix.discipline }}-caches.tar.gz" -C "data/benchmarks/${{ matrix.discipline }}"
+            echo "Seeded caches for ${{ matrix.discipline }}:"; ls -la "data/benchmarks/${{ matrix.discipline }}"
+          else
+            echo "No published caches for ${{ matrix.discipline }}; starting cold."
+          fi
+
       - name: Write .env from secrets
         run: |
           cat > .env <<'ENVEOF'
@@ -134,6 +150,24 @@ jobs:
             data/benchmarks/${{ matrix.discipline }}/openalex_metadata_cache.jsonl
             data/benchmarks/${{ matrix.discipline }}/das_cache.jsonl
           key: ${{ steps.restore-caches.outputs.cache-primary-key }}
+
+      # Publish the (possibly partial) caches so the next run, scheduled or re-dispatched, resumes from
+      # them even when the Actions cache has expired. Skipped for smoke tests and dry runs so a tiny
+      # run never overwrites a good seed.
+      - name: Publish caches to the outputs repo release
+        if: always() && github.event.inputs.dry_run != 'true' && (github.event.inputs.max_per_query || '0') == '0'
+        env:
+          GH_TOKEN: ${{ secrets.OUTPUTS_REPO_PAT }}
+        run: |
+          cd "data/benchmarks/${{ matrix.discipline }}" || exit 0
+          files=$(ls enrich_cache.json openalex_metadata_cache.jsonl das_cache.jsonl 2>/dev/null || true)
+          if [ -z "$files" ]; then echo "No caches to publish."; exit 0; fi
+          tar -czf "/tmp/${{ matrix.discipline }}-caches.tar.gz" $files
+          gh release view caches --repo Friseeb/stroke_open_science_outputs >/dev/null 2>&1 || \
+            gh release create caches --repo Friseeb/stroke_open_science_outputs --title "Rolling pipeline caches" \
+              --notes "Resumable per-discipline caches (API enrichment, OpenAlex metadata backfill, Europe PMC data-availability audit). Replaced after every real benchmark run; a run seeds from them when the Actions cache is cold. Not a data release: see the run-* releases for datasets."
+          gh release upload caches "/tmp/${{ matrix.discipline }}-caches.tar.gz" --repo Friseeb/stroke_open_science_outputs --clobber
+          echo "Published ${{ matrix.discipline }}-caches.tar.gz ($files)"
 
       - name: Upload discipline output
         uses: actions/upload-artifact@v4
