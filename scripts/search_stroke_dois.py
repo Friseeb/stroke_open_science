@@ -4903,8 +4903,10 @@ def apply_journal_metrics(df: pd.DataFrame, journal_metrics_csv: str) -> pd.Data
 
 def build_high_impact_subset(df: pd.DataFrame, cfg: PipelineConfig) -> Tuple[pd.DataFrame, pd.DataFrame]:
     out = df.copy()
-    out["high_impact_flag"] = coerce_nullable_bool(out.get("high_impact_flag", pd.Series([False] * len(out))))
-    out["high_impact_reason"] = out.get("high_impact_reason", "").fillna("").astype(str)
+    # Recomputed from scratch every run: flags carried in from an earlier run (possibly under a
+    # different rule or threshold) must not survive, or re-runs can only ever add high-impact papers.
+    out["high_impact_flag"] = pd.Series(False, index=out.index, dtype="boolean")
+    out["high_impact_reason"] = ""
 
     if_mask = pd.Series([False] * len(out), index=out.index)
     if "journal_impact_factor" in out.columns:

@@ -857,3 +857,15 @@ def test_high_impact_zero_percentile_year_flags_nobody_on_citations():
     full, subset = pipeline.build_high_impact_subset(pd.DataFrame(rows), cfg)
     # 90th percentile of the cohort is 0: uncited papers must not be flagged; the one cited paper is.
     assert set(subset["doi_norm"]) == {"10.1/one"}
+
+
+def test_high_impact_flags_are_recomputed_not_carried_over():
+    df = pd.DataFrame([
+        {"doi_norm": "10.1/stale", "year": 2020, "journal_impact_factor": 2.0, "cited_by_count": 1, "high_impact_flag": True, "high_impact_reason": "cited_by_count>=27 (top 10.0%)"},
+        {"doi_norm": "10.1/star", "year": 2020, "journal_impact_factor": 2.0, "cited_by_count": 500, "high_impact_flag": False, "high_impact_reason": ""},
+    ] + [{"doi_norm": f"10.1/x{i}", "year": 2020, "journal_impact_factor": 2.0, "cited_by_count": 3, "high_impact_flag": False, "high_impact_reason": ""} for i in range(18)])
+    cfg = _cfg(Path("."), impact_factor_threshold=10.0, citation_percentile_threshold=90.0)
+    full, subset = pipeline.build_high_impact_subset(df, cfg)
+    assert set(subset["doi_norm"]) == {"10.1/star"}
+    stale = full[full["doi_norm"] == "10.1/stale"].iloc[0]
+    assert bool(stale["high_impact_flag"]) is False and stale["high_impact_reason"] == ""
