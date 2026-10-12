@@ -171,6 +171,8 @@ Caches:
   written by the retired standalone `enrich_openalex_work_metadata.py` (list-valued fields, extra columns) loads
   as-is: copy or symlink `data/enrichment/<discipline>_work_metadata.jsonl` to this path and the backfill is free.
 - `data/{discipline}/das_cache.jsonl` — Europe PMC DOI→PMCID resolutions and full-text DAS extractions (resumable).
+  In CI, `enrich_cache.json`, `openalex_metadata_cache.jsonl` and `das_cache.jsonl` are kept in the Actions cache across
+  runs (like `retrieval_slices/`), so a job that hits the 6 h runner cap resumes its lookups on the next dispatch.
   Lines from the retired standalone audit's `statements.jsonl` (no `kind` key) load as full-text records, so
   appending that file here avoids re-fetching those articles.
 - `data/{discipline}/retrieval_slices/` — per-term per-window raw API results

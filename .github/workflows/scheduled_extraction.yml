@@ -76,6 +76,21 @@ jobs:
           restore-keys: |
             retrieval-slices-v2-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-
 
+      # The post-retrieval caches (API enrichment, OpenAlex metadata backfill, Europe PMC DAS audit) are
+      # also resumable; keeping them across runs means a job that hits the 6 h runner cap in the audit
+      # stage does not redo hours of lookups on the next dispatch. Same key scheme as the slices.
+      - name: Restore cached enrichment and audit caches
+        id: restore-caches
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            data/benchmarks/${{ matrix.discipline }}/enrich_cache.json
+            data/benchmarks/${{ matrix.discipline }}/openalex_metadata_cache.jsonl
+            data/benchmarks/${{ matrix.discipline }}/das_cache.jsonl
+          key: stage-caches-v1-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            stage-caches-v1-${{ matrix.discipline }}-${{ github.event.inputs.start_year || '2015' }}-mpq${{ github.event.inputs.max_per_query || '0' }}-
+
       - name: Write .env from secrets
         run: |
           cat > .env <<'ENVEOF'
@@ -109,6 +124,16 @@ jobs:
         with:
           path: data/benchmarks/${{ matrix.discipline }}/retrieval_slices
           key: ${{ steps.restore-slices.outputs.cache-primary-key }}
+
+      - name: Save enrichment and audit caches
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            data/benchmarks/${{ matrix.discipline }}/enrich_cache.json
+            data/benchmarks/${{ matrix.discipline }}/openalex_metadata_cache.jsonl
+            data/benchmarks/${{ matrix.discipline }}/das_cache.jsonl
+          key: ${{ steps.restore-caches.outputs.cache-primary-key }}
 
       - name: Upload discipline output
         uses: actions/upload-artifact@v4
