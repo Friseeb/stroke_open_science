@@ -11,8 +11,8 @@
   const DIM_OFFSET = 3;           // [year, hi, <dim>, ...counts] for funder / income / institution tables
 
   const VIEWS = [
-    ["s1", "Where stroke stands"], ["s2", "Neighbours"], ["s3", "Data statements"],
-    ["s4", "Who pays, who shares"], ["s5", "Who does it well"], ["s6", "Methods"],
+    ["s1", "Overview"], ["s2", "Disciplines"], ["s3", "Data statements"],
+    ["s4", "Income groups"], ["s5", "Institutions and journals"], ["s6", "Methods"],
   ];
 
   // Dark-mode steps of the same categorical hues (validated set; see docs).
@@ -56,8 +56,8 @@
     { label: "Stroke, all years", hash: "view=s1&focus=stroke" },
     { label: "Stroke in Korea", hash: "view=s1&focus=stroke&slice=country:KR" },
     { label: "What statements say, 2022–2025", hash: "view=s3&focus=stroke&years=2022-2025" },
-    { label: "Who pays to be read", hash: "view=s4&focus=stroke&eqSignal=route" },
-    { label: "Prize shortlist (≥ 100 audited)", hash: "view=s5&focus=stroke&cmEntity=institutions&cmMin=100&cmTop=15" },
+    { label: "Open-access routes by income group", hash: "view=s4&focus=stroke&eqSignal=route" },
+    { label: "Institution ranking, ≥ 100 audited", hash: "view=s5&focus=stroke&cmEntity=institutions&cmMin=100&cmTop=15" },
     { label: "GitHub in full text, by discipline", hash: "view=s2&metric=ft_github" },
   ];
 
@@ -820,7 +820,7 @@
       yaxis: { automargin: true, tickfont: { color: t.ink2, size: 12 }, fixedrange: true, gridcolor: "rgba(0,0,0,0)", autorange: "reversed" },
       xaxis: Object.assign(layout.xaxis, { tickformat: ".0%", range: [0, 1.0001], gridcolor: t.grid }), legend: Object.assign(layout.legend, { y: -0.3, traceorder: "normal" }), uniformtext: { mode: "hide", minsize: 10 } });
     plot("oa-disc-chart", discs.length ? traces : [], layout);
-    $("oa-disc-title").textContent = "Open-access routes by discipline";
+    $("oa-disc-title").textContent = "Open-access routes";
     $("oa-disc-sub").textContent = "Pooled · " + selectionLabel() + ".";
     renderTable("oa-disc-table", [{ key: "label", label: "Discipline" }, { key: "n", label: "Known status", fmt: "int" }].concat(classes.map((c) => ({ key: c.key, label: c.label, fmt: "pct" }))),
       discs.map((o) => Object.assign({ label: o.x.label, n: oaKnown(o.a.total) }, Object.fromEntries(classes.map((c) => [c.key, c.sum(o.a.total) / oaKnown(o.a.total)])))), { sortable: false });
@@ -851,7 +851,7 @@
     const layout = baseLayout(t);
     Object.assign(layout, { barmode: "group", bargap: 0.3, bargroupgap: 0.08, margin: { l: 52, r: 16, t: 12, b: 80 }, xaxis: Object.assign(layout.xaxis, { tickangle: 0 }), yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }), legend: Object.assign(layout.legend, { y: -0.26 }) });
     plot("das-disc-chart", discs.length ? traces : [], layout);
-    $("das-disc-title").textContent = "Full-text signals by discipline";
+    $("das-disc-title").textContent = "Full-text indicators";
     $("das-disc-sub").textContent = "Audited open-access full texts, pooled · " + selectionLabel() + ".";
     renderTable("das-disc-table", [{ key: "label", label: "Discipline" }, { key: "n", label: "Audited", fmt: "int" }].concat(sig.map((s) => ({ key: s[0], label: s[1], fmt: "pct" }))),
       discs.map((o) => Object.assign({ label: o.x.label, n: o.a.total[K.das_audited] }, Object.fromEntries(sig.map((s) => [s[0], rate(o.a.total, s[0])])))), { sortable: false });
@@ -960,7 +960,7 @@
       const layout = baseLayout(t);
       Object.assign(layout, { barmode: "stack", margin: { l: 52, r: 16, t: 12, b: 90 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", range: [0, 1.0001] }), xaxis: Object.assign(layout.xaxis, { type: "category", tickangle: 0 }), legend: Object.assign(layout.legend, { y: -0.2, traceorder: "normal" }), uniformtext: { mode: "hide", minsize: 10 } });
       plot("eq-route-chart", traces, layout);
-      $("eq-route-title").textContent = "Open-access route by income group, " + d.label;
+      $("eq-route-title").textContent = "Open-access route, " + d.label;
       $("eq-route-sub").textContent = "Papers with a known status · " + selectionLabel() + ".";
       renderTable("eq-route-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Papers", fmt: "int" }].concat(classes.map((c) => ({ key: c.key, label: c.label, fmt: "pct" }))),
         groups.map((g) => Object.assign({ label: g.label, n: g.counts[K.n] }, Object.fromEntries(classes.map((c) => [c.key, oaKnown(g.counts) ? c.sum(g.counts) / oaKnown(g.counts) : null])))), { sortable: false });
@@ -972,7 +972,7 @@
       const layout = baseLayout(t);
       Object.assign(layout, { showlegend: false, margin: { l: 52, r: 16, t: 24, b: 70 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }), xaxis: Object.assign(layout.xaxis, { type: "category" }) });
       plot("eq-route-chart", vals.some((v) => v !== null) ? traces : [], layout);
-      $("eq-route-title").textContent = m.label + " by income group, " + d.label;
+      $("eq-route-title").textContent = m.label + ", " + d.label;
       $("eq-route-sub").textContent = selectionLabel() + ".";
       renderTable("eq-route-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Denominator", fmt: "int" }, { key: "v", label: m.label, fmt: "pct" }],
         groups.map((g, i) => ({ label: g.label, n: denom(g.counts, m), v: vals[i] })), { sortable: false });
@@ -985,7 +985,7 @@
     const layout2 = baseLayout(t);
     Object.assign(layout2, { barmode: "group", bargap: 0.3, bargroupgap: 0.08, margin: { l: 52, r: 16, t: 12, b: 80 }, xaxis: Object.assign(layout2.xaxis, { tickangle: 0 }), yaxis: Object.assign(layout2.yaxis, { tickformat: ".0%", rangemode: "tozero" }), legend: Object.assign(layout2.legend, { y: -0.26 }) });
     plot("eq-ft-chart", audited.length && d.available.das ? traces : [], layout2);
-    $("eq-ft-title").textContent = "Full-text sharing by income group, " + d.label;
+    $("eq-ft-title").textContent = "Full-text indicators, " + d.label;
     $("eq-ft-sub").textContent = d.available.das ? "Audited open-access full texts · " + selectionLabel() + "." : "No data-availability audit in this dataset.";
     renderTable("eq-ft-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Audited", fmt: "int" }].concat(sig.map((s) => ({ key: s[0], label: s[1], fmt: "pct" }))),
       groups.map((g) => Object.assign({ label: g.label, n: g.counts[K.das_audited] }, Object.fromEntries(sig.map((s) => [s[0], rate(g.counts, s[0])])))), { sortable: false });
@@ -1040,8 +1040,8 @@
       shapes: [{ type: "line", xref: "x", yref: "paper", x0: 1, x1: 1, y0: 0, y1: 1, line: { color: t.ink3, width: 1 } }],
       annotations: [{ xref: "x", yref: "paper", x: 1, y: 1.02, yanchor: "bottom", text: "average", showarrow: false, font: { color: t.ink3, size: 11 } }] });
     plot("cm-chart", traces, layout);
-    const entityLabel = { institutions: "institutions (credit to any author)", journals: "journals", funders: "funders", countries: "first-author countries" }[entity];
-    $("cm-title").textContent = "Most committed " + entityLabel + ", " + d.label;
+    const entityLabel = { institutions: "Institutions (any author)", journals: "Journals", funders: "Funders", countries: "First-author countries" }[entity];
+    $("cm-title").textContent = entityLabel + " ranked by verified indicators, " + d.label;
     $("cm-sub").textContent = available
       ? "Entity rate ÷ " + d.label + " rate, averaged over the chosen signals (" + signals.map((s, i) => fmtPct(baseRates[i], 1)).join(" / ") + " discipline-wide). " + items.length + " with ≥ " + state.cmMin + " audited articles · " + selectionLabel() + "."
       : "This view needs the data-availability audit" + (entity === "institutions" ? " and the institutions column" : "") + " in the dataset.";
