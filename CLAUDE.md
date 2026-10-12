@@ -215,6 +215,10 @@ Where the accumulated caches live, in order of preference:
    (2026-10-12) came from the local talk run: 2,000 audited articles per year per discipline.
 3. **Local `data/<discipline>/`**: the same files; copy or symlink them to seed a local run.
 
+CI runs skip the embedding and LLM stages (`--embedding-top-k 0 --llm-max-items 0`): the published outputs do not use
+them and the embedding stage alone took two hours on a hosted runner. The seed and publish steps need a valid
+`OUTPUTS_REPO_PAT` (fine-grained, Contents read/write on the outputs repo); a 401 there means the token expired.
+
 Consequences: a six-monthly run costs about $2 and two to three hours of runner time in total; a re-dispatch after a
 timeout resumes rather than repeats; and the full-text audit grows monotonically into a census over time. The one
 thing that is deliberately redone is retrieval, because that is where the data actually changes. Nothing in the
