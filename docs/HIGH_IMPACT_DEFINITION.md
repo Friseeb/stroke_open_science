@@ -7,6 +7,8 @@ Current rule in `search_stroke_dois.py` marks a paper as high-impact when **eith
    papers of the same publication year**. Citations accrue with age, so a pooled percentile would favour older papers;
    the per-year threshold is written into `high_impact_reason` (e.g. `cited_by_count>=41 (top 10.0% of 2019)`).
    Rows without a usable year, or frames without a `year` column, use the pooled percentile (changed 2026-10-11).
+   A cohort threshold below 1 is raised to 1 and uncited papers never qualify, so a young year whose 90th
+   percentile is 0 flags nobody on citations instead of everybody.
 
 CLI knobs:
 

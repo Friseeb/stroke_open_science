@@ -848,3 +848,12 @@ def test_high_impact_citation_percentile_is_within_year():
     assert "10.1/old9" in flagged
     assert "10.1/old5" not in flagged
     assert "top 10.0% of 2024" in full.loc[full["doi_norm"] == "10.1/new9", "high_impact_reason"].iloc[0]
+
+
+def test_high_impact_zero_percentile_year_flags_nobody_on_citations():
+    rows = [{"doi_norm": f"10.1/u{i}", "year": 2026, "journal_impact_factor": pd.NA, "cited_by_count": 0, "high_impact_flag": False, "high_impact_reason": ""} for i in range(20)]
+    rows.append({"doi_norm": "10.1/one", "year": 2026, "journal_impact_factor": pd.NA, "cited_by_count": 1, "high_impact_flag": False, "high_impact_reason": ""})
+    cfg = _cfg(Path("."), impact_factor_threshold=999.0, citation_percentile_threshold=90.0)
+    full, subset = pipeline.build_high_impact_subset(pd.DataFrame(rows), cfg)
+    # 90th percentile of the cohort is 0: uncited papers must not be flagged; the one cited paper is.
+    assert set(subset["doi_norm"]) == {"10.1/one"}

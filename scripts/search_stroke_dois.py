@@ -4918,7 +4918,8 @@ def build_high_impact_subset(df: pd.DataFrame, cfg: PipelineConfig) -> Tuple[pd.
 
     # Citation rule: the percentile is taken within each publication year, so a 2015 paper and a
     # 2024 paper are each compared with their own cohort (citations accrue with age). Rows without
-    # a usable year, or frames without a year column, fall back to the pooled percentile.
+    # a usable year, or frames without a year column, fall back to the pooled percentile. A
+    # threshold below 1 citation is raised to 1, and uncited papers never qualify.
     cited = pd.to_numeric(out.get("cited_by_count"), errors="coerce")
     citation_threshold = None
     citation_thresholds_by_year: Dict[int, float] = {}
@@ -4938,7 +4939,9 @@ def build_high_impact_subset(df: pd.DataFrame, cfg: PipelineConfig) -> Tuple[pd.
             reason.loc[has_year] = [
                 f"cited_by_count>={thr:.0f} ({top_label} of {int(y)})" for thr, y in zip(year_thr, years[has_year])
             ]
-        cit_mask = cited >= row_threshold
+        # A paper needs at least one citation and at least the threshold; where the cohort's percentile
+        # is 0 (young years, most papers uncited) nobody qualifies on citations rather than everybody.
+        cit_mask = (cited >= row_threshold.clip(lower=1.0)) & (cited > 0)
         out.loc[cit_mask, "high_impact_flag"] = True
         blank = cit_mask & out["high_impact_reason"].eq("")
         out.loc[blank, "high_impact_reason"] = reason[blank]
