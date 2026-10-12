@@ -7,7 +7,7 @@
   <meta name="description" content="Where stroke research stands on open access, data and code sharing, data-availability statements and registration; how it compares with neurology, neuroscience and cardiology; who pays to be open; who is doing it well.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly.min.js" charset="utf-8"></script>
 </head>
@@ -82,8 +82,8 @@
 
       <!-- 1 Where stroke stands -->
       <section class="view" id="s1" aria-labelledby="s1-title">
-        <h2 class="section-title" id="s1-title"><span class="section-no">1</span><span>Overview: <span class="focus-name">stroke</span></span></h2>
-        <p class="section-lede">Open-science indicators for the focus discipline under the current selection, with trends by year.</p>
+        <h2 class="section-title" id="s1-title"><span class="section-no">1</span><span>Overview</span></h2>
+        <p class="section-lede">Indicators for <span class="focus-name">stroke</span> under the current selection, with trends by year.</p>
         <section class="tile-groups" id="tiles" aria-label="Summary for the current selection" aria-live="polite"></section>
         <div class="grid-2">
           <section class="card">
@@ -113,7 +113,7 @@
 
       <!-- 2 Compared with neighbours -->
       <section class="view" id="s2" aria-labelledby="s2-title">
-        <h2 class="section-title" id="s2-title"><span class="section-no">2</span><span>Comparison across disciplines</span></h2>
+        <h2 class="section-title" id="s2-title"><span class="section-no">2</span><span>Disciplines</span></h2>
         <p class="section-lede">The same indicators for the selected disciplines.</p>
         <section class="card">
           <div class="card-head">
@@ -147,7 +147,7 @@
 
       <!-- 3 What statements say -->
       <section class="view" id="s3" aria-labelledby="s3-title">
-        <h2 class="section-title" id="s3-title"><span class="section-no">3</span><span>Data-availability statements</span></h2>
+        <h2 class="section-title" id="s3-title"><span class="section-no">3</span><span>Data statements</span></h2>
         <p class="section-lede">Statements extracted from audited open-access full texts of the focus discipline, classified by primary category.</p>
         <section class="card">
           <div class="card-head">
@@ -164,8 +164,8 @@
 
       <!-- 4 Who pays, who shares -->
       <section class="view" id="s4" aria-labelledby="s4-title">
-        <h2 class="section-title" id="s4-title"><span class="section-no">4</span><span>Income group of the first author's country</span></h2>
-        <p class="section-lede">Open-access routes and sharing indicators for the focus discipline by World Bank income group.</p>
+        <h2 class="section-title" id="s4-title"><span class="section-no">4</span><span>Income groups</span></h2>
+        <p class="section-lede">Open-access routes and sharing indicators by the World Bank income group of the first author's country.</p>
         <section class="tiles" id="equity-tiles" aria-label="Income-group shares"></section>
         <div class="grid-2">
           <section class="card">
@@ -179,7 +179,7 @@
             <details class="table-view"><summary>Table</summary><div id="eq-route-table" class="table-scroll"></div></details>
           </section>
           <section class="card">
-            <div class="card-head"><div><h3 id="eq-ft-title">Full-text sharing by income group</h3><p class="card-sub" id="eq-ft-sub"></p></div></div>
+            <div class="card-head"><div><h3 id="eq-ft-title">Full-text indicators</h3><p class="card-sub" id="eq-ft-sub"></p></div></div>
             <div id="eq-ft-chart" class="chart" role="img" aria-label="Full-text sharing signals by income group"></div>
             <details class="table-view"><summary>Table</summary><div id="eq-ft-table" class="table-scroll"></div></details>
           </section>
@@ -198,11 +198,11 @@
 
       <!-- 5 Who does it well -->
       <section class="view" id="s5" aria-labelledby="s5-title">
-        <h2 class="section-title" id="s5-title"><span class="section-no">5</span><span>Institutions, journals, funders and countries</span></h2>
+        <h2 class="section-title" id="s5-title"><span class="section-no">5</span><span>Rankings</span></h2>
         <p class="section-lede">Ranked on indicators verified in the full text. The audited count is shown for every entry; small counts are unstable.</p>
         <section class="card">
           <div class="card-head">
-            <div><h3 id="cm-title">Ranking by verified indicators</h3><p class="card-sub" id="cm-sub"></p></div>
+            <div><h3 id="cm-title">Institutions</h3><p class="card-sub" id="cm-sub"></p></div>
             <div class="options" role="group" aria-label="Options">
               <label>Entity <select id="cm-entity"><option value="institutions">institutions (any author)</option><option value="journals">journals</option><option value="funders">funders</option><option value="countries">first-author countries</option></select></label>
               <label>Min. audited <select id="cm-min"><option value="30">30</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select></label>
