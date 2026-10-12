@@ -7,7 +7,7 @@
   <meta name="description" content="Interactive benchmark of open-access routes, data and code sharing, data-availability statements, preprints and registration across stroke and adjacent disciplines, with equity and commitment views.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,600&display=swap">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly.min.js" charset="utf-8"></script>
 </head>
@@ -15,14 +15,13 @@
   <a class="skip-link" href="#views">Skip to content</a>
 
   <header class="page-header">
-    <div class="wrap header-row">
-      <div>
-        <h1>Stroke Open-Science Benchmark</h1>
+    <div class="wrap masthead">
+      <div class="masthead-main">
+        <h1>How open is stroke research?</h1>
         <p class="lede">Open access, data and code sharing, data-availability statements, preprints and registration in stroke research since 2015, against neurology, neuroscience and cardiology.</p>
+        <p class="byline"><span class="byline-name">Sebastian Fridman</span><span class="byline-aff">Western University</span><span class="byline-date" id="byline-date"></span></p>
       </div>
-      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch colour theme" title="Theme: auto">
-        <span class="theme-icon" aria-hidden="true">◐</span><span class="theme-label">Auto</span>
-      </button>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch colour theme" title="Theme: auto"><span class="theme-icon" aria-hidden="true">◐</span><span class="theme-label">Auto</span></button>
     </div>
   </header>
 
@@ -86,16 +85,16 @@
         <div class="hero" id="hero"></div>
         <section class="tile-groups" id="tiles" aria-label="Summary for the current selection" aria-live="polite"></section>
         <div class="grid-2">
-          <section class="card">
+          <section class="card" data-kind="figure">
             <div class="card-head"><div><h2 id="ov-trend-title">Open access by year</h2><p class="card-sub" id="ov-trend-sub"></p></div></div>
             <div id="ov-trend-chart" class="chart" role="img" aria-label="Open-access trend by discipline"></div>
           </section>
-          <section class="card">
+          <section class="card" data-kind="figure">
             <div class="card-head"><div><h2 id="ov-das-title">What data statements say, by year</h2><p class="card-sub" id="ov-das-sub"></p></div></div>
             <div id="ov-das-chart" class="chart" role="img" aria-label="Data-availability statement classes by year"></div>
           </section>
         </div>
-        <section class="card">
+        <section class="card" data-kind="table">
           <div class="card-head"><div><h2>Full text versus abstract</h2><p class="card-sub" id="ov-ft-sub">What abstracts and metadata miss.</p></div></div>
           <div id="ov-ft-table" class="table-scroll"></div>
         </section>
@@ -103,7 +102,7 @@
 
       <!-- Trends -->
       <section class="view" id="view-trends" role="tabpanel" aria-labelledby="tab-trends" hidden>
-        <section class="card">
+        <section class="card" data-kind="figure">
           <div class="card-head">
             <div><h2 id="trend-title">Trend</h2><p class="card-sub" id="trend-sub"></p></div>
             <div class="options" role="group" aria-label="Trend options">
@@ -121,7 +120,7 @@
 
       <!-- Open access -->
       <section class="view" id="view-oa" role="tabpanel" aria-labelledby="tab-oa" hidden>
-        <section class="card">
+        <section class="card" data-kind="figure">
           <div class="card-head">
             <div><h2 id="oa-title">Open-access status by year</h2><p class="card-sub" id="oa-sub"></p></div>
             <div class="options" role="group" aria-label="Open-access options">
@@ -131,7 +130,7 @@
           <div id="oa-chart" class="chart" role="img" aria-label="Open-access status stacked bars by year"></div>
           <details class="table-view"><summary>Table view</summary><div id="oa-table" class="table-scroll"></div></details>
         </section>
-        <section class="card">
+        <section class="card" data-kind="figure">
           <div class="card-head"><div><h2 id="oa-disc-title">Open-access routes by discipline</h2><p class="card-sub" id="oa-disc-sub"></p></div></div>
           <div id="oa-disc-chart" class="chart" role="img" aria-label="Open-access routes per discipline"></div>
           <details class="table-view"><summary>Table view</summary><div id="oa-disc-table" class="table-scroll"></div></details>
@@ -140,7 +139,7 @@
 
       <!-- Data statements -->
       <section class="view" id="view-das" role="tabpanel" aria-labelledby="tab-das" hidden>
-        <section class="card">
+        <section class="card" data-kind="figure">
           <div class="card-head">
             <div><h2 id="das-title">Data-availability statements by year</h2><p class="card-sub" id="das-sub"></p></div>
             <div class="options" role="group" aria-label="Statement options">
@@ -151,7 +150,7 @@
           <div id="das-chart" class="chart" role="img" aria-label="Data-availability statement classes stacked bars by year"></div>
           <details class="table-view"><summary>Table view</summary><div id="das-table" class="table-scroll"></div></details>
         </section>
-        <section class="card">
+        <section class="card" data-kind="figure">
           <div class="card-head"><div><h2 id="das-disc-title">Statements and full-text signals by discipline</h2><p class="card-sub" id="das-disc-sub"></p></div></div>
           <div id="das-disc-chart" class="chart" role="img" aria-label="Full-text signals per discipline"></div>
           <details class="table-view" open><summary>Table view</summary><div id="das-disc-table" class="table-scroll"></div></details>
@@ -161,7 +160,7 @@
       <!-- Equity -->
       <section class="view" id="view-equity" role="tabpanel" aria-labelledby="tab-equity" hidden>
         <section class="tiles" id="equity-tiles" aria-label="Income-group shares"></section>
-        <section class="card">
+        <section class="card" data-kind="figure">
           <div class="card-head">
             <div><h2 id="eq-route-title">Who pays to be read</h2><p class="card-sub" id="eq-route-sub"></p></div>
             <div class="options" role="group" aria-label="Equity options">
@@ -171,7 +170,7 @@
           <div id="eq-route-chart" class="chart" role="img" aria-label="Open-access route by first-author income group"></div>
           <details class="table-view"><summary>Table view</summary><div id="eq-route-table" class="table-scroll"></div></details>
         </section>
-        <section class="card">
+        <section class="card" data-kind="figure">
           <div class="card-head"><div><h2 id="eq-ft-title">Sharing in the full text, by income group</h2><p class="card-sub" id="eq-ft-sub"></p></div></div>
           <div id="eq-ft-chart" class="chart" role="img" aria-label="Full-text sharing signals by income group"></div>
           <details class="table-view"><summary>Table view</summary><div id="eq-ft-table" class="table-scroll"></div></details>
@@ -180,7 +179,7 @@
 
       <!-- Commitment -->
       <section class="view" id="view-commitment" role="tabpanel" aria-labelledby="tab-commitment" hidden>
-        <section class="card">
+        <section class="card" data-kind="figure">
           <div class="card-head">
             <div><h2 id="cm-title">Who is already doing it</h2><p class="card-sub" id="cm-sub"></p></div>
             <div class="options" role="group" aria-label="Commitment options">
@@ -197,7 +196,7 @@
 
       <!-- Journals -->
       <section class="view" id="view-journals" role="tabpanel" aria-labelledby="tab-journals" hidden>
-        <section class="card">
+        <section class="card" data-kind="figure">
           <div class="card-head">
             <div><h2 id="journal-title">Journals</h2><p class="card-sub" id="journal-sub"></p></div>
             <div class="options" role="group" aria-label="Journal options">
@@ -214,11 +213,11 @@
       <!-- Countries & funders -->
       <section class="view" id="view-geo" role="tabpanel" aria-labelledby="tab-geo" hidden>
         <div class="stack">
-          <section class="card" id="country-card">
+          <section class="card" id="country-card" data-kind="table">
             <div class="card-head"><div><h2 id="country-title">First-author countries</h2><p class="card-sub" id="country-sub"></p></div></div>
             <div id="country-table" class="table-scroll"></div>
           </section>
-          <section class="card" id="funder-card">
+          <section class="card" id="funder-card" data-kind="table">
             <div class="card-head"><div><h2 id="funder-title">Funders</h2><p class="card-sub" id="funder-sub"></p></div></div>
             <div id="funder-table" class="table-scroll"></div>
           </section>

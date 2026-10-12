@@ -93,7 +93,8 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   Policy milestones from `configs/policy_events.json` (ICMJE statements 2018, Plan S 2021, OSTP memo 2022, NIH DMS
   2023; shipped as `policy_events`) draw as hairlines with hover detail on the trend and by-year charts (toggle in
   Trends; labels hidden on half-width charts). Every chart has PNG / SVG download buttons (client-side Plotly).
-- Visual system (2026-10-12 pass): editorial, not boxed. IBM Plex Sans for UI and columns, Source Serif 4 for the
+- Visual system (2026-10-12, user-directed): ink on warm paper, delicate and open. Tokens: paper `#f8f6f1`, ink `#1a1916`, warm greys; the only hue is the focus discipline, set on `--accent` at render; dark theme is a warm dark set. Masthead = light (300) serif question title, serif standfirst, one byline rule; no dateline, kicker, sidebar or figure numbers (tried and removed). Controls are outlined; the primary button and the active segment are ink-filled. Hero figure 96px light in the accent. Earlier note kept for the scale:
+- Visual system (type scale): editorial, not boxed. IBM Plex Sans for UI and columns, Source Serif 4 for the
   masthead, the deck ("bajada"), the hero sentence and section titles; a 12px modular scale (`--m`, `--fs-*`: 12 /
   15 / 18 / 24 / 36 / 72 / 96) with line-heights on a 12px baseline grid; sections are a 2px ink rule plus a title
   on the page, tiles sit on rules, only the selection band is a filled object; cool-biased neutrals; the selection

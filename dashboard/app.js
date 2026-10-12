@@ -11,9 +11,11 @@
   const DIM_OFFSET = 3;           // [year, hi, <dim>, ...counts] for funder / income / institution tables
 
   const VIEWS = [
-    ["overview", "Overview"], ["trends", "Trends"], ["oa", "Open access"], ["das", "Data statements"],
-    ["equity", "Equity"], ["commitment", "Commitment"], ["journals", "Journals"], ["geo", "Countries & funders"],
-    ["methods", "Methods"],
+    ["overview", "Overview", "The headline numbers for the selection"], ["trends", "Trends", "Any metric by year, overlaid or in panels"],
+    ["oa", "Open access", "Free, paid, bronze and closed routes"], ["das", "Data statements", "What full texts say about the data"],
+    ["equity", "Equity", "Routes and sharing by first-author income group"], ["commitment", "Commitment", "Institutions, journals, funders and countries ranked on verified signals"],
+    ["journals", "Journals", "Any metric across the top journals"], ["geo", "Countries & funders", "Sortable tables with trend columns"],
+    ["methods", "Methods", "Definitions, corpus and caveats"],
   ];
 
   // Dark-mode steps of the same categorical hues (validated set; see docs).
@@ -310,7 +312,6 @@
     const presets = [
       { label: complete[0] + "–" + complete[1], min: complete[0], max: complete[1] },
       { label: "Since 2020", min: Math.max(all[0], 2020), max: complete[1] },
-      { label: "Last 3 years", min: Math.max(all[0], complete[1] - 2), max: complete[1] },
       { label: "All years", min: all[0], max: all[all.length - 1] },
     ];
     const seen = new Set();
@@ -482,6 +483,29 @@
       $("tab-" + k).setAttribute("aria-selected", String(k === key));
     }
   }
+  /** Journal apparatus: Figure 1, Figure 2, Table 1 ... numbered within the active view. */
+  function numberSections(key) {
+    let fig = 0, tab = 0;
+    for (const card of $("view-" + key).querySelectorAll(".card[data-kind]")) {
+      if (card.hidden) continue;
+      const kind = card.dataset.kind;
+      const n = kind === "table" ? ++tab : ++fig;
+      const head = card.querySelector(".card-head > div:first-child, .card-head > div");
+      const h2 = head && head.querySelector("h2");
+      if (!h2) continue;
+      let k = head.querySelector(".fig-kicker");
+      if (!k) { k = el("span", { class: "fig-kicker" }); h2.before(k); }
+      k.textContent = (kind === "table" ? "Table " : "Figure ") + n;
+    }
+  }
+  function buildEdition() {
+    const ol = $("edition");
+    ol.replaceChildren();
+    for (const [key, label, desc] of VIEWS) {
+      const li = el("li", { "data-view": key }, el("button", { type: "button", text: label, title: desc, onclick: () => { showView(key); renderAll(); window.scrollTo({ top: $("views").offsetTop - 12, behavior: "smooth" }); } }));
+      ol.append(li);
+    }
+  }
   function fillSelectOptions(sel, options, value) {
     sel.replaceChildren();
     for (const o of options) sel.append(el("option", { value: o.value, text: o.label }));
@@ -637,6 +661,7 @@
   function renderAll() {
     writeHash();
     const d = focusDisc();
+    document.documentElement.style.setProperty("--accent", discColor(d));
     const note = [];
     if (state.slice.kind && (state.slice.kind === "funder" || state.slice.kind === "income")) {
       note.push("Slicing by " + (state.slice.kind === "funder" ? "funder" : "income group") + ": journal and country breakdowns are discipline-wide for this slice.");
@@ -970,7 +995,7 @@
       const layout = baseLayout(t);
       Object.assign(layout, { barmode: "stack", margin: { l: 52, r: 16, t: 12, b: 100 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", range: [0, 1.0001] }), xaxis: Object.assign(layout.xaxis, { type: "category" }), legend: Object.assign(layout.legend, { y: -0.3, traceorder: "normal" }), uniformtext: { mode: "hide", minsize: 10 } });
       plot("eq-route-chart", traces, layout);
-      $("eq-route-title").textContent = "Who pays to be read · open-access route by first-author income group · " + d.label;
+      $("eq-route-title").textContent = "Open-access route by first-author income group · " + d.label;
       $("eq-route-sub").textContent = "Papers with a known status · " + selectionLabel() + ".";
       renderTable("eq-route-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Papers", fmt: "int" }].concat(classes.map((c) => ({ key: c.key, label: c.label, fmt: "pct" }))),
         groups.map((g) => Object.assign({ label: g.label, n: g.counts[K.n] }, Object.fromEntries(classes.map((c) => [c.key, oaKnown(g.counts) ? c.sum(g.counts) / oaKnown(g.counts) : null])))), { sortable: false });
@@ -995,7 +1020,7 @@
     const layout2 = baseLayout(t);
     Object.assign(layout2, { barmode: "group", bargap: 0.3, bargroupgap: 0.08, margin: { l: 52, r: 16, t: 12, b: 70 }, yaxis: Object.assign(layout2.yaxis, { tickformat: ".0%", rangemode: "tozero" }), legend: Object.assign(layout2.legend, { y: -0.22 }) });
     plot("eq-ft-chart", audited.length && d.available.das ? traces : [], layout2);
-    $("eq-ft-title").textContent = "Sharing in the full text, by first-author income group · " + d.label;
+    $("eq-ft-title").textContent = "Full-text sharing by first-author income group · " + d.label;
     $("eq-ft-sub").textContent = d.available.das ? "Audited open-access full texts · " + selectionLabel() + "." : "No data-availability audit in this dataset.";
     renderTable("eq-ft-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Audited", fmt: "int" }].concat(sig.map((s) => ({ key: s[0], label: s[1], fmt: "pct" }))),
       groups.map((g) => Object.assign({ label: g.label, n: g.counts[K.das_audited] }, Object.fromEntries(sig.map((s) => [s[0], rate(g.counts, s[0])])))), { sortable: false });
@@ -1311,6 +1336,9 @@
     resetState();
     readHash();
     buildTabs();
+    const runDate = DATA.run_date || "";
+    const pretty = runDate ? new Date(runDate + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }) : "";
+    $("byline-date").textContent = pretty ? "Data as of " + pretty : "";
     buildSelection();
     buildViewOptions();
     renderMethods();
