@@ -55,12 +55,19 @@ def make_frame(n: int = 120) -> pd.DataFrame:
             "in_article_corpus": i % 23 != 0,
             "das_available": i % 8 == 0, "das_has_statement": i % 16 == 0,
             "das_primary": "repository" if i % 16 == 0 else ("no_statement" if i % 8 == 0 else ""),
+            "das_mentions_github": (i % 8 == 0 and i % 3 == 0) or (i % 7 == 0),  # the i%7 case is never audited
+            "das_mentions_trial_registration": i % 8 == 0 and i % 2 == 0,
+            "das_mentions_supplement": pd.NA if i % 8 else True,
+            "first_author_income_group": ["high", "upper_middle", "", "lower_middle", "low"][i % 5] if i % 19 else "",
+            "institutions": ["Western University|Charité", "Western University", "", "MIT|Western University"][i % 4],
         })
     return pd.DataFrame(rows)
 
 
 LEGACY_DROP = ["oa_status", "first_author_country", "funders", "registration_signal", "in_article_corpus",
-               "das_available", "das_has_statement", "das_primary", "has_preprint_version", "abstract", "title"]
+               "das_available", "das_has_statement", "das_primary", "has_preprint_version", "abstract", "title",
+               "das_mentions_github", "das_mentions_trial_registration", "das_mentions_supplement",
+               "first_author_income_group", "institutions"]
 
 
 def counts_dict(rows, offset):
@@ -364,3 +371,71 @@ def test_copy_site_bundles_static_assets(tmp_path):
     html = (site / "index.html").read_text(encoding="utf-8")
     assert 'src="app.js"' in html and 'href="styles.css"' in html
     assert "dashboard_data.json" in (site / "app.js").read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Schema v2: full-text flags, income groups, institutions
+# ---------------------------------------------------------------------------
+
+def test_fulltext_flags_count_only_audited_rows():
+    df = make_frame()
+    agg = bdd.aggregate_discipline(df, "stroke")
+    c = counts_dict(agg["cells"], len(bdd.CELL_KEYS))
+    ref = corpus(df)
+    audited = dash.to_bool_series(ref["das_available"]) & ref["das_primary"].isin(bdd.DAS_ORDER)
+    assert c["ft_github"] == int((audited & dash.to_bool_series(ref["das_mentions_github"])).sum())
+    assert c["ft_reg"] == int((audited & dash.to_bool_series(ref["das_mentions_trial_registration"])).sum())
+    assert c["ft_supp"] == int((audited & dash.to_bool_series(ref["das_mentions_supplement"])).sum())
+    assert c["ft_github"] <= c["das_audited"] and c["ft_github"] > 0
+    assert bdd.COUNT_KEYS[-3:] == bdd.FULLTEXT_KEYS
+
+
+def test_income_cells_partition_the_corpus():
+    df = make_frame()
+    agg = bdd.aggregate_discipline(df, "stroke")
+    assert agg["available"]["income"]
+    assert agg["income_groups"] == bdd.INCOME_ORDER + [bdd.INCOME_UNKNOWN]
+    width = len(bdd.INCOME_KEYS) + len(bdd.COUNT_KEYS)
+    assert all(len(r) == width for r in agg["income_cells"])
+    total_n = counts_dict(agg["cells"], len(bdd.CELL_KEYS))["n"]
+    income_n = counts_dict(agg["income_cells"], len(bdd.INCOME_KEYS))["n"]
+    assert income_n == total_n
+    ref = corpus(df)
+    hi_n = sum(r[len(bdd.INCOME_KEYS)] for r in agg["income_cells"] if r[2] == 0)
+    assert hi_n == int(ref["first_author_income_group"].fillna("").eq("high").sum())
+
+
+def test_institution_cells_are_multivalued_with_other_and_none():
+    df = make_frame()
+    agg = bdd.aggregate_discipline(df, "stroke", top_institutions=2)
+    assert agg["available"]["institutions"]
+    assert agg["institutions"][-2:] == [bdd.OTHER_LABEL, bdd.NO_INSTITUTION_LABEL]
+    assert "Western University" in agg["institutions"]
+    width = len(bdd.INSTITUTION_KEYS) + len(bdd.COUNT_KEYS)
+    assert all(len(r) == width for r in agg["institution_cells"])
+    ref = corpus(df)
+    west_idx = agg["institutions"].index("Western University")
+    west_n = sum(r[len(bdd.INSTITUTION_KEYS)] for r in agg["institution_cells"] if r[2] == west_idx)
+    assert west_n == int(ref["institutions"].fillna("").str.contains("Western University").sum())
+    none_idx = agg["institutions"].index(bdd.NO_INSTITUTION_LABEL)
+    none_n = sum(r[len(bdd.INSTITUTION_KEYS)] for r in agg["institution_cells"] if r[2] == none_idx)
+    assert none_n == int(ref["institutions"].fillna("").eq("").sum())
+
+
+def test_legacy_frame_has_no_income_or_institutions():
+    df = make_frame().drop(columns=LEGACY_DROP)
+    agg = bdd.aggregate_discipline(df, "stroke")
+    assert not agg["available"]["income"] and not agg["available"]["institutions"] and not agg["available"]["fulltext"]
+    assert agg["income_cells"] == [] and agg["institution_cells"] == []
+    c = counts_dict(agg["cells"], len(bdd.CELL_KEYS))
+    assert c["ft_github"] == 0 and c["ft_reg"] == 0
+
+
+def test_payload_v2_carries_new_keys():
+    payload = bdd.assemble_payload([bdd.aggregate_discipline(make_frame(), "stroke")], run_date="2026-10-12")
+    assert payload["schema_version"] == 2
+    assert payload["income_order"] == bdd.INCOME_ORDER and payload["fulltext_keys"] == bdd.FULLTEXT_KEYS
+    assert [s["key"] for s in payload["commitment_signals"]] == ["das_deposit", "ft_github", "ft_reg"]
+    d = payload["disciplines"][0]
+    assert d["income_cells"] and d["institution_cells"] and d["institutions"][-1] == bdd.NO_INSTITUTION_LABEL
+    assert all(m.get("denominator", "n") in ("n", "n_abs", "das_audited") for m in payload["metrics"])

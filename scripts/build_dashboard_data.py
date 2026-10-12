@@ -43,19 +43,31 @@ import build_discipline_dashboard as dash  # noqa: E402  (sibling module)
 # Constants
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 OA_STATUS_ORDER = list(dash.OA_STATUS_ORDER)
 DAS_ORDER = list(dash.DAS_ORDER)
 
+# Full-text flags recorded by the DAS audit for every audited article (denominator: das_audited).
+FULLTEXT_KEYS = ["ft_github", "ft_reg", "ft_supp"]
 COUNT_KEYS: List[str] = (
     ["n", "oa"]
     + [f"oa_{s}" for s in OA_STATUS_ORDER]
     + ["code", "data", "material", "preprint", "reg", "n_abs", "das_audited", "das_stmt"]
     + [f"das_{c}" for c in DAS_ORDER]
+    + FULLTEXT_KEYS
 )
 CELL_KEYS = ["year", "hi", "journal", "country"]
 FUNDER_KEYS = ["year", "hi", "funder"]
+INCOME_KEYS = ["year", "hi", "income"]
+INSTITUTION_KEYS = ["year", "hi", "institution"]
+
+# World Bank income group of the first author's country (pipeline column first_author_income_group).
+INCOME_ORDER = ["high", "upper_middle", "lower_middle", "low"]
+INCOME_LABELS = {"high": "High income", "upper_middle": "Upper-middle income",
+                 "lower_middle": "Lower-middle income", "low": "Low income"}
+INCOME_UNKNOWN = "(unknown)"
+NO_INSTITUTION_LABEL = "(no institution listed)"
 
 OTHER_LABEL = "Other"
 UNKNOWN_LABEL = "(unknown)"
@@ -98,6 +110,8 @@ NEEDED_COLS = {
     "first_author_country", "countries", "funders",
     "registration_signal", "registered_any", "in_article_corpus", "corpus_rule",
     "das_available", "das_has_statement", "das_primary",
+    "das_mentions_github", "das_mentions_trial_registration", "das_mentions_supplement",
+    "first_author_income_group", "institutions",
 }
 
 METRICS: List[Dict[str, str]] = [
@@ -117,6 +131,21 @@ METRICS: List[Dict[str, str]] = [
     {"key": "reg", "label": "Registration signal", "short": "Registered",
      "definition": "Share whose title or abstract cites a trial-registry ID (NCT, ISRCTN, ChiCTR, ...), "
                    "PROSPERO, or preregistration wording (regex). Denominator: papers with an abstract."},
+    {"key": "das_stmt", "label": "Data-availability statement (full text)", "short": "Statement", "denominator": "das_audited",
+     "definition": "Share of audited open-access full texts (Europe PMC sample) that contain a data-availability "
+                   "statement. Denominator: audited papers."},
+    {"key": "ft_github", "label": "GitHub in full text", "short": "GitHub (full text)", "denominator": "das_audited",
+     "definition": "Share of audited open-access full texts that mention github.com anywhere. Denominator: audited papers; "
+                   "a full-text counterpart of the abstract-based code-sharing signal."},
+    {"key": "ft_reg", "label": "Trial registration in full text", "short": "Registered (full text)", "denominator": "das_audited",
+     "definition": "Share of audited open-access full texts that mention a trial-registry ID, clinicaltrials.gov or "
+                   "PROSPERO anywhere. Denominator: audited papers."},
+]
+# Verified full-text signals used for the commitment index (entity rate / discipline rate, averaged).
+COMMITMENT_SIGNALS = [
+    {"key": "das_deposit", "label": "Data deposited or public source", "numerators": ["das_repository", "das_public_source"], "denominator": "das_audited"},
+    {"key": "ft_github", "label": "GitHub in full text", "numerators": ["ft_github"], "denominator": "das_audited"},
+    {"key": "ft_reg", "label": "Trial registration in full text", "numerators": ["ft_reg"], "denominator": "das_audited"},
 ]
 
 METHODS_NOTES: List[str] = [
@@ -372,6 +401,16 @@ def row_flags(df: pd.DataFrame, discipline: str) -> Dict[str, Any]:
     flags["das_stmt"] = (audited & dash.to_bool_series(_series(out, "das_has_statement"))).astype(int)
     for category in DAS_ORDER:
         flags[f"das_{category}"] = (audited & das_primary.eq(category)).astype(int)
+    for key, col in (("ft_github", "das_mentions_github"), ("ft_reg", "das_mentions_trial_registration"),
+                     ("ft_supp", "das_mentions_supplement")):
+        flags[key] = (audited & dash.to_bool_series(_series(out, col))).astype(int)
+
+    income = _clean_text(_series(out, "first_author_income_group")).str.lower()
+    flags["income"] = income.where(income.isin(INCOME_ORDER), INCOME_UNKNOWN)
+    income_available = "first_author_income_group" in out.columns and income.isin(INCOME_ORDER).any()
+
+    flags["institutions"] = _clean_text(_series(out, "institutions"))
+    institutions_available = "institutions" in out.columns and flags["institutions"].ne("").any()
 
     if "journal_norm" in out.columns:
         journal_norm = _clean_text(out["journal_norm"]).map(normalize_journal)
@@ -396,6 +435,9 @@ def row_flags(df: pd.DataFrame, discipline: str) -> Dict[str, Any]:
         "country": bool(country_available),
         "funders": bool(funders_available),
         "high_impact": bool(flags["hi"].any()),
+        "income": bool(income_available),
+        "institutions": bool(institutions_available),
+        "fulltext": bool(audited.any()),
     }
     totals = {"rows_in_file": int(total_rows), "in_corpus": int(kept_rows),
               "dropped": int(total_rows - kept_rows), "with_year": int(len(flags))}
@@ -423,7 +465,7 @@ def _rows_from_grouped(grouped: pd.DataFrame, key_cols: List[str]) -> List[List[
 
 
 def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int = 40,
-                         top_countries: int = 25, top_funders: int = 25) -> Dict[str, Any]:
+                         top_countries: int = 25, top_funders: int = 25, top_institutions: int = 60) -> Dict[str, Any]:
     """Aggregate one discipline's enriched frame into the compact cell/funder tables."""
     prepared = row_flags(df, discipline)
     flags: pd.DataFrame = prepared["flags"]
@@ -469,6 +511,37 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
         funders = exploded.groupby(FUNDER_KEYS, as_index=False)[COUNT_KEYS].sum().sort_values(FUNDER_KEYS)
         funder_rows = _rows_from_grouped(funders, FUNDER_KEYS)
 
+    # --- first-author income group (one value per paper; unknown kept as its own bucket) ---
+    income_list = INCOME_ORDER + [INCOME_UNKNOWN]
+    income_rows: List[List[int]] = []
+    if prepared["available"]["income"]:
+        income_index = {g: i for i, g in enumerate(income_list)}
+        inc = flags[["year", "hi", "income"] + COUNT_KEYS].copy()
+        inc["income"] = inc["income"].map(income_index).astype(int)
+        grouped = inc.groupby(INCOME_KEYS, as_index=False)[COUNT_KEYS].sum().sort_values(INCOME_KEYS)
+        income_rows = _rows_from_grouped(grouped, INCOME_KEYS)
+
+    # --- institutions (multi-valued, any author; top-N by audited papers then by volume) ---
+    institution_rows: List[List[int]] = []
+    institution_list: List[str] = []
+    if prepared["available"]["institutions"]:
+        exploded = flags[["year", "hi", "institutions"] + COUNT_KEYS].copy()
+        exploded["institution"] = exploded["institutions"].str.split("|")
+        exploded = exploded.explode("institution")
+        exploded["institution"] = _clean_text(exploded["institution"])
+        exploded["institution"] = exploded["institution"].where(exploded["institution"].ne(""), NO_INSTITUTION_LABEL)
+        audited_counts = exploded[exploded["das_audited"] > 0]["institution"]
+        top = _top_categories(audited_counts, top_institutions, exclude=[NO_INSTITUTION_LABEL])
+        if len(top) < top_institutions:
+            extra = [i for i in _top_categories(exploded["institution"], top_institutions, exclude=[NO_INSTITUTION_LABEL]) if i not in top]
+            top = top + extra[: top_institutions - len(top)]
+        institution_list = top + [OTHER_LABEL, NO_INSTITUTION_LABEL]
+        inst_index = {i: k for k, i in enumerate(institution_list)}
+        folded = exploded["institution"].where(exploded["institution"].isin(set(top) | {NO_INSTITUTION_LABEL}), OTHER_LABEL)
+        exploded["institution"] = folded.map(inst_index).astype(int)
+        grouped = exploded.groupby(INSTITUTION_KEYS, as_index=False)[COUNT_KEYS].sum().sort_values(INSTITUTION_KEYS)
+        institution_rows = _rows_from_grouped(grouped, INSTITUTION_KEYS)
+
     years = sorted(int(y) for y in flags["year"].unique()) if not flags.empty else []
     return {
         "discipline": discipline,
@@ -478,8 +551,12 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
         "countries": [{"key": c, "label": ISO2_NAMES.get(c, c) if c not in (OTHER_LABEL,) else c}
                       for c in country_list],
         "funders": funder_list,
+        "income_groups": income_list,
+        "institutions": institution_list,
         "cells": cell_rows,
         "funder_cells": funder_rows,
+        "income_cells": income_rows,
+        "institution_cells": institution_rows,
         "available": prepared["available"],
         "totals": prepared["totals"],
         "corpus_rule": prepared["corpus_rule"],
@@ -552,6 +629,12 @@ def assemble_payload(aggregates: List[Dict[str, Any]], *, run_date: Optional[str
         "count_keys": COUNT_KEYS,
         "cell_keys": CELL_KEYS,
         "funder_keys": FUNDER_KEYS,
+        "income_keys": INCOME_KEYS,
+        "institution_keys": INSTITUTION_KEYS,
+        "income_order": INCOME_ORDER,
+        "income_labels": INCOME_LABELS,
+        "fulltext_keys": FULLTEXT_KEYS,
+        "commitment_signals": COMMITMENT_SIGNALS,
         "oa_status_order": OA_STATUS_ORDER,
         "oa_status_colors": OA_STATUS_COLORS,
         "das_order": DAS_ORDER,
@@ -562,7 +645,7 @@ def assemble_payload(aggregates: List[Dict[str, Any]], *, run_date: Optional[str
         "years": all_years,
         "partial_years": partial_years,
         "default_year_range": default_year_range,
-        "top_n": top_n or {"journals": 40, "countries": 25, "funders": 25},
+        "top_n": top_n or {"journals": 40, "countries": 25, "funders": 25, "institutions": 60},
         "high_impact": {"settings": hi_settings, "description": dash.high_impact_description(hi_settings)},
         "corpus_rule": {a["discipline"]: a["corpus_rule"] for a in ordered},
         "citation": citation,
@@ -572,8 +655,10 @@ def assemble_payload(aggregates: List[Dict[str, Any]], *, run_date: Optional[str
             {
                 "key": a["discipline"], "label": a["label"], "color": palette[a["discipline"]],
                 "years": a["years"], "journals": a["journals"], "countries": a["countries"],
-                "funders": a["funders"], "available": a["available"], "totals": a["totals"],
+                "funders": a["funders"], "income_groups": a.get("income_groups", []),
+                "institutions": a.get("institutions", []), "available": a["available"], "totals": a["totals"],
                 "cells": a["cells"], "funder_cells": a["funder_cells"],
+                "income_cells": a.get("income_cells", []), "institution_cells": a.get("institution_cells", []),
             }
             for a in ordered
         ],
@@ -630,7 +715,7 @@ def build_from_inputs(inputs: Dict[str, Path], *, enrichment_dir: Optional[Path]
             continue
         aggregates.append(agg)
     return assemble_payload(aggregates, high_impact_defaults=high_impact_defaults,
-                            top_n={"journals": top_journals, "countries": top_countries, "funders": top_funders})
+                            top_n={"journals": top_journals, "countries": top_countries, "funders": top_funders, "institutions": 60})
 
 
 def prepare_frame(df: pd.DataFrame, discipline: str, *, enrichment_dir: Optional[Path] = None) -> pd.DataFrame:

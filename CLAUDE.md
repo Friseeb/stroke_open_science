@@ -64,8 +64,8 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
 - `build_discipline_dashboard.py` writes the static single-file report (`discipline_dashboard.html`) and,
   unless `--skip-site`, calls `build_dashboard_data.py` on each loaded frame to write `dashboard_data.json`
   and copy `dashboard/` (index.html, app.js, styles.css) + the JSON + `legacy.html` into `<out-dir>/site/`.
-- `dashboard_data.json` stores **counts only** (`COUNT_KEYS`: n, oa, oa_<status>×6, code, data, material,
-  preprint, reg, n_abs, das_audited, das_stmt, das_<category>×8) at the grain year × high_impact × journal
+- `dashboard_data.json` (schema v2) stores **counts only** (`COUNT_KEYS`: n, oa, oa_<status>×6, code, data, material,
+  preprint, reg, n_abs, das_audited, das_stmt, das_<category>×8, ft_github, ft_reg, ft_supp) at the grain year × high_impact × journal
   (top 40 + Other) × first-author country (top 25 + Other) per discipline, plus year × high_impact × funder
   (top 25 + Other + no-funder; multi-valued, so funder n's exceed paper totals). Rows are flat int lists; the
   browser sums and divides. Legacy CSVs without the new columns get `available.*=false` and the page hides
@@ -74,6 +74,23 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   derived from title+abstract via `apply_registration_flags` when missing). Because the join is by DOI,
   release rows without a DOI (e.g. the DOI-less ISC conference abstracts in *Stroke*) get no metadata and
   are out of corpus (`corpus_rule` = `openalex_type_doi_only`); they are never counted as closed articles.
+- Besides the journal × country cells, v2 ships three more count tables per discipline: `funder_cells`
+  (year × hi × funder, multi-valued), `income_cells` (year × hi × first-author World Bank income group) and
+  `institution_cells` (year × hi × institution, multi-valued, top 60 by audited papers). The full-text flags
+  (`ft_*`) and the DAS categories use `das_audited` as denominator; `METRICS[*].denominator` says which.
+- The site (`dashboard/index.html`, `app.js`, `styles.css`, no build step) is a tabbed explorer: one sticky
+  selection bar (year presets + custom range, disciplines, focus, a single *slice* control for income group /
+  journal / country / funder, all vs high-impact, reset, copy link, CSV) scoping nine views: Overview (hero,
+  tiles, emphasis OA trend, DAS five classes, full text vs abstract table), Trends (metric × compare
+  disciplines / income groups / subset × rate or count), Open access (routes free-to-author / APC / bronze /
+  closed or six statuses; by year and by discipline), Data statements (five ordered classes or eight categories as
+  small multiples; denominator audited or with-statement; signals by discipline), Equity (income-group tiles,
+  OA route or any metric by income group, full-text signals by income group), Commitment (index = mean over the
+  chosen verified full-text signals of entity rate ÷ discipline rate, 1 = average; entity, min audited, top N),
+  Journals (metric, min papers, top N), Countries & funders (sortable tables with full-text columns), Methods.
+  The selection lives in the URL hash, so a link reproduces a view. Colours: one validated blue ordinal ramp
+  (darkest = most open) plus a neutral grey for closed / no statement; one fixed colour per discipline;
+  dark-mode steps are selected, not flipped. Every chart has a table twin.
 - **One OA definition** (`build_discipline_dashboard.derive_open_access`, text in `OA_DEFINITION`): open =
   OpenAlex `oa_status` known and not `closed`; the legacy `infer_oa_series` inference (`is_oa` / OA journal /
   OA URL / licence) applies only where `oa_status` is unknown. Both the site `oa` count and the legacy report's
