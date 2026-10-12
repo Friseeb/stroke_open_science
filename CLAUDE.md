@@ -93,8 +93,10 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   Policy milestones from `configs/policy_events.json` (ICMJE statements 2018, Plan S 2021, OSTP memo 2022, NIH DMS
   2023; shipped as `policy_events`) draw as hairlines with hover detail on the trend and by-year charts (toggle in
   Trends; labels hidden on half-width charts). Every chart has PNG / SVG download buttons (client-side Plotly).
-- Visual system (2026-10-12 pass): IBM Plex Sans for UI and columns, Source Serif 4 for the page and card titles
-  (the deck's pairing), one type scale (`--fs-*` tokens), one control height; cool-biased neutrals; the selection
+- Visual system (2026-10-12 pass): editorial, not boxed. IBM Plex Sans for UI and columns, Source Serif 4 for the
+  masthead, the deck ("bajada"), the hero sentence and section titles; a 12px modular scale (`--m`, `--fs-*`: 12 /
+  15 / 18 / 24 / 36 / 72 / 96) with line-heights on a 12px baseline grid; sections are a 2px ink rule plus a title
+  on the page, tiles sit on rules, only the selection band is a filled object; cool-biased neutrals; the selection
   band is two explicit rows (years presets + custom row on demand, disciplines, papers / focus, slice, quick-view
   menu, actions). Tufte-style data density: inline SVG sparklines in the overview tiles (replacing meter bars) and a
   by-year trend column in the journal, country and funder tables; Trends offers a small-multiples layout; the

@@ -529,7 +529,7 @@
       font: { family: t.font, color: t.ink2, size: 13 },
       margin: { l: 52, r: 24, t: 12, b: 44 },
       xaxis: { gridcolor: "rgba(0,0,0,0)", linecolor: t.border, zeroline: false, tickfont: { color: t.ink3 }, fixedrange: true },
-      yaxis: { gridcolor: t.grid, gridwidth: 1, zeroline: false, tickfont: { color: t.ink3 }, fixedrange: true },
+      yaxis: { gridcolor: t.grid, gridwidth: 1, zeroline: false, tickfont: { color: t.ink3 }, fixedrange: true, ticks: "", showline: false },
       hoverlabel: { bgcolor: t.surface, bordercolor: t.border, font: { color: t.ink, family: t.font, size: 13 } },
       legend: { orientation: "h", y: -0.18, x: 0, font: { color: t.ink2 } },
       showlegend: true,
@@ -660,9 +660,9 @@
     hero.append(
       el("div", { class: "hero-left" }, [el("div", { class: "hero-label", text: "Open access · " + d.label }), el("div", { class: "hero-value", text: fmtPct(oa) })]),
       el("p", { class: "hero-text", text: agg.applicable
-        ? fmtInt(c[K.n]) + " journal articles and reviews (" + selectionLabel() + "). " + (onReq !== null
-          ? "Among " + fmtInt(c[K.das_audited]) + " audited open-access full texts, " + fmtPct(onReq) + " say the data are available on request and " + fmtPct(dep) + " point to a deposited or public dataset."
-          : "Run the data-availability audit to see what full texts say.")
+        ? (onReq !== null
+          ? "Of " + fmtInt(c[K.das_audited]) + " audited full texts, " + fmtPct(onReq) + " say “on request” and " + fmtPct(dep) + " point to deposited data."
+          : fmtInt(c[K.n]) + " journal articles and reviews, " + selectionLabel() + ".")
         : "This slice is not available for " + d.label + "." }));
 
     const tiles = $("tiles");
@@ -711,11 +711,11 @@
       annotations: ann.concat(partial.annotations, policyMarkers(t, years, false, "ov-trend-chart").annotations), shapes: partial.shapes.concat(policyMarkers(t, years, false, "ov-trend-chart").shapes) });
     plot("ov-trend-chart", traces, layout);
     const others = selectedDiscs().filter((x) => x.key !== d.key).map((x) => x.label);
-    $("ov-trend-sub").textContent = d.label + " in colour" + (others.length ? "; in grey: " + others.join(", ") : "") + ". " + selectionLabel() + ". Hover for every value.";
+    $("ov-trend-sub").textContent = d.label + " in colour" + (others.length ? "; grey: " + others.join(", ") : "") + ".";
 
     // DAS five classes by year (focus)
     const res = stackedByYear({ id: "ov-das-chart", tableId: "ov-das-table-none", classes: dasClasses("five", "audited"), denomFn: (x) => x[K.das_audited] });
-    $("ov-das-sub").textContent = res ? "Primary class of the data-availability statement in " + fmtInt(res.denomTotal) + " audited open-access full texts · " + d.label + "." : "No audited full texts in this selection.";
+    $("ov-das-sub").textContent = res ? fmtInt(res.denomTotal) + " audited open-access full texts · " + d.label + "." : "No audited full texts in this selection.";
 
     // Full text vs abstract table
     const rows = [];
@@ -771,7 +771,7 @@
     if (state.trendLayout === "panels" && series.length >= 2) {
       const rows = smallMultiplesSeries("trend-chart", series, years, (s, y) => (asCount ? (s.byYear.get(y) ? numer(s.byYear.get(y), m) : null) : rate(s.byYear.get(y), m)), asCount ? ",.0f" : null);
       $("trend-title").textContent = m.label + " by year, one panel per series";
-      $("trend-sub").textContent = m.definition + " Selection: " + selectionLabel() + ". Shared scale across panels." + (state.trendCompare !== "disciplines" ? " Focus discipline: " + d.label + "." : "");
+      $("trend-sub").textContent = selectionLabel() + (state.trendCompare !== "disciplines" ? " · " + d.label : "") + ". Shared scale across panels.";
       const cols = [{ key: "label", label: "Series" }].concat(years.map((y) => ({ key: "y" + y, label: String(y), fmt: asCount ? "int" : "pct" })));
       renderTable("trend-table", cols, rows.map((r) => { const o = { label: r.label }; years.forEach((y, i) => { o["y" + y] = r.ys[i]; }); return o; }), { sortable: false });
       return;
@@ -797,7 +797,7 @@
       annotations: ann.concat(partial.annotations, policyMarkers(t, years, false).annotations), shapes: partial.shapes.concat(policyMarkers(t, years, false).shapes) });
     plot("trend-chart", traces, layout);
     $("trend-title").textContent = m.label + " by year";
-    $("trend-sub").textContent = m.definition + " Selection: " + selectionLabel() + ". Points with fewer than " + MIN_N_RATE + " papers are omitted." + (state.trendCompare !== "disciplines" ? " Focus discipline: " + d.label + "." : "");
+    $("trend-sub").textContent = selectionLabel() + (state.trendCompare !== "disciplines" ? " · " + d.label : "") + ". Definitions under Methods.";
     const cols = [{ key: "label", label: "Series" }].concat(years.map((y) => ({ key: "y" + y, label: String(y), fmt: asCount ? "int" : "pct" })));
     renderTable("trend-table", cols, tableRows.map((r) => { const o = { label: r.label }; years.forEach((y, i) => { o["y" + y] = r.ys[i]; }); return o; }), { sortable: false });
   }
@@ -811,7 +811,7 @@
     const classes = oaClasses(state.oaGrouping);
     const res = stackedByYear({ id: "oa-chart", tableId: "oa-table", classes, denomFn: oaKnown });
     $("oa-title").textContent = (state.oaGrouping === "status" ? "Open-access status by year · " : "Open-access route by year · ") + d.label;
-    $("oa-sub").textContent = res ? "Share of papers with a known OpenAlex status (" + fmtInt(res.denomTotal) + "). " + selectionLabel() + ". Free to author = diamond or green; APC = gold or hybrid." : "No OA-status data for this selection.";
+    $("oa-sub").textContent = res ? fmtInt(res.denomTotal) + " papers with a known status · " + selectionLabel() + "." : "No OA-status data for this selection.";
     // Routes by discipline: horizontal stacked bars
     const t = tokens();
     const discs = selectedDiscs().map((x) => ({ x, a: aggregateDiscipline(x) })).filter((o) => o.a.applicable && oaKnown(o.a.total) >= MIN_N_RATE);
@@ -832,7 +832,7 @@
       yaxis: { automargin: true, tickfont: { color: t.ink2, size: 12 }, fixedrange: true, gridcolor: "rgba(0,0,0,0)", autorange: "reversed" },
       xaxis: Object.assign(layout.xaxis, { tickformat: ".0%", range: [0, 1.0001], gridcolor: t.grid }), legend: Object.assign(layout.legend, { y: -0.3, traceorder: "normal" }), uniformtext: { mode: "hide", minsize: 10 } });
     plot("oa-disc-chart", discs.length ? traces : [], layout);
-    $("oa-disc-sub").textContent = "Pooled over the selection (" + selectionLabel() + "); papers with a known status only.";
+    $("oa-disc-sub").textContent = "Pooled · " + selectionLabel() + ".";
     renderTable("oa-disc-table", [{ key: "label", label: "Discipline" }, { key: "n", label: "Known status", fmt: "int" }].concat(classes.map((c) => ({ key: c.key, label: c.label, fmt: "pct" }))),
       discs.map((o) => Object.assign({ label: o.x.label, n: oaKnown(o.a.total) }, Object.fromEntries(classes.map((c) => [c.key, c.sum(o.a.total) / oaKnown(o.a.total)])))), { sortable: false });
   }
@@ -851,7 +851,7 @@
     else res = stackedByYear({ id: "das-chart", tableId: "das-table", classes, denomFn });
     $("das-title").textContent = "Data-availability statements by year · " + d.label;
     $("das-sub").textContent = res
-      ? "Primary class of the statement in " + fmtInt(res.denomTotal) + (state.dasDenominator === "stmt" ? " audited articles that have a statement" : " audited open-access full texts") + " (Europe PMC sample). " + selectionLabel() + "." + (state.dasGrouping === "eight" ? " One panel per category, same scale." : "")
+      ? fmtInt(res.denomTotal) + (state.dasDenominator === "stmt" ? " audited articles with a statement" : " audited open-access full texts") + " · " + selectionLabel() + "."
       : "No audited papers in this selection.";
     // By discipline: grouped bars of signals
     const t = tokens();
@@ -862,7 +862,7 @@
     const layout = baseLayout(t);
     Object.assign(layout, { barmode: "group", bargap: 0.3, bargroupgap: 0.08, margin: { l: 52, r: 16, t: 12, b: 70 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }), legend: Object.assign(layout.legend, { y: -0.22 }) });
     plot("das-disc-chart", discs.length ? traces : [], layout);
-    $("das-disc-sub").textContent = "Audited open-access full texts, pooled over the selection (" + selectionLabel() + "). Optimistic relative to each whole corpus.";
+    $("das-disc-sub").textContent = "Audited open-access full texts, pooled · " + selectionLabel() + ".";
     renderTable("das-disc-table", [{ key: "label", label: "Discipline" }, { key: "n", label: "Audited", fmt: "int" }].concat(sig.map((s) => ({ key: s[0], label: s[1], fmt: "pct" }))),
       discs.map((o) => Object.assign({ label: o.x.label, n: o.a.total[K.das_audited] }, Object.fromEntries(sig.map((s) => [s[0], rate(o.a.total, s[0])])))), { sortable: false });
   }
@@ -971,7 +971,7 @@
       Object.assign(layout, { barmode: "stack", margin: { l: 52, r: 16, t: 12, b: 100 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", range: [0, 1.0001] }), xaxis: Object.assign(layout.xaxis, { type: "category" }), legend: Object.assign(layout.legend, { y: -0.3, traceorder: "normal" }), uniformtext: { mode: "hide", minsize: 10 } });
       plot("eq-route-chart", traces, layout);
       $("eq-route-title").textContent = "Who pays to be read · open-access route by first-author income group · " + d.label;
-      $("eq-route-sub").textContent = "Share of papers with a known OpenAlex status. Free to author = diamond or green; APC = gold or hybrid. " + selectionLabel() + ".";
+      $("eq-route-sub").textContent = "Papers with a known status · " + selectionLabel() + ".";
       renderTable("eq-route-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Papers", fmt: "int" }].concat(classes.map((c) => ({ key: c.key, label: c.label, fmt: "pct" }))),
         groups.map((g) => Object.assign({ label: g.label, n: g.counts[K.n] }, Object.fromEntries(classes.map((c) => [c.key, oaKnown(g.counts) ? c.sum(g.counts) / oaKnown(g.counts) : null])))), { sortable: false });
     } else {
@@ -983,7 +983,7 @@
       Object.assign(layout, { showlegend: false, margin: { l: 52, r: 16, t: 24, b: 70 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }), xaxis: Object.assign(layout.xaxis, { type: "category" }) });
       plot("eq-route-chart", vals.some((v) => v !== null) ? traces : [], layout);
       $("eq-route-title").textContent = m.label + " by first-author income group · " + d.label;
-      $("eq-route-sub").textContent = m.definition + " " + selectionLabel() + ".";
+      $("eq-route-sub").textContent = selectionLabel() + ".";
       renderTable("eq-route-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Denominator", fmt: "int" }, { key: "v", label: m.label, fmt: "pct" }],
         groups.map((g, i) => ({ label: g.label, n: denom(g.counts, m), v: vals[i] })), { sortable: false });
     }
@@ -996,7 +996,7 @@
     Object.assign(layout2, { barmode: "group", bargap: 0.3, bargroupgap: 0.08, margin: { l: 52, r: 16, t: 12, b: 70 }, yaxis: Object.assign(layout2.yaxis, { tickformat: ".0%", rangemode: "tozero" }), legend: Object.assign(layout2.legend, { y: -0.22 }) });
     plot("eq-ft-chart", audited.length && d.available.das ? traces : [], layout2);
     $("eq-ft-title").textContent = "Sharing in the full text, by first-author income group · " + d.label;
-    $("eq-ft-sub").textContent = d.available.das ? "Audited open-access full texts only (Europe PMC sample); groups with fewer than " + MIN_N_RATE + " audited papers are omitted. " + selectionLabel() + "." : "No data-availability audit in this dataset.";
+    $("eq-ft-sub").textContent = d.available.das ? "Audited open-access full texts · " + selectionLabel() + "." : "No data-availability audit in this dataset.";
     renderTable("eq-ft-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Audited", fmt: "int" }].concat(sig.map((s) => ({ key: s[0], label: s[1], fmt: "pct" }))),
       groups.map((g) => Object.assign({ label: g.label, n: g.counts[K.das_audited] }, Object.fromEntries(sig.map((s) => [s[0], rate(g.counts, s[0])])))), { sortable: false });
   }
@@ -1053,7 +1053,7 @@
     const entityLabel = { institutions: "institutions (credit to any author)", journals: "journals", funders: "funders", countries: "first-author countries" }[entity];
     $("cm-title").textContent = "Most committed " + entityLabel + " · " + d.label;
     $("cm-sub").textContent = available
-      ? "Index = mean over the selected verified full-text signals of (entity rate ÷ " + d.label + " rate); " + signals.map((s, i) => s.label + " " + fmtPct(baseRates[i], 1)).join(", ") + " discipline-wide. At least " + state.cmMin + " audited articles; " + items.length + " qualify. " + selectionLabel() + "."
+      ? "Entity rate ÷ " + d.label + " rate, averaged over the chosen signals (" + signals.map((s, i) => fmtPct(baseRates[i], 1)).join(" / ") + " discipline-wide). " + items.length + " with ≥ " + state.cmMin + " audited articles · " + selectionLabel() + "."
       : "This view needs the data-availability audit" + (entity === "institutions" ? " and the institutions column" : "") + " in the dataset.";
     renderTable("cm-table", [
       { key: "label", label: entity === "countries" ? "Country" : entity === "funders" ? "Funder" : entity === "journals" ? "Journal" : "Institution" },
@@ -1091,7 +1091,7 @@
       xaxis: Object.assign(layout.xaxis, { gridcolor: t.grid, tickformat: ".0%", range: [0, Math.min(1.05, xmax)], title: { text: m.label, font: { color: t.ink3, size: 12 } } }) });
     plot("journal-chart", traces, layout);
     $("journal-title").textContent = "Journals by " + m.label.toLowerCase() + " · " + d.label;
-    $("journal-sub").textContent = items.length ? plotted.length + " of " + items.length + " journals with at least " + state.journalMin + " papers (" + selectionLabel() + "). Top-" + (DATA.top_n.journals || "") + " journals by volume only; the table carries every metric." : "No journal reaches " + state.journalMin + " papers under this selection.";
+    $("journal-sub").textContent = items.length ? plotted.length + " of " + items.length + " journals with ≥ " + state.journalMin + " papers · " + selectionLabel() + "." : "No journal reaches " + state.journalMin + " papers under this selection.";
     const cols = [{ key: "label", label: "Journal" }, { key: "n", label: "Papers", fmt: "int" }, { key: "trend", label: m.short + " by year", fmt: "spark" }].concat(METRICS.filter((x) => x.key !== "material" && metricAvailable(d, x.key)).map((x) => ({ key: x.key, label: x.short, fmt: "pct", bar: x.key === m.key })));
     renderTable("journal-table", cols, items, { sortable: true, color: discColor(d), name: "journals", defaultSort: { key: m.key, dir: "desc" }, barKey: m.key });
   }
@@ -1119,13 +1119,13 @@
     if (d.available.country) {
       const rows = dimRows(d, aggregateBy(d, "country"), d.countries, (c) => (c.key === "Other" ? "Other countries" : c.label), aggregateByYearFor(d, "country"));
       $("country-title").textContent = "First-author countries · " + d.label;
-      $("country-sub").textContent = "Top-" + (DATA.top_n.countries || "") + " first-author countries by volume; " + selectionLabel() + (state.slice.kind === "country" ? " (country slice ignored here)" : "") + ". Click a column to sort; full-text columns use audited papers as denominator.";
+      $("country-sub").textContent = "Top " + (DATA.top_n.countries || "") + " by volume · " + selectionLabel() + ". Full-text columns: share of audited papers.";
       renderTable("country-table", dimCols(d, "Country"), rows, { sortable: true, color: discColor(d), name: "countries", barKey: "oa" });
     }
     if (d.available.funders) {
       const rows = dimRows(d, aggregateBy(d, "funder"), d.funders, (f) => (f === "Other" ? "Other funders" : f), aggregateByYearFor(d, "funder"));
       $("funder-title").textContent = "Funders · " + d.label;
-      $("funder-sub").textContent = "Top-" + (DATA.top_n.funders || "") + " funders by volume (a paper counts once under each listed funder); " + (state.hi ? "high-impact papers" : "all papers") + ", " + state.yearMin + "–" + state.yearMax + ". Journal, country and income slices do not apply here.";
+      $("funder-sub").textContent = "Top " + (DATA.top_n.funders || "") + " by volume; a paper counts once per funder · " + (state.hi ? "high-impact papers" : "all papers") + " · " + state.yearMin + "–" + state.yearMax + ".";
       renderTable("funder-table", dimCols(d, "Funder"), rows, { sortable: true, color: discColor(d), name: "funders", barKey: "oa" });
     }
   }
@@ -1236,6 +1236,7 @@
     const dl = el("dl");
     for (const m of METRICS) dl.append(el("dt", { text: m.label }), el("dd", { text: m.definition }));
     dl.append(el("dt", { text: "OA route" }), el("dd", { text: "Free to author = OpenAlex diamond or green; APC paid = gold or hybrid; bronze = free to read without a licence; closed. Shares use papers with a known status as the denominator." }));
+    dl.append(el("dt", { text: "Audited sample" }), el("dd", { text: "The data-availability audit covers a per-year sample of open-access articles with full text in Europe PMC, so every full-text rate is optimistic relative to the whole corpus and refers to audited papers only. Groups with fewer than " + MIN_N_RATE + " audited papers are not drawn." }));
     dl.append(el("dt", { text: "Data-availability statement classes" }), el("dd", { text: "Five ordered classes for the chart: deposited or public source (repository, public_source); controlled or restricted; on request; in article or supplement; not available or unclear (not_available_or_na, other_or_unclear); plus no statement. The eight underlying categories are available as small multiples and in every table." }));
     dl.append(el("dt", { text: "Commitment index" }), el("dd", { text: "For an institution, journal, funder or first-author country: the mean over the selected verified full-text signals (data deposited or public source in the statement; GitHub mentioned in the full text; trial registration mentioned in the full text) of the entity's rate divided by the discipline-wide rate under the same selection. 1.0 is the discipline average. Only entities with at least the chosen number of audited articles are ranked; small counts are noisy." }));
     dl.append(el("dt", { text: "Income group" }), el("dd", { text: "World Bank classification of the first author's country (high, upper-middle, lower-middle, low), from the pipeline's country-income configuration; unknown when the country is missing or unclassified." }));
