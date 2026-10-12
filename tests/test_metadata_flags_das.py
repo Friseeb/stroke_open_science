@@ -863,9 +863,10 @@ def test_high_impact_flags_are_recomputed_not_carried_over():
     df = pd.DataFrame([
         {"doi_norm": "10.1/stale", "year": 2020, "journal_impact_factor": 2.0, "cited_by_count": 1, "high_impact_flag": True, "high_impact_reason": "cited_by_count>=27 (top 10.0%)"},
         {"doi_norm": "10.1/star", "year": 2020, "journal_impact_factor": 2.0, "cited_by_count": 500, "high_impact_flag": False, "high_impact_reason": ""},
-    ] + [{"doi_norm": f"10.1/x{i}", "year": 2020, "journal_impact_factor": 2.0, "cited_by_count": 3, "high_impact_flag": False, "high_impact_reason": ""} for i in range(18)])
+    ] + [{"doi_norm": f"10.1/x{i}", "year": 2020, "journal_impact_factor": 2.0, "cited_by_count": i + 2, "high_impact_flag": False, "high_impact_reason": ""} for i in range(18)])
     cfg = _cfg(Path("."), impact_factor_threshold=10.0, citation_percentile_threshold=90.0)
     full, subset = pipeline.build_high_impact_subset(df, cfg)
-    assert set(subset["doi_norm"]) == {"10.1/star"}
+    # citations 1, 2..19, 500 -> 90th percentile is 18.1: only the 19- and 500-citation papers qualify
+    assert set(subset["doi_norm"]) == {"10.1/star", "10.1/x17"}
     stale = full[full["doi_norm"] == "10.1/stale"].iloc[0]
     assert bool(stale["high_impact_flag"]) is False and stale["high_impact_reason"] == ""
