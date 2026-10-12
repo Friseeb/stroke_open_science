@@ -78,33 +78,25 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   (year × hi × funder, multi-valued), `income_cells` (year × hi × first-author World Bank income group) and
   `institution_cells` (year × hi × institution, multi-valued, top 60 by audited papers). The full-text flags
   (`ft_*`) and the DAS categories use `das_audited` as denominator; `METRICS[*].denominator` says which.
-- The site (`dashboard/index.html`, `app.js`, `styles.css`, no build step) is a tabbed explorer: one sticky
-  selection bar (year presets + custom range, disciplines, focus, a single *slice* control for income group /
-  journal / country / funder, all vs high-impact, reset, copy link, CSV) scoping nine views: Overview (hero,
-  tiles, emphasis OA trend, DAS five classes, full text vs abstract table), Trends (metric × compare
-  disciplines / income groups / subset × rate or count), Open access (routes free-to-author / APC / bronze /
-  closed or six statuses; by year and by discipline), Data statements (five ordered classes or eight categories as
-  small multiples; denominator audited or with-statement; signals by discipline), Equity (income-group tiles,
-  OA route or any metric by income group, full-text signals by income group), Commitment (index = mean over the
-  chosen verified full-text signals of entity rate ÷ discipline rate, 1 = average; entity, min audited, top N),
-  Journals (metric, min papers, top N), Countries & funders (sortable tables with full-text columns), Methods.
-  The selection lives in the URL hash, so a link reproduces a view. A *Quick views* row applies named
-  selections (Stroke in Korea, statements 2022–2025, who pays to be read, prize shortlist, full text vs abstract).
-  Policy milestones from `configs/policy_events.json` (ICMJE statements 2018, Plan S 2021, OSTP memo 2022, NIH DMS
-  2023; shipped as `policy_events`) draw as hairlines with hover detail on the trend and by-year charts (toggle in
-  Trends; labels hidden on half-width charts). Every chart has PNG / SVG download buttons (client-side Plotly).
-- Visual system (2026-10-12, user-directed): ink on warm paper, delicate and open. Tokens: paper `#f8f6f1`, ink `#1a1916`, warm greys; the only hue is the focus discipline, set on `--accent` at render; dark theme is a warm dark set. Masthead = light (300) serif question title, serif standfirst, one byline rule; no dateline, kicker, sidebar or figure numbers (tried and removed). Controls are outlined; the primary button and the active segment are ink-filled. Hero figure 96px light in the accent. Earlier note kept for the scale:
-- Visual system (type scale): editorial, not boxed. IBM Plex Sans for UI and columns, Source Serif 4 for the
-  masthead, the deck ("bajada"), the hero sentence and section titles; a 12px modular scale (`--m`, `--fs-*`: 12 /
-  15 / 18 / 24 / 36 / 72 / 96) with line-heights on a 12px baseline grid; sections are a 2px ink rule plus a title
-  on the page, tiles sit on rules, only the selection band is a filled object; cool-biased neutrals; the selection
-  band is two explicit rows (years presets + custom row on demand, disciplines, papers / focus, slice, quick-view
-  menu, actions). Tufte-style data density: inline SVG sparklines in the overview tiles (replacing meter bars) and a
-  by-year trend column in the journal, country and funder tables; Trends offers a small-multiples layout; the
-  overview's emphasis chart drops the legend (grey series are named in the subtitle). Screenshots for review are
-  taken with puppeteer-core driving the installed Chrome (Chrome's own --screenshot flag misreports phone widths). Colours: one validated blue ordinal ramp
-  (darkest = most open) plus a neutral grey for closed / no statement; one fixed colour per discipline;
-  dark-mode steps are selected, not flipped. Every chart has a table twin.
+- The site (`dashboard/index.html`, `app.js`, `styles.css`, no build step) is **one scrolling page in six numbered
+  sections** (user decision 2026-10-12, content first, function only), all rendered on every selection change, with a
+  sticky section nav: 1 *Where <focus> stands* (tiles grouped by source with sparklines; focus trend all vs
+  high-impact with policy markers; OA route by year), 2 *Compared with its neighbours* (metric by year across
+  disciplines, overlay or small multiples; routes and full-text signals by discipline; full text vs abstract table),
+  3 *What data-availability statements say* (five ordered classes or eight categories; denominator option),
+  4 *Who pays to be open, and who shares* (income-group tiles; route or any metric by income group; full-text
+  signals; metric by year by income group), 5 *Who is already doing it well* (commitment index with entity / min
+  audited / top N / signal options; journals; countries and funders tables with trend columns), 6 *Where the numbers
+  come from* (methods). One selection band scopes everything (year presets + custom range, disciplines, papers,
+  focus, slice, quick-view menu, reset / copy link / CSV). The selection lives in the URL hash (`view` = section
+  id s1..s6). Policy milestones from `configs/policy_events.json` draw as hairlines with hover detail; every chart
+  has PNG / SVG download and a table twin. Screenshots for review are taken with puppeteer-core driving the
+  installed Chrome (Chrome's own --screenshot flag misreports phone widths).
+- Visual system (2026-10-12, user-directed): ink on warm paper (`#f8f6f1` / `#1a1916`, warm greys); the only hue is
+  the focus discipline, set on `--accent` at render; warm dark theme. IBM Plex Sans for UI and columns, Source Serif 4
+  for the page title and section titles; a 12px modular scale (`--m`, `--fs-*`) with line-heights on a 12px baseline;
+  sections and cards are rules on the page, not boxes; controls outlined, primaries ink-filled. Tufte-style density:
+  sparklines in tiles and table trend columns; small multiples; no legend where grey series carry no identity.
 - **One OA definition** (`build_discipline_dashboard.derive_open_access`, text in `OA_DEFINITION`): open =
   OpenAlex `oa_status` known and not `closed`; the legacy `infer_oa_series` inference (`is_oa` / OA journal /
   OA URL / licence) applies only where `oa_status` is unknown. Both the site `oa` count and the legacy report's

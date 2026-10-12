@@ -11,11 +11,8 @@
   const DIM_OFFSET = 3;           // [year, hi, <dim>, ...counts] for funder / income / institution tables
 
   const VIEWS = [
-    ["overview", "Overview", "The headline numbers for the selection"], ["trends", "Trends", "Any metric by year, overlaid or in panels"],
-    ["oa", "Open access", "Free, paid, bronze and closed routes"], ["das", "Data statements", "What full texts say about the data"],
-    ["equity", "Equity", "Routes and sharing by first-author income group"], ["commitment", "Commitment", "Institutions, journals, funders and countries ranked on verified signals"],
-    ["journals", "Journals", "Any metric across the top journals"], ["geo", "Countries & funders", "Sortable tables with trend columns"],
-    ["methods", "Methods", "Definitions, corpus and caveats"],
+    ["s1", "Where stroke stands"], ["s2", "Neighbours"], ["s3", "Data statements"],
+    ["s4", "Who pays, who shares"], ["s5", "Who does it well"], ["s6", "Methods"],
   ];
 
   // Dark-mode steps of the same categorical hues (validated set; see docs).
@@ -45,10 +42,10 @@
   const K = {};                   // count key -> index within the counts part of a row
   let METRICS = [];               // client metric defs: {key, label, short, definition, numerators, denominator}
   const state = {
-    view: "overview",
+    view: "s1",
     disciplines: [], focus: null, yearMin: null, yearMax: null,
     slice: { kind: "", key: "" }, hi: false,
-    metric: "oa", trendCompare: "disciplines", trendShow: "rate", trendLayout: "overlay",
+    metric: "oa", trendShow: "rate", trendLayout: "overlay", metricFocus: "oa", t1Compare: "subset", metricIncome: "oa",
     oaGrouping: "route", dasGrouping: "five", dasDenominator: "audited",
     eqSignal: "route", cmEntity: "institutions", cmMin: 50, cmTop: 15, cmSignals: ["das_deposit", "ft_github", "ft_reg"],
     journalMetric: "oa", journalMin: 100, journalTop: 25,
@@ -56,12 +53,12 @@
     sort: {},
   };
   const QUICK_VIEWS = [
-    { label: "Stroke overview", hash: "view=overview&focus=stroke" },
-    { label: "Stroke in Korea", hash: "view=overview&focus=stroke&slice=country:KR" },
-    { label: "What statements say, 2022–2025", hash: "view=das&focus=stroke&years=2022-2025" },
-    { label: "Who pays to be read", hash: "view=equity&focus=stroke&eqSignal=route" },
-    { label: "Prize shortlist", hash: "view=commitment&focus=stroke&cmEntity=institutions&cmMin=100&cmTop=15" },
-    { label: "Full text vs abstract", hash: "view=trends&metric=ft_github&trendCompare=disciplines" },
+    { label: "Stroke, all years", hash: "view=s1&focus=stroke" },
+    { label: "Stroke in Korea", hash: "view=s1&focus=stroke&slice=country:KR" },
+    { label: "What statements say, 2022–2025", hash: "view=s3&focus=stroke&years=2022-2025" },
+    { label: "Who pays to be read", hash: "view=s4&focus=stroke&eqSignal=route" },
+    { label: "Prize shortlist (≥ 100 audited)", hash: "view=s5&focus=stroke&cmEntity=institutions&cmMin=100&cmTop=15" },
+    { label: "GitHub in full text, by discipline", hash: "view=s2&metric=ft_github" },
   ];
 
   // ------------------------------------------------------------------ utilities
@@ -256,8 +253,8 @@
   const seriesFromByYear = (byYear, m) => yearsInRange().map((y) => rate(byYear.get(y), m));
 
   // ------------------------------------------------------------------ URL state
-  const HASH_KEYS = ["view", "focus", "hi", "metric", "trendCompare", "trendShow", "oaGrouping", "dasGrouping", "dasDenominator",
-    "eqSignal", "cmEntity", "cmMin", "cmTop", "journalMetric", "journalMin", "journalTop", "markers", "trendLayout"];
+  const HASH_KEYS = ["view", "focus", "hi", "metric", "trendShow", "trendLayout", "metricFocus", "t1Compare", "metricIncome", "oaGrouping", "dasGrouping", "dasDenominator",
+    "eqSignal", "cmEntity", "cmMin", "cmTop", "journalMetric", "journalMin", "journalTop", "markers"];
   function writeHash() {
     const p = new URLSearchParams();
     for (const k of HASH_KEYS) p.set(k, String(state[k]));
@@ -281,14 +278,16 @@
     if (p.get("markers") === "false") state.markers = false;
     const slice = (p.get("slice") || "").split(":");
     if (slice.length >= 2 && ["journal", "country", "funder", "income"].includes(slice[0])) state.slice = { kind: slice[0], key: slice.slice(1).join(":") };
-    for (const k of ["view", "metric", "trendCompare", "trendShow", "trendLayout", "oaGrouping", "dasGrouping", "dasDenominator", "eqSignal", "cmEntity", "journalMetric"]) {
+    for (const k of ["view", "metric", "trendShow", "trendLayout", "metricFocus", "t1Compare", "metricIncome", "oaGrouping", "dasGrouping", "dasDenominator", "eqSignal", "cmEntity", "journalMetric"]) {
       if (p.get(k)) state[k] = p.get(k);
     }
     for (const k of ["cmMin", "cmTop", "journalMin", "journalTop"]) if (p.get(k) && !Number.isNaN(+p.get(k))) state[k] = +p.get(k);
     const sig = (p.get("cmSignals") || "").split(",").filter(Boolean);
     if (sig.length) state.cmSignals = sig;
-    if (!VIEWS.some((v) => v[0] === state.view)) state.view = "overview";
+    if (!VIEWS.some((v) => v[0] === state.view)) state.view = "s1";
     if (!METRICS.some((m) => m.key === state.metric)) state.metric = "oa";
+    if (!METRICS.some((m) => m.key === state.metricFocus)) state.metricFocus = "oa";
+    if (!METRICS.some((m) => m.key === state.metricIncome)) state.metricIncome = "oa";
     if (!METRICS.some((m) => m.key === state.journalMetric)) state.journalMetric = "oa";
   }
 
@@ -299,7 +298,7 @@
     const dflt = Array.isArray(DATA.default_year_range) && DATA.default_year_range.length === 2 ? DATA.default_year_range : DATA.years;
     state.yearMin = dflt[0]; state.yearMax = dflt[dflt.length - 1];
     state.slice = { kind: "", key: "" }; state.hi = false;
-    state.metric = "oa"; state.trendCompare = "disciplines"; state.trendShow = "rate"; state.trendLayout = "overlay";
+    state.metric = "oa"; state.trendShow = "rate"; state.trendLayout = "overlay"; state.metricFocus = "oa"; state.t1Compare = "subset"; state.metricIncome = "oa";
     state.oaGrouping = "route"; state.dasGrouping = "five"; state.dasDenominator = "audited"; state.eqSignal = "route";
     state.cmEntity = "institutions"; state.cmMin = 50; state.cmTop = 15; state.cmSignals = ["das_deposit", "ft_github", "ft_reg"];
     state.journalMetric = "oa"; state.journalMin = 100; state.journalTop = 25;
@@ -375,7 +374,7 @@
     $("hi-all").onclick = () => setHi(false);
     $("hi-only").onclick = () => setHi(true);
     syncHi();
-    $("reset-btn").onclick = () => { resetState(); buildSelection(); buildViewOptions(); showView(state.view); renderAll(); };
+    $("reset-btn").onclick = () => { resetState(); buildSelection(); buildViewOptions(); renderAll(); };
     const quick = $("quick-views");
     quick.replaceChildren(el("option", { value: "", text: "Choose a view…" }));
     QUICK_VIEWS.forEach((q, i) => quick.append(el("option", { value: String(i), text: q.label })));
@@ -471,40 +470,23 @@
     const tabs = $("view-tabs");
     tabs.replaceChildren();
     for (const [key, label] of VIEWS) {
-      const b = el("button", { type: "button", class: "tab", id: "tab-" + key, role: "tab", text: label, "aria-selected": "false", "aria-controls": "view-" + key });
-      b.addEventListener("click", () => { showView(key); renderAll(); });
+      const b = el("button", { type: "button", class: "tab", id: "tab-" + key, text: label, "aria-current": "false" });
+      b.addEventListener("click", () => { showView(key, true); writeHash(); });
       tabs.append(b);
     }
   }
-  function showView(key) {
+  /** Sections are all rendered; the nav scrolls to one and marks it current. */
+  function showView(key, scroll) {
     state.view = key;
-    for (const [k] of VIEWS) {
-      $("view-" + k).hidden = k !== key;
-      $("tab-" + k).setAttribute("aria-selected", String(k === key));
+    for (const [k] of VIEWS) $("tab-" + k).setAttribute("aria-current", String(k === key));
+    const target = $(key);
+    if (scroll && target) {
+      const nav = document.querySelector(".views-nav");
+      const top = target.getBoundingClientRect().top + window.scrollY - (nav ? nav.offsetHeight : 0) - 12;
+      window.scrollTo({ top, behavior: "smooth" });
     }
-  }
-  /** Journal apparatus: Figure 1, Figure 2, Table 1 ... numbered within the active view. */
-  function numberSections(key) {
-    let fig = 0, tab = 0;
-    for (const card of $("view-" + key).querySelectorAll(".card[data-kind]")) {
-      if (card.hidden) continue;
-      const kind = card.dataset.kind;
-      const n = kind === "table" ? ++tab : ++fig;
-      const head = card.querySelector(".card-head > div:first-child, .card-head > div");
-      const h2 = head && head.querySelector("h2");
-      if (!h2) continue;
-      let k = head.querySelector(".fig-kicker");
-      if (!k) { k = el("span", { class: "fig-kicker" }); h2.before(k); }
-      k.textContent = (kind === "table" ? "Table " : "Figure ") + n;
-    }
-  }
-  function buildEdition() {
-    const ol = $("edition");
-    ol.replaceChildren();
-    for (const [key, label, desc] of VIEWS) {
-      const li = el("li", { "data-view": key }, el("button", { type: "button", text: label, title: desc, onclick: () => { showView(key); renderAll(); window.scrollTo({ top: $("views").offsetTop - 12, behavior: "smooth" }); } }));
-      ol.append(li);
-    }
+    const focus = focusDisc();
+    for (const n of document.querySelectorAll(".focus-name")) n.textContent = focus ? focus.label : "";
   }
   function fillSelectOptions(sel, options, value) {
     sel.replaceChildren();
@@ -521,7 +503,11 @@
     const metricOpts = METRICS.map((m) => ({ value: m.key, label: m.label }));
     state.metric = fillSelectOptions($("metric-select"), metricOpts, state.metric);
     bind("metric-select", "metric");
-    bind("trend-compare", "trendCompare"); bind("trend-show", "trendShow"); bind("trend-layout", "trendLayout");
+    bind("trend-show", "trendShow"); bind("trend-layout", "trendLayout");
+    state.metricFocus = fillSelectOptions($("t1-metric"), metricOpts, state.metricFocus);
+    bind("t1-metric", "metricFocus"); bind("t1-compare", "t1Compare");
+    state.metricIncome = fillSelectOptions($("t4-metric"), metricOpts, state.metricIncome);
+    bind("t4-metric", "metricIncome");
     bind("oa-grouping", "oaGrouping");
     bind("das-grouping", "dasGrouping"); bind("das-denominator", "dasDenominator");
     const eqOpts = [{ value: "route", label: "open-access route" }].concat(METRICS.filter((m) => m.key !== "material").map((m) => ({ value: m.key, label: m.label })));
@@ -657,39 +643,35 @@
     return { denomTotal: denoms.reduce((a, b) => a + b, 0) };
   }
 
-  // ------------------------------------------------------------------ render dispatch
+  // ------------------------------------------------------------------ render: everything, every time
   function renderAll() {
     writeHash();
     const d = focusDisc();
     document.documentElement.style.setProperty("--accent", discColor(d));
+    for (const n of document.querySelectorAll(".focus-name")) n.textContent = d.label;
     const note = [];
-    if (state.slice.kind && (state.slice.kind === "funder" || state.slice.kind === "income")) {
-      note.push("Slicing by " + (state.slice.kind === "funder" ? "funder" : "income group") + ": journal and country breakdowns are discipline-wide for this slice.");
-    }
+    if (state.slice.kind === "funder" || state.slice.kind === "income") note.push("Slicing by " + (state.slice.kind === "funder" ? "funder" : "income group") + ": journal and country breakdowns are discipline-wide for this slice.");
     if (state.slice.kind === "funder") note.push("A paper counts once under each listed funder.");
     if (state.hi) note.push("High-impact: " + (DATA.high_impact && DATA.high_impact.description ? DATA.high_impact.description : "journal IF or top citation decile."));
     $("filter-note").textContent = note.join(" ");
-    const r = { overview: renderOverview, trends: renderTrends, oa: renderOa, das: renderDas, equity: renderEquity,
-      commitment: renderCommitment, journals: renderJournals, geo: renderGeo, methods: renderMethods }[state.view];
-    if (r) r(d);
+    renderTiles(d);
+    renderTrendChart({ id: "t1-chart", tableId: "t1-table", titleId: "t1-title", subId: "t1-sub", metricKey: state.metricFocus, compare: state.t1Compare === "none" ? "none" : "subset", layout: "overlay", show: "rate", d });
+    renderOa(d);
+    renderTrendChart({ id: "trend-chart", tableId: "trend-table", titleId: "trend-title", subId: "trend-sub", metricKey: state.metric, compare: "disciplines", layout: state.trendLayout, show: state.trendShow, d });
+    renderDas(d);
+    renderFtTable(d);
+    renderEquity(d);
+    renderTrendChart({ id: "t4-chart", tableId: "t4-table", titleId: "t4-title", subId: "t4-sub", metricKey: state.metricIncome, compare: "income", layout: "overlay", show: "rate", d });
+    renderCommitment(d);
+    renderJournals(d);
+    renderGeo(d);
+    for (const [k] of VIEWS) $("tab-" + k).setAttribute("aria-current", String(k === state.view));
   }
 
-  // ------------------------------------------------------------------ Overview
-  function renderOverview(d) {
+  // ------------------------------------------------------------------ 1 tiles
+  function renderTiles(d) {
     const agg = aggregateDiscipline(d);
     const c = agg.total;
-    const t = tokens();
-    const hero = $("hero");
-    hero.replaceChildren();
-    const oa = rate(c, "oa"), onReq = rate(c, "das_on_request"), dep = rate(c, "das_deposit");
-    hero.append(
-      el("div", { class: "hero-left" }, [el("div", { class: "hero-label", text: "Open access · " + d.label }), el("div", { class: "hero-value", text: fmtPct(oa) })]),
-      el("p", { class: "hero-text", text: agg.applicable
-        ? (onReq !== null
-          ? "Of " + fmtInt(c[K.das_audited]) + " audited full texts, " + fmtPct(onReq) + " say “on request” and " + fmtPct(dep) + " point to deposited data."
-          : fmtInt(c[K.n]) + " journal articles and reviews, " + selectionLabel() + ".")
-        : "This slice is not available for " + d.label + "." }));
-
     const tiles = $("tiles");
     tiles.replaceChildren();
     const group = (title, note) => {
@@ -703,46 +685,97 @@
       if (series && series.some((v) => v !== null)) tile.append(sparkline(series, discColor(d)));
       return tile;
     };
-    const TILE_LABELS = { data: "Data in a repository", code: "Code link", preprint: "Preprint version", reg: "Registration signal",
+    const TILE_LABELS = { oa: "Open access", data: "Data in a repository", code: "Code link", reg: "Registration signal",
       das_stmt: "Has a data statement", das_deposit: "Data deposited or public source", ft_github: "GitHub mentioned", ft_reg: "Trial registration mentioned" };
-    for (const key of ["data", "code", "preprint", "reg", "das_stmt", "das_deposit", "ft_github", "ft_reg"]) {
+    for (const key of ["oa", "data", "code", "reg", "das_stmt", "das_deposit", "ft_github", "ft_reg"]) {
       const m = metric(key);
-      const available = metricAvailable(d, key);
+      const available = metricAvailable(d, key) && agg.applicable;
       const r = available ? rate(c, m) : null;
-      const sub = !available ? "not in this dataset" : fmtInt(numer(c, m)) + (m.denominator === "n_abs" ? " of " + fmtInt(denom(c, m)) + " abstracts" : " papers");
+      const sub = !agg.applicable ? "slice not available" : !available ? "not in this dataset" : fmtInt(numer(c, m)) + (m.denominator === "n_abs" ? " of " + fmtInt(denom(c, m)) : " papers");
       (m.denominator === "das_audited" ? gFull : gMeta).append(mk(TILE_LABELS[key] || m.short, fmtPct(r), sub, available ? seriesFromByYear(agg.byYear, m) : null, r === null));
     }
+  }
 
-    // OA trend: emphasis form (focus in colour, others in neutral)
+  // ------------------------------------------------------------------ trend charts (focus, disciplines, income groups)
+  function renderTrendChart(o) {
+    const t = tokens();
+    const d = o.d;
     const years = yearsInRange();
-    const traces = [], ann = [];
-    for (const x of selectedDiscs()) {
-      const a = aggregateDiscipline(x);
-      if (!a.applicable) continue;
-      const ys = years.map((y) => rate(a.byYear.get(y), "oa"));
+    const m = metric(o.metricKey);
+    const asCount = o.show === "count";
+    const series = [];
+    if (o.compare === "disciplines") {
+      for (const x of selectedDiscs()) {
+        if (!metricAvailable(x, m.key)) continue;
+        const a = aggregateDiscipline(x);
+        if (a.applicable) series.push({ label: x.label, color: discColor(x), byYear: a.byYear, focus: x.key === d.key });
+      }
+    } else if (o.compare === "income") {
+      const colors = ramp(RAMP4);
+      (DATA.income_order || []).forEach((g, i) => {
+        const idx = (d.income_groups || []).indexOf(g);
+        if (idx < 0) return;
+        const byYear = new Map();
+        for (const row of d.income_cells || []) {
+          if (row[0] < state.yearMin || row[0] > state.yearMax || (state.hi && row[1] !== 1) || row[2] !== idx) continue;
+          let acc = byYear.get(row[0]); if (!acc) { acc = emptyCounts(); byYear.set(row[0], acc); }
+          addRow(acc, row, DIM_OFFSET);
+        }
+        series.push({ label: (DATA.income_labels || {})[g] || g, color: colors[i], byYear, focus: false });
+      });
+    } else if (o.compare === "subset") {
+      const saved = state.hi;
+      for (const [hi, label, color] of [[false, "All papers", t.neutral], [true, "High-impact", discColor(d)]]) {
+        state.hi = hi;
+        const a = aggregateDiscipline(d);
+        if (a.applicable) series.push({ label, color, byYear: a.byYear, focus: hi });
+      }
+      state.hi = saved;
+    } else {
+      const a = aggregateDiscipline(d);
+      if (a.applicable) series.push({ label: d.label, color: discColor(d), byYear: a.byYear, focus: true });
+    }
+    const value = (s, y) => (asCount ? (s.byYear.get(y) ? numer(s.byYear.get(y), m) : null) : rate(s.byYear.get(y), m));
+    const sel = selectionLabel();
+    if (o.layout === "panels" && series.length >= 2) {
+      const rows = smallMultiplesSeries(o.id, series, years, value, asCount ? ",.0f" : null);
+      $(o.titleId).textContent = m.label + ", one panel per discipline";
+      $(o.subId).textContent = sel + ". Shared scale.";
+      const cols = [{ key: "label", label: "Series" }].concat(years.map((y) => ({ key: "y" + y, label: String(y), fmt: asCount ? "int" : "pct" })));
+      renderTable(o.tableId, cols, rows.map((r) => { const x = { label: r.label }; years.forEach((y, i) => { x["y" + y] = r.ys[i]; }); return x; }), { sortable: false });
+      return;
+    }
+    const traces = [], ann = [], tableRows = [];
+    for (const s of series) {
+      const ys = years.map((y) => value(s, y));
+      const ns = years.map((y) => (s.byYear.get(y) ? denom(s.byYear.get(y), m) : 0));
       if (ys.every((v) => v === null)) continue;
-      const focus = x.key === d.key;
-      traces.push({ type: "scatter", mode: "lines+markers", name: x.label, x: years, y: ys, connectgaps: false,
-        line: { color: focus ? discColor(x) : t.neutral, width: 2 }, marker: { size: 8, color: focus ? discColor(x) : t.neutral, line: { color: t.surface, width: 2 } },
-        opacity: focus ? 1 : 0.8, hovertemplate: "<b>%{y:.1%}</b><extra>" + x.label + "</extra>" });
+      traces.push({ type: "scatter", mode: "lines+markers", name: s.label, x: years, y: ys, customdata: ns, connectgaps: false,
+        line: { color: s.color, width: s.focus ? 2.5 : 2 }, marker: { size: 8, color: s.color, line: { color: t.surface, width: 2 } },
+        hovertemplate: (asCount ? "<b>%{y:,}</b>" : "<b>%{y:.1%}</b>") + " · n = %{customdata:,}<extra>" + s.label + "</extra>" });
       let last = ys.length - 1; while (last >= 0 && ys[last] === null) last--;
-      if (last >= 0 && focus) ann.push({ x: years[last], y: ys[last], xanchor: "left", xshift: 8, text: x.label, showarrow: false, font: { color: t.ink, size: 12 } });
+      if (last >= 0 && series.length === 1) ann.push({ x: years[last], y: ys[last], xanchor: "left", xshift: 8, text: s.label, showarrow: false, font: { color: t.ink2, size: 12 } });
+      tableRows.push({ label: s.label, ys });
     }
     const layout = baseLayout(t);
     const partial = partialYearShapes(t, years, false);
-    Object.assign(layout, { showlegend: false, hovermode: "x unified", margin: { l: 48, r: 96, t: 20, b: 40 },
-      yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }),
-      xaxis: Object.assign(layout.xaxis, { dtick: tickStep("ov-trend-chart", years.length), range: [years[0] - 0.6, years[years.length - 1] + 0.4] }),
-      annotations: ann.concat(partial.annotations, policyMarkers(t, years, false, "ov-trend-chart").annotations), shapes: partial.shapes.concat(policyMarkers(t, years, false, "ov-trend-chart").shapes) });
-    plot("ov-trend-chart", traces, layout);
-    const others = selectedDiscs().filter((x) => x.key !== d.key).map((x) => x.label);
-    $("ov-trend-sub").textContent = d.label + " in colour" + (others.length ? "; grey: " + others.join(", ") : "") + ".";
+    const ymax = Math.max(0, ...traces.flatMap((tr) => tr.y.filter((v) => v !== null)));
+    const pctFmt = ymax < 0.02 ? ".2%" : ymax < 0.1 ? ".1%" : ".0%";
+    const markers = policyMarkers(t, years, false, o.id);
+    Object.assign(layout, { showlegend: traces.length >= 2, hovermode: "x unified", margin: { l: 56, r: series.length === 1 ? 110 : 24, t: 20, b: 56 },
+      yaxis: Object.assign(layout.yaxis, { tickformat: asCount ? ",.0f" : pctFmt, rangemode: "tozero" }),
+      xaxis: Object.assign(layout.xaxis, { dtick: tickStep(o.id, years.length), range: [years[0] - 0.6, years[years.length - 1] + 0.4] }),
+      annotations: ann.concat(partial.annotations, markers.annotations), shapes: partial.shapes.concat(markers.shapes) });
+    plot(o.id, traces, layout);
+    const scope = o.compare === "disciplines" ? "by discipline" : o.compare === "income" ? "by first-author income group · " + d.label : o.compare === "subset" ? d.label + ", all papers vs high-impact" : d.label;
+    $(o.titleId).textContent = m.label + " by year, " + scope;
+    $(o.subId).textContent = sel + (traces.length ? "" : " · no data");
+    const cols = [{ key: "label", label: "Series" }].concat(years.map((y) => ({ key: "y" + y, label: String(y), fmt: asCount ? "int" : "pct" })));
+    renderTable(o.tableId, cols, tableRows.map((r) => { const x = { label: r.label }; years.forEach((y, i) => { x["y" + y] = r.ys[i]; }); return x; }), { sortable: false });
+  }
 
-    // DAS five classes by year (focus)
-    const res = stackedByYear({ id: "ov-das-chart", tableId: "ov-das-table-none", classes: dasClasses("five", "audited"), denomFn: (x) => x[K.das_audited] });
-    $("ov-das-sub").textContent = res ? fmtInt(res.denomTotal) + " audited open-access full texts · " + d.label + "." : "No audited full texts in this selection.";
-
-    // Full text vs abstract table
+  // ------------------------------------------------------------------ 2 full text vs abstract
+  function renderFtTable(d) {
     const rows = [];
     for (const x of selectedDiscs()) {
       const a = aggregateDiscipline(x);
@@ -757,76 +790,6 @@
     ], rows, { sortable: false });
   }
 
-  // ------------------------------------------------------------------ Trends
-  function renderTrends(d) {
-    const t = tokens();
-    const years = yearsInRange();
-    const m = metric(state.metric);
-    const asCount = state.trendShow === "count";
-    const series = [];   // {label, color, byYear}
-    if (state.trendCompare === "disciplines") {
-      for (const x of selectedDiscs()) {
-        if (!metricAvailable(x, m.key)) continue;
-        const a = aggregateDiscipline(x);
-        if (a.applicable) series.push({ label: x.label, color: discColor(x), byYear: a.byYear, focus: x.key === d.key });
-      }
-    } else if (state.trendCompare === "income") {
-      const colors = ramp(RAMP4);
-      (DATA.income_order || []).forEach((g, i) => {
-        const idx = (d.income_groups || []).indexOf(g);
-        if (idx < 0) return;
-        const byYear = new Map();
-        for (const row of d.income_cells || []) {
-          if (row[0] < state.yearMin || row[0] > state.yearMax || (state.hi && row[1] !== 1) || row[2] !== idx) continue;
-          let acc = byYear.get(row[0]); if (!acc) { acc = emptyCounts(); byYear.set(row[0], acc); }
-          addRow(acc, row, DIM_OFFSET);
-        }
-        series.push({ label: (DATA.income_labels || {})[g] || g, color: colors[i], byYear, focus: false });
-      });
-    } else {
-      const saved = state.hi;
-      for (const [hi, label, color] of [[false, "All papers", t.neutral], [true, "High-impact", discColor(d)]]) {
-        state.hi = hi;
-        const a = aggregateDiscipline(d);
-        if (a.applicable) series.push({ label, color, byYear: a.byYear, focus: hi });
-      }
-      state.hi = saved;
-    }
-    const traces = [], ann = [], tableRows = [];
-    if (state.trendLayout === "panels" && series.length >= 2) {
-      const rows = smallMultiplesSeries("trend-chart", series, years, (s, y) => (asCount ? (s.byYear.get(y) ? numer(s.byYear.get(y), m) : null) : rate(s.byYear.get(y), m)), asCount ? ",.0f" : null);
-      $("trend-title").textContent = m.label + " by year, one panel per series";
-      $("trend-sub").textContent = selectionLabel() + (state.trendCompare !== "disciplines" ? " · " + d.label : "") + ". Shared scale across panels.";
-      const cols = [{ key: "label", label: "Series" }].concat(years.map((y) => ({ key: "y" + y, label: String(y), fmt: asCount ? "int" : "pct" })));
-      renderTable("trend-table", cols, rows.map((r) => { const o = { label: r.label }; years.forEach((y, i) => { o["y" + y] = r.ys[i]; }); return o; }), { sortable: false });
-      return;
-    }
-    for (const s of series) {
-      const ys = years.map((y) => (asCount ? (s.byYear.get(y) ? numer(s.byYear.get(y), m) : null) : rate(s.byYear.get(y), m)));
-      const ns = years.map((y) => (s.byYear.get(y) ? denom(s.byYear.get(y), m) : 0));
-      if (ys.every((v) => v === null)) continue;
-      traces.push({ type: "scatter", mode: "lines+markers", name: s.label, x: years, y: ys, customdata: ns, connectgaps: false,
-        line: { color: s.color, width: s.focus ? 3 : 2 }, marker: { size: s.focus ? 9 : 8, color: s.color, line: { color: t.surface, width: 2 } },
-        hovertemplate: (asCount ? "<b>%{y:,}</b>" : "<b>%{y:.1%}</b>") + " · n = %{customdata:,}<extra>" + s.label + "</extra>" });
-      let last = ys.length - 1; while (last >= 0 && ys[last] === null) last--;
-      if (last >= 0 && series.length <= 2) ann.push({ x: years[last], y: ys[last], xanchor: "left", xshift: 8, text: s.label, showarrow: false, font: { color: t.ink2, size: 12 } });
-      tableRows.push({ label: s.label, ys });
-    }
-    const layout = baseLayout(t);
-    const partial = partialYearShapes(t, years, false);
-    const ymax = Math.max(0, ...traces.flatMap((tr) => tr.y.filter((v) => v !== null)));
-    const pctFmt = ymax < 0.02 ? ".2%" : ymax < 0.1 ? ".1%" : ".0%";
-    Object.assign(layout, { showlegend: traces.length >= 2, hovermode: "x unified", margin: { l: 60, r: series.length <= 2 ? 120 : 24, t: 20, b: 60 },
-      yaxis: Object.assign(layout.yaxis, { tickformat: asCount ? ",.0f" : pctFmt, rangemode: "tozero", title: { text: asCount ? m.label + " (papers)" : m.label, font: { color: t.ink3, size: 12 } } }),
-      xaxis: Object.assign(layout.xaxis, { dtick: tickStep("trend-chart", years.length), range: [years[0] - 0.6, years[years.length - 1] + 0.4] }),
-      annotations: ann.concat(partial.annotations, policyMarkers(t, years, false).annotations), shapes: partial.shapes.concat(policyMarkers(t, years, false).shapes) });
-    plot("trend-chart", traces, layout);
-    $("trend-title").textContent = m.label + " by year";
-    $("trend-sub").textContent = selectionLabel() + (state.trendCompare !== "disciplines" ? " · " + d.label : "") + ". Definitions under Methods.";
-    const cols = [{ key: "label", label: "Series" }].concat(years.map((y) => ({ key: "y" + y, label: String(y), fmt: asCount ? "int" : "pct" })));
-    renderTable("trend-table", cols, tableRows.map((r) => { const o = { label: r.label }; years.forEach((y, i) => { o["y" + y] = r.ys[i]; }); return o; }), { sortable: false });
-  }
-
   // ------------------------------------------------------------------ Open access
   function oaClasses(grouping) {
     if (grouping === "status") return DATA.oa_status_order.map((s) => ({ key: s, label: s[0].toUpperCase() + s.slice(1), sum: (c) => c[K["oa_" + s]], neutral: s === "closed" }));
@@ -835,7 +798,7 @@
   function renderOa(d) {
     const classes = oaClasses(state.oaGrouping);
     const res = stackedByYear({ id: "oa-chart", tableId: "oa-table", classes, denomFn: oaKnown });
-    $("oa-title").textContent = (state.oaGrouping === "status" ? "Open-access status by year · " : "Open-access route by year · ") + d.label;
+    $("oa-title").textContent = (state.oaGrouping === "status" ? "Open-access status by year, " : "Open-access route by year, ") + d.label;
     $("oa-sub").textContent = res ? fmtInt(res.denomTotal) + " papers with a known status · " + selectionLabel() + "." : "No OA-status data for this selection.";
     // Routes by discipline: horizontal stacked bars
     const t = tokens();
@@ -857,6 +820,7 @@
       yaxis: { automargin: true, tickfont: { color: t.ink2, size: 12 }, fixedrange: true, gridcolor: "rgba(0,0,0,0)", autorange: "reversed" },
       xaxis: Object.assign(layout.xaxis, { tickformat: ".0%", range: [0, 1.0001], gridcolor: t.grid }), legend: Object.assign(layout.legend, { y: -0.3, traceorder: "normal" }), uniformtext: { mode: "hide", minsize: 10 } });
     plot("oa-disc-chart", discs.length ? traces : [], layout);
+    $("oa-disc-title").textContent = "Open-access routes by discipline";
     $("oa-disc-sub").textContent = "Pooled · " + selectionLabel() + ".";
     renderTable("oa-disc-table", [{ key: "label", label: "Discipline" }, { key: "n", label: "Known status", fmt: "int" }].concat(classes.map((c) => ({ key: c.key, label: c.label, fmt: "pct" }))),
       discs.map((o) => Object.assign({ label: o.x.label, n: oaKnown(o.a.total) }, Object.fromEntries(classes.map((c) => [c.key, c.sum(o.a.total) / oaKnown(o.a.total)])))), { sortable: false });
@@ -874,19 +838,20 @@
     let res = null;
     if (state.dasGrouping === "eight") res = smallMultiplesByYear({ id: "das-chart", tableId: "das-table", classes, denomFn });
     else res = stackedByYear({ id: "das-chart", tableId: "das-table", classes, denomFn });
-    $("das-title").textContent = "Data-availability statements by year · " + d.label;
+    $("das-title").textContent = "Statements by year, " + d.label;
     $("das-sub").textContent = res
       ? fmtInt(res.denomTotal) + (state.dasDenominator === "stmt" ? " audited articles with a statement" : " audited open-access full texts") + " · " + selectionLabel() + "."
       : "No audited papers in this selection.";
     // By discipline: grouped bars of signals
     const t = tokens();
-    const sig = [["das_stmt", "Has statement"], ["das_deposit", "Deposited / public source"], ["das_on_request", "On request"], ["ft_github", "GitHub in full text"], ["ft_reg", "Registration in full text"]];
+    const sig = [["das_stmt", "Statement"], ["das_deposit", "Deposit"], ["das_on_request", "On request"], ["ft_github", "GitHub"], ["ft_reg", "Registration"]];
     const discs = selectedDiscs().map((x) => ({ x, a: aggregateDiscipline(x) })).filter((o) => o.a.applicable && o.a.total[K.das_audited] >= MIN_N_RATE);
     const traces = discs.map((o) => ({ type: "bar", name: o.x.label, x: sig.map((s) => s[1]), y: sig.map((s) => rate(o.a.total, s[0])), customdata: sig.map(() => o.a.total[K.das_audited]),
       marker: { color: discColor(o.x), line: { color: t.surface, width: 2 } }, hovertemplate: "<b>%{y:.1%}</b> · n audited = %{customdata:,}<extra>" + o.x.label + "</extra>" }));
     const layout = baseLayout(t);
-    Object.assign(layout, { barmode: "group", bargap: 0.3, bargroupgap: 0.08, margin: { l: 52, r: 16, t: 12, b: 70 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }), legend: Object.assign(layout.legend, { y: -0.22 }) });
+    Object.assign(layout, { barmode: "group", bargap: 0.3, bargroupgap: 0.08, margin: { l: 52, r: 16, t: 12, b: 80 }, xaxis: Object.assign(layout.xaxis, { tickangle: 0 }), yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }), legend: Object.assign(layout.legend, { y: -0.26 }) });
     plot("das-disc-chart", discs.length ? traces : [], layout);
+    $("das-disc-title").textContent = "Full-text signals by discipline";
     $("das-disc-sub").textContent = "Audited open-access full texts, pooled · " + selectionLabel() + ".";
     renderTable("das-disc-table", [{ key: "label", label: "Discipline" }, { key: "n", label: "Audited", fmt: "int" }].concat(sig.map((s) => ({ key: s[0], label: s[1], fmt: "pct" }))),
       discs.map((o) => Object.assign({ label: o.x.label, n: o.a.total[K.das_audited] }, Object.fromEntries(sig.map((s) => [s[0], rate(o.a.total, s[0])])))), { sortable: false });
@@ -979,7 +944,7 @@
       const bar = el("div", { class: "tile-bar" }, el("span")); bar.firstChild.style.width = clamp(share * 100, 0, 100) + "%"; bar.style.setProperty("--c", g.color); tile.append(bar);
       tiles.append(tile);
     }
-    const labels = groups.map((g) => g.label + "\n(n=" + fmtInt(g.counts[K.n]) + ")");
+    const labels = groups.map((g) => g.label.replace(" income", ""));
     if (state.eqSignal === "route") {
       const classes = oaClasses("route");
       const traces = [];
@@ -988,14 +953,14 @@
       for (const c of classes) {
         const color = c.neutral ? t.neutral : colors[ci++];
         const vals = groups.map((g) => (oaKnown(g.counts) >= MIN_N_RATE ? c.sum(g.counts) / oaKnown(g.counts) : null));
-        traces.push({ type: "bar", name: c.label, x: labels, y: vals, customdata: groups.map((g) => c.sum(g.counts)), marker: { color, line: { color: t.surface, width: 2 } }, width: 0.6,
+        traces.push({ type: "bar", name: c.label, x: labels, y: vals, customdata: groups.map((g) => [c.sum(g.counts), g.counts[K.n]]), marker: { color, line: { color: t.surface, width: 2 } }, width: 0.6,
           text: vals.map((v) => (v !== null && v >= 0.08 ? fmtPct(v, 0) : "")), textposition: "inside", insidetextanchor: "middle", insidetextfont: { color: c.neutral || ci > 2 ? "#0b0b0b" : "#ffffff", size: 11 },
-          hovertemplate: "<b>%{y:.1%}</b> · %{customdata:,} papers<extra>" + c.label + "</extra>" });
+          hovertemplate: "<b>%{y:.1%}</b> · %{customdata[0]:,} of %{customdata[1]:,} papers<extra>" + c.label + "</extra>" });
       }
       const layout = baseLayout(t);
-      Object.assign(layout, { barmode: "stack", margin: { l: 52, r: 16, t: 12, b: 100 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", range: [0, 1.0001] }), xaxis: Object.assign(layout.xaxis, { type: "category" }), legend: Object.assign(layout.legend, { y: -0.3, traceorder: "normal" }), uniformtext: { mode: "hide", minsize: 10 } });
+      Object.assign(layout, { barmode: "stack", margin: { l: 52, r: 16, t: 12, b: 90 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", range: [0, 1.0001] }), xaxis: Object.assign(layout.xaxis, { type: "category", tickangle: 0 }), legend: Object.assign(layout.legend, { y: -0.2, traceorder: "normal" }), uniformtext: { mode: "hide", minsize: 10 } });
       plot("eq-route-chart", traces, layout);
-      $("eq-route-title").textContent = "Open-access route by first-author income group · " + d.label;
+      $("eq-route-title").textContent = "Open-access route by income group, " + d.label;
       $("eq-route-sub").textContent = "Papers with a known status · " + selectionLabel() + ".";
       renderTable("eq-route-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Papers", fmt: "int" }].concat(classes.map((c) => ({ key: c.key, label: c.label, fmt: "pct" }))),
         groups.map((g) => Object.assign({ label: g.label, n: g.counts[K.n] }, Object.fromEntries(classes.map((c) => [c.key, oaKnown(g.counts) ? c.sum(g.counts) / oaKnown(g.counts) : null])))), { sortable: false });
@@ -1007,20 +972,20 @@
       const layout = baseLayout(t);
       Object.assign(layout, { showlegend: false, margin: { l: 52, r: 16, t: 24, b: 70 }, yaxis: Object.assign(layout.yaxis, { tickformat: ".0%", rangemode: "tozero" }), xaxis: Object.assign(layout.xaxis, { type: "category" }) });
       plot("eq-route-chart", vals.some((v) => v !== null) ? traces : [], layout);
-      $("eq-route-title").textContent = m.label + " by first-author income group · " + d.label;
+      $("eq-route-title").textContent = m.label + " by income group, " + d.label;
       $("eq-route-sub").textContent = selectionLabel() + ".";
       renderTable("eq-route-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Denominator", fmt: "int" }, { key: "v", label: m.label, fmt: "pct" }],
         groups.map((g, i) => ({ label: g.label, n: denom(g.counts, m), v: vals[i] })), { sortable: false });
     }
     // Full-text signals grouped by income group
-    const sig = [["das_stmt", "Has statement"], ["das_deposit", "Deposited / public source"], ["das_on_request", "On request"], ["ft_github", "GitHub in full text"], ["ft_reg", "Registration in full text"]];
+    const sig = [["das_stmt", "Statement"], ["das_deposit", "Deposit"], ["das_on_request", "On request"], ["ft_github", "GitHub"], ["ft_reg", "Registration"]];
     const audited = groups.filter((g) => g.counts[K.das_audited] >= MIN_N_RATE);
     const traces = audited.map((g) => ({ type: "bar", name: g.label, x: sig.map((s) => s[1]), y: sig.map((s) => rate(g.counts, s[0])), customdata: sig.map(() => g.counts[K.das_audited]),
       marker: { color: g.color, line: { color: t.surface, width: 2 } }, hovertemplate: "<b>%{y:.1%}</b> · n audited = %{customdata:,}<extra>" + g.label + "</extra>" }));
     const layout2 = baseLayout(t);
-    Object.assign(layout2, { barmode: "group", bargap: 0.3, bargroupgap: 0.08, margin: { l: 52, r: 16, t: 12, b: 70 }, yaxis: Object.assign(layout2.yaxis, { tickformat: ".0%", rangemode: "tozero" }), legend: Object.assign(layout2.legend, { y: -0.22 }) });
+    Object.assign(layout2, { barmode: "group", bargap: 0.3, bargroupgap: 0.08, margin: { l: 52, r: 16, t: 12, b: 80 }, xaxis: Object.assign(layout2.xaxis, { tickangle: 0 }), yaxis: Object.assign(layout2.yaxis, { tickformat: ".0%", rangemode: "tozero" }), legend: Object.assign(layout2.legend, { y: -0.26 }) });
     plot("eq-ft-chart", audited.length && d.available.das ? traces : [], layout2);
-    $("eq-ft-title").textContent = "Full-text sharing by first-author income group · " + d.label;
+    $("eq-ft-title").textContent = "Full-text sharing by income group, " + d.label;
     $("eq-ft-sub").textContent = d.available.das ? "Audited open-access full texts · " + selectionLabel() + "." : "No data-availability audit in this dataset.";
     renderTable("eq-ft-table", [{ key: "label", label: "Income group" }, { key: "n", label: "Audited", fmt: "int" }].concat(sig.map((s) => ({ key: s[0], label: s[1], fmt: "pct" }))),
       groups.map((g) => Object.assign({ label: g.label, n: g.counts[K.das_audited] }, Object.fromEntries(sig.map((s) => [s[0], rate(g.counts, s[0])])))), { sortable: false });
@@ -1076,7 +1041,7 @@
       annotations: [{ xref: "x", yref: "paper", x: 1, y: 1.02, yanchor: "bottom", text: "average", showarrow: false, font: { color: t.ink3, size: 11 } }] });
     plot("cm-chart", traces, layout);
     const entityLabel = { institutions: "institutions (credit to any author)", journals: "journals", funders: "funders", countries: "first-author countries" }[entity];
-    $("cm-title").textContent = "Most committed " + entityLabel + " · " + d.label;
+    $("cm-title").textContent = "Most committed " + entityLabel + ", " + d.label;
     $("cm-sub").textContent = available
       ? "Entity rate ÷ " + d.label + " rate, averaged over the chosen signals (" + signals.map((s, i) => fmtPct(baseRates[i], 1)).join(" / ") + " discipline-wide). " + items.length + " with ≥ " + state.cmMin + " audited articles · " + selectionLabel() + "."
       : "This view needs the data-availability audit" + (entity === "institutions" ? " and the institutions column" : "") + " in the dataset.";
@@ -1115,7 +1080,7 @@
       yaxis: { automargin: true, tickfont: { color: t.ink2, size: 12 }, fixedrange: true, gridcolor: "rgba(0,0,0,0)" },
       xaxis: Object.assign(layout.xaxis, { gridcolor: t.grid, tickformat: ".0%", range: [0, Math.min(1.05, xmax)], title: { text: m.label, font: { color: t.ink3, size: 12 } } }) });
     plot("journal-chart", traces, layout);
-    $("journal-title").textContent = "Journals by " + m.label.toLowerCase() + " · " + d.label;
+    $("journal-title").textContent = "Journals by " + m.label.toLowerCase() + ", " + d.label;
     $("journal-sub").textContent = items.length ? plotted.length + " of " + items.length + " journals with ≥ " + state.journalMin + " papers · " + selectionLabel() + "." : "No journal reaches " + state.journalMin + " papers under this selection.";
     const cols = [{ key: "label", label: "Journal" }, { key: "n", label: "Papers", fmt: "int" }, { key: "trend", label: m.short + " by year", fmt: "spark" }].concat(METRICS.filter((x) => x.key !== "material" && metricAvailable(d, x.key)).map((x) => ({ key: x.key, label: x.short, fmt: "pct", bar: x.key === m.key })));
     renderTable("journal-table", cols, items, { sortable: true, color: discColor(d), name: "journals", defaultSort: { key: m.key, dir: "desc" }, barKey: m.key });
@@ -1141,15 +1106,16 @@
   function renderGeo(d) {
     $("country-card").hidden = !d.available.country;
     $("funder-card").hidden = !d.available.funders;
+    if (!d.available.country && !d.available.funders) return;
     if (d.available.country) {
       const rows = dimRows(d, aggregateBy(d, "country"), d.countries, (c) => (c.key === "Other" ? "Other countries" : c.label), aggregateByYearFor(d, "country"));
-      $("country-title").textContent = "First-author countries · " + d.label;
+      $("country-title").textContent = "First-author countries, " + d.label;
       $("country-sub").textContent = "Top " + (DATA.top_n.countries || "") + " by volume · " + selectionLabel() + ". Full-text columns: share of audited papers.";
       renderTable("country-table", dimCols(d, "Country"), rows, { sortable: true, color: discColor(d), name: "countries", barKey: "oa" });
     }
     if (d.available.funders) {
       const rows = dimRows(d, aggregateBy(d, "funder"), d.funders, (f) => (f === "Other" ? "Other funders" : f), aggregateByYearFor(d, "funder"));
-      $("funder-title").textContent = "Funders · " + d.label;
+      $("funder-title").textContent = "Funders, " + d.label;
       $("funder-sub").textContent = "Top " + (DATA.top_n.funders || "") + " by volume; a paper counts once per funder · " + (state.hi ? "high-impact papers" : "all papers") + " · " + state.yearMin + "–" + state.yearMax + ".";
       renderTable("funder-table", dimCols(d, "Funder"), rows, { sortable: true, color: discColor(d), name: "funders", barKey: "oa" });
     }
@@ -1257,7 +1223,7 @@
   function renderMethods() {
     const body = $("methods-body");
     body.replaceChildren();
-    body.append(el("h3", { text: "Metric definitions" }));
+    body.append(el("h4", { text: "Metric definitions" }));
     const dl = el("dl");
     for (const m of METRICS) dl.append(el("dt", { text: m.label }), el("dd", { text: m.definition }));
     dl.append(el("dt", { text: "OA route" }), el("dd", { text: "Free to author = OpenAlex diamond or green; APC paid = gold or hybrid; bronze = free to read without a licence; closed. Shares use papers with a known status as the denominator." }));
@@ -1268,16 +1234,16 @@
     dl.append(el("dt", { text: "High-impact subset" }), el("dd", { text: (DATA.high_impact && DATA.high_impact.description) || "" }));
     if ((DATA.policy_events || []).length) dl.append(el("dt", { text: "Policy markers" }), el("dd", { text: DATA.policy_events.map((e) => e.year + ": " + e.label).join(". ") + ". Drawn at the start of the year on the trend and by-year charts; hover a label for the detail." }));
     body.append(dl);
-    body.append(el("h3", { text: "Corpus" }));
+    body.append(el("h4", { text: "Corpus" }));
     const ul1 = el("ul");
     for (const d of DATA.disciplines) ul1.append(el("li", { text: d.label + ": " + fmtInt(d.totals.in_corpus) + " articles/reviews kept of " + fmtInt(d.totals.rows_in_file) + " retrieved records (" + fmtInt(d.totals.dropped) + " excluded; rule: " + (DATA.corpus_rule[d.key] || "n/a") + "). Years " + d.years[0] + "–" + d.years[d.years.length - 1] + "." }));
     body.append(ul1);
-    body.append(el("h3", { text: "Reading notes" }));
+    body.append(el("h4", { text: "Reading notes" }));
     const ul2 = el("ul");
     for (const n of DATA.methods_notes) ul2.append(el("li", { text: n }));
     ul2.append(el("li", { text: "Rates are not drawn for cells with fewer than " + MIN_N_RATE + " papers. Colours: one blue ramp for ordered classes (darkest = most open), a neutral grey for closed / no statement, and one fixed colour per discipline; every chart has a table twin." }));
     body.append(ul2);
-    body.append(el("h3", { text: "How this page works" }));
+    body.append(el("h4", { text: "How this page works" }));
     body.append(el("p", { class: "card-sub", text: "The pipeline writes pre-aggregated counts (discipline × year × high-impact × journal × first-author country; plus × funder, × first-author income group and × institution) to dashboard_data.json; this page sums the counts for your selection and divides. No row-level data is shipped. The address bar carries the full selection, so a link reproduces the view. Generated " + DATA.generated_at + "." }));
   }
   function renderFooter() {
@@ -1343,9 +1309,9 @@
     buildViewOptions();
     renderMethods();
     renderFooter();
-    showView(state.view);
     renderAll();
-    window.addEventListener("hashchange", () => { readHash(); buildSelection(); buildViewOptions(); showView(state.view); renderAll(); });
+    showView(state.view, state.view !== "s1");
+    window.addEventListener("hashchange", () => { readHash(); buildSelection(); buildViewOptions(); renderAll(); showView(state.view, true); });
   }
   let resizeTimer = null;
   window.addEventListener("resize", () => { if (!DATA) return; clearTimeout(resizeTimer); resizeTimer = setTimeout(renderAll, 200); });

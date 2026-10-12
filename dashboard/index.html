@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stroke Open-Science Benchmark</title>
-  <meta name="description" content="Interactive benchmark of open-access routes, data and code sharing, data-availability statements, preprints and registration across stroke and adjacent disciplines, with equity and commitment views.">
+  <meta name="description" content="Where stroke research stands on open access, data and code sharing, data-availability statements and registration; how it compares with neurology, neuroscience and cardiology; who pays to be open; who is doing it well.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,600&display=swap">
@@ -12,14 +12,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly.min.js" charset="utf-8"></script>
 </head>
 <body>
-  <a class="skip-link" href="#views">Skip to content</a>
+  <a class="skip-link" href="#s1">Skip to content</a>
 
   <header class="page-header">
     <div class="wrap masthead">
       <div class="masthead-main">
         <h1>Stroke Open-Science Benchmark</h1>
-        <p class="lede">Open access, data and code sharing, data-availability statements, preprints and registration in stroke research since 2015, against neurology, neuroscience and cardiology.</p>
-        <p class="byline"><span class="byline-name">Sebastian Fridman</span><span class="byline-aff">Western University</span><span class="byline-date" id="byline-date"></span></p>
+        <p class="lede">Open access, data and code sharing, data-availability statements and registration in stroke research since 2015, against neurology, neuroscience and cardiology. <span id="byline-date"></span></p>
       </div>
       <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch colour theme" title="Theme: auto"><span class="theme-icon" aria-hidden="true">◐</span><span class="theme-label">Auto</span></button>
     </div>
@@ -75,114 +74,136 @@
       <p id="filter-note" class="filter-note" role="status" aria-live="polite"></p>
     </section>
 
-    <nav class="views-nav" aria-label="Views">
-      <div id="view-tabs" class="tabs" role="tablist"></div>
+    <nav class="views-nav" aria-label="Sections">
+      <div id="view-tabs" class="tabs"></div>
     </nav>
 
     <div id="views">
-      <!-- Overview -->
-      <section class="view" id="view-overview" role="tabpanel" aria-labelledby="tab-overview">
-        <div class="hero" id="hero"></div>
+
+      <!-- 1 Where stroke stands -->
+      <section class="view" id="s1" aria-labelledby="s1-title">
+        <h2 class="section-title" id="s1-title"><span class="section-no">1</span><span>Where <span class="focus-name">stroke</span> stands</span></h2>
+        <p class="section-lede">Every signal for the focus discipline under the current selection, with its trend by year.</p>
         <section class="tile-groups" id="tiles" aria-label="Summary for the current selection" aria-live="polite"></section>
         <div class="grid-2">
-          <section class="card" data-kind="figure">
-            <div class="card-head"><div><h2 id="ov-trend-title">Open access by year</h2><p class="card-sub" id="ov-trend-sub"></p></div></div>
-            <div id="ov-trend-chart" class="chart" role="img" aria-label="Open-access trend by discipline"></div>
+          <section class="card">
+            <div class="card-head">
+              <div><h3 id="t1-title">By year</h3><p class="card-sub" id="t1-sub"></p></div>
+              <div class="options" role="group" aria-label="Options">
+                <label>Metric <select id="t1-metric"></select></label>
+                <label>Compare <select id="t1-compare"><option value="subset">all vs high-impact</option><option value="none">focus only</option></select></label>
+                <label class="check"><input type="checkbox" id="markers-toggle"> policy markers</label>
+              </div>
+            </div>
+            <div id="t1-chart" class="chart" role="img" aria-label="Trend for the focus discipline"></div>
+            <details class="table-view"><summary>Table</summary><div id="t1-table" class="table-scroll"></div></details>
           </section>
-          <section class="card" data-kind="figure">
-            <div class="card-head"><div><h2 id="ov-das-title">What data statements say, by year</h2><p class="card-sub" id="ov-das-sub"></p></div></div>
-            <div id="ov-das-chart" class="chart" role="img" aria-label="Data-availability statement classes by year"></div>
+          <section class="card">
+            <div class="card-head">
+              <div><h3 id="oa-title">Open-access route by year</h3><p class="card-sub" id="oa-sub"></p></div>
+              <div class="options" role="group" aria-label="Options">
+                <label>Grouping <select id="oa-grouping"><option value="route">free / APC / bronze / closed</option><option value="status">six statuses</option></select></label>
+              </div>
+            </div>
+            <div id="oa-chart" class="chart" role="img" aria-label="Open-access route stacked bars by year"></div>
+            <details class="table-view"><summary>Table</summary><div id="oa-table" class="table-scroll"></div></details>
           </section>
         </div>
-        <section class="card" data-kind="table">
-          <div class="card-head"><div><h2>Full text versus abstract</h2><p class="card-sub" id="ov-ft-sub">What abstracts and metadata miss.</p></div></div>
+      </section>
+
+      <!-- 2 Compared with neighbours -->
+      <section class="view" id="s2" aria-labelledby="s2-title">
+        <h2 class="section-title" id="s2-title"><span class="section-no">2</span><span>Compared with its neighbours</span></h2>
+        <p class="section-lede">The same signals across the selected disciplines.</p>
+        <section class="card">
+          <div class="card-head">
+            <div><h3 id="trend-title">By year and discipline</h3><p class="card-sub" id="trend-sub"></p></div>
+            <div class="options" role="group" aria-label="Options">
+              <label>Metric <select id="metric-select"></select></label>
+              <label>Show <select id="trend-show"><option value="rate">rate</option><option value="count">count</option></select></label>
+              <label>Layout <select id="trend-layout"><option value="overlay">one chart</option><option value="panels">small multiples</option></select></label>
+            </div>
+          </div>
+          <div id="trend-chart" class="chart chart-tall" role="img" aria-label="Trend lines by discipline"></div>
+          <details class="table-view"><summary>Table</summary><div id="trend-table" class="table-scroll"></div></details>
+        </section>
+        <div class="grid-2">
+          <section class="card">
+            <div class="card-head"><div><h3 id="oa-disc-title">Open-access routes</h3><p class="card-sub" id="oa-disc-sub"></p></div></div>
+            <div id="oa-disc-chart" class="chart" role="img" aria-label="Open-access routes per discipline"></div>
+            <details class="table-view"><summary>Table</summary><div id="oa-disc-table" class="table-scroll"></div></details>
+          </section>
+          <section class="card">
+            <div class="card-head"><div><h3 id="das-disc-title">Full-text signals</h3><p class="card-sub" id="das-disc-sub"></p></div></div>
+            <div id="das-disc-chart" class="chart" role="img" aria-label="Full-text signals per discipline"></div>
+            <details class="table-view"><summary>Table</summary><div id="das-disc-table" class="table-scroll"></div></details>
+          </section>
+        </div>
+        <section class="card">
+          <div class="card-head"><div><h3>Full text versus abstract</h3><p class="card-sub" id="ov-ft-sub">What abstracts and metadata miss, per discipline.</p></div></div>
           <div id="ov-ft-table" class="table-scroll"></div>
         </section>
       </section>
 
-      <!-- Trends -->
-      <section class="view" id="view-trends" role="tabpanel" aria-labelledby="tab-trends" hidden>
-        <section class="card" data-kind="figure">
+      <!-- 3 What statements say -->
+      <section class="view" id="s3" aria-labelledby="s3-title">
+        <h2 class="section-title" id="s3-title"><span class="section-no">3</span><span>What data-availability statements say</span></h2>
+        <p class="section-lede">Audited open-access full texts for the focus discipline, classified by what the statement promises.</p>
+        <section class="card">
           <div class="card-head">
-            <div><h2 id="trend-title">Trend</h2><p class="card-sub" id="trend-sub"></p></div>
-            <div class="options" role="group" aria-label="Trend options">
-              <label>Metric <select id="metric-select"></select></label>
-              <label>Compare <select id="trend-compare"><option value="disciplines">disciplines</option><option value="income">income groups (focus)</option><option value="subset">all vs high-impact (focus)</option></select></label>
-              <label>Show <select id="trend-show"><option value="rate">rate</option><option value="count">count</option></select></label>
-              <label>Layout <select id="trend-layout"><option value="overlay">one chart</option><option value="panels">small multiples</option></select></label>
-              <label class="check"><input type="checkbox" id="markers-toggle"> policy markers</label>
-            </div>
-          </div>
-          <div id="trend-chart" class="chart chart-tall" role="img" aria-label="Trend lines"></div>
-          <details class="table-view"><summary>Table view</summary><div id="trend-table" class="table-scroll"></div></details>
-        </section>
-      </section>
-
-      <!-- Open access -->
-      <section class="view" id="view-oa" role="tabpanel" aria-labelledby="tab-oa" hidden>
-        <section class="card" data-kind="figure">
-          <div class="card-head">
-            <div><h2 id="oa-title">Open-access status by year</h2><p class="card-sub" id="oa-sub"></p></div>
-            <div class="options" role="group" aria-label="Open-access options">
-              <label>Grouping <select id="oa-grouping"><option value="route">routes: free to author / APC / bronze / closed</option><option value="status">six OpenAlex statuses</option></select></label>
-            </div>
-          </div>
-          <div id="oa-chart" class="chart" role="img" aria-label="Open-access status stacked bars by year"></div>
-          <details class="table-view"><summary>Table view</summary><div id="oa-table" class="table-scroll"></div></details>
-        </section>
-        <section class="card" data-kind="figure">
-          <div class="card-head"><div><h2 id="oa-disc-title">Open-access routes by discipline</h2><p class="card-sub" id="oa-disc-sub"></p></div></div>
-          <div id="oa-disc-chart" class="chart" role="img" aria-label="Open-access routes per discipline"></div>
-          <details class="table-view"><summary>Table view</summary><div id="oa-disc-table" class="table-scroll"></div></details>
-        </section>
-      </section>
-
-      <!-- Data statements -->
-      <section class="view" id="view-das" role="tabpanel" aria-labelledby="tab-das" hidden>
-        <section class="card" data-kind="figure">
-          <div class="card-head">
-            <div><h2 id="das-title">Data-availability statements by year</h2><p class="card-sub" id="das-sub"></p></div>
-            <div class="options" role="group" aria-label="Statement options">
+            <div><h3 id="das-title">Statements by year</h3><p class="card-sub" id="das-sub"></p></div>
+            <div class="options" role="group" aria-label="Options">
               <label>Classes <select id="das-grouping"><option value="five">five ordered classes</option><option value="eight">all eight categories</option></select></label>
               <label>Denominator <select id="das-denominator"><option value="audited">all audited articles</option><option value="stmt">articles with a statement</option></select></label>
             </div>
           </div>
           <div id="das-chart" class="chart" role="img" aria-label="Data-availability statement classes stacked bars by year"></div>
-          <details class="table-view"><summary>Table view</summary><div id="das-table" class="table-scroll"></div></details>
-        </section>
-        <section class="card" data-kind="figure">
-          <div class="card-head"><div><h2 id="das-disc-title">Statements and full-text signals by discipline</h2><p class="card-sub" id="das-disc-sub"></p></div></div>
-          <div id="das-disc-chart" class="chart" role="img" aria-label="Full-text signals per discipline"></div>
-          <details class="table-view" open><summary>Table view</summary><div id="das-disc-table" class="table-scroll"></div></details>
+          <details class="table-view"><summary>Table</summary><div id="das-table" class="table-scroll"></div></details>
         </section>
       </section>
 
-      <!-- Equity -->
-      <section class="view" id="view-equity" role="tabpanel" aria-labelledby="tab-equity" hidden>
+      <!-- 4 Who pays, who shares -->
+      <section class="view" id="s4" aria-labelledby="s4-title">
+        <h2 class="section-title" id="s4-title"><span class="section-no">4</span><span>Who pays to be open, and who shares</span></h2>
+        <p class="section-lede">The focus discipline by the World Bank income group of the first author's country.</p>
         <section class="tiles" id="equity-tiles" aria-label="Income-group shares"></section>
-        <section class="card" data-kind="figure">
+        <div class="grid-2">
+          <section class="card">
+            <div class="card-head">
+              <div><h3 id="eq-route-title">By income group</h3><p class="card-sub" id="eq-route-sub"></p></div>
+              <div class="options" role="group" aria-label="Options">
+                <label>Signal <select id="eq-signal"></select></label>
+              </div>
+            </div>
+            <div id="eq-route-chart" class="chart" role="img" aria-label="Signal by first-author income group"></div>
+            <details class="table-view"><summary>Table</summary><div id="eq-route-table" class="table-scroll"></div></details>
+          </section>
+          <section class="card">
+            <div class="card-head"><div><h3 id="eq-ft-title">Full-text sharing by income group</h3><p class="card-sub" id="eq-ft-sub"></p></div></div>
+            <div id="eq-ft-chart" class="chart" role="img" aria-label="Full-text sharing signals by income group"></div>
+            <details class="table-view"><summary>Table</summary><div id="eq-ft-table" class="table-scroll"></div></details>
+          </section>
+        </div>
+        <section class="card">
           <div class="card-head">
-            <div><h2 id="eq-route-title">Who pays to be read</h2><p class="card-sub" id="eq-route-sub"></p></div>
-            <div class="options" role="group" aria-label="Equity options">
-              <label>Signal <select id="eq-signal"></select></label>
+            <div><h3 id="t4-title">By year and income group</h3><p class="card-sub" id="t4-sub"></p></div>
+            <div class="options" role="group" aria-label="Options">
+              <label>Metric <select id="t4-metric"></select></label>
             </div>
           </div>
-          <div id="eq-route-chart" class="chart" role="img" aria-label="Open-access route by first-author income group"></div>
-          <details class="table-view"><summary>Table view</summary><div id="eq-route-table" class="table-scroll"></div></details>
-        </section>
-        <section class="card" data-kind="figure">
-          <div class="card-head"><div><h2 id="eq-ft-title">Sharing in the full text, by income group</h2><p class="card-sub" id="eq-ft-sub"></p></div></div>
-          <div id="eq-ft-chart" class="chart" role="img" aria-label="Full-text sharing signals by income group"></div>
-          <details class="table-view"><summary>Table view</summary><div id="eq-ft-table" class="table-scroll"></div></details>
+          <div id="t4-chart" class="chart" role="img" aria-label="Trend by income group"></div>
+          <details class="table-view"><summary>Table</summary><div id="t4-table" class="table-scroll"></div></details>
         </section>
       </section>
 
-      <!-- Commitment -->
-      <section class="view" id="view-commitment" role="tabpanel" aria-labelledby="tab-commitment" hidden>
-        <section class="card" data-kind="figure">
+      <!-- 5 Who does it well -->
+      <section class="view" id="s5" aria-labelledby="s5-title">
+        <h2 class="section-title" id="s5-title"><span class="section-no">5</span><span>Who is already doing it well</span></h2>
+        <p class="section-lede">Ranked on signals verified in the full text; the audited count is always shown, and small counts are noisy.</p>
+        <section class="card">
           <div class="card-head">
-            <div><h2 id="cm-title">Who is already doing it</h2><p class="card-sub" id="cm-sub"></p></div>
-            <div class="options" role="group" aria-label="Commitment options">
+            <div><h3 id="cm-title">Commitment index</h3><p class="card-sub" id="cm-sub"></p></div>
+            <div class="options" role="group" aria-label="Options">
               <label>Entity <select id="cm-entity"><option value="institutions">institutions (any author)</option><option value="journals">journals</option><option value="funders">funders</option><option value="countries">first-author countries</option></select></label>
               <label>Min. audited <select id="cm-min"><option value="30">30</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select></label>
               <label>Show top <select id="cm-top"><option value="10">10</option><option value="15" selected>15</option><option value="25">25</option><option value="40">40</option></select></label>
@@ -190,44 +211,39 @@
             </div>
           </div>
           <div id="cm-chart" class="chart" role="img" aria-label="Commitment index by entity"></div>
-          <details class="table-view" open><summary>Table view</summary><div id="cm-table" class="table-scroll"></div></details>
+          <details class="table-view" open><summary>Table</summary><div id="cm-table" class="table-scroll"></div></details>
         </section>
-      </section>
-
-      <!-- Journals -->
-      <section class="view" id="view-journals" role="tabpanel" aria-labelledby="tab-journals" hidden>
-        <section class="card" data-kind="figure">
+        <section class="card">
           <div class="card-head">
-            <div><h2 id="journal-title">Journals</h2><p class="card-sub" id="journal-sub"></p></div>
-            <div class="options" role="group" aria-label="Journal options">
+            <div><h3 id="journal-title">Journals</h3><p class="card-sub" id="journal-sub"></p></div>
+            <div class="options" role="group" aria-label="Options">
               <label>Metric <select id="journal-metric"></select></label>
               <label>Min. papers <select id="journal-min"><option value="30">30</option><option value="100" selected>100</option><option value="300">300</option><option value="1000">1,000</option></select></label>
               <label>Show top <select id="journal-top"><option value="15">15</option><option value="25" selected>25</option><option value="40">40</option></select></label>
             </div>
           </div>
           <div id="journal-chart" class="chart" role="img" aria-label="Journal bar chart"></div>
-          <details class="table-view"><summary>Table view</summary><div id="journal-table" class="table-scroll"></div></details>
+          <details class="table-view"><summary>Table</summary><div id="journal-table" class="table-scroll"></div></details>
         </section>
-      </section>
-
-      <!-- Countries & funders -->
-      <section class="view" id="view-geo" role="tabpanel" aria-labelledby="tab-geo" hidden>
         <div class="stack">
-          <section class="card" id="country-card" data-kind="table">
-            <div class="card-head"><div><h2 id="country-title">First-author countries</h2><p class="card-sub" id="country-sub"></p></div></div>
+          <section class="card" id="country-card">
+            <div class="card-head"><div><h3 id="country-title">First-author countries</h3><p class="card-sub" id="country-sub"></p></div></div>
             <div id="country-table" class="table-scroll"></div>
           </section>
-          <section class="card" id="funder-card" data-kind="table">
-            <div class="card-head"><div><h2 id="funder-title">Funders</h2><p class="card-sub" id="funder-sub"></p></div></div>
+          <section class="card" id="funder-card">
+            <div class="card-head"><div><h3 id="funder-title">Funders</h3><p class="card-sub" id="funder-sub"></p></div></div>
             <div id="funder-table" class="table-scroll"></div>
           </section>
         </div>
       </section>
 
-      <!-- Methods -->
-      <section class="view" id="view-methods" role="tabpanel" aria-labelledby="tab-methods" hidden>
-        <section class="card methods"><h2>Methods and definitions</h2><div id="methods-body"></div></section>
+      <!-- 6 Methods -->
+      <section class="view" id="s6" aria-labelledby="s6-title">
+        <h2 class="section-title" id="s6-title"><span class="section-no">6</span><span>Where the numbers come from</span></h2>
+        <p class="section-lede">Definitions, corpus and limits. Every rate on this page is computed from pre-aggregated counts for your selection.</p>
+        <section class="card methods"><div id="methods-body"></div></section>
       </section>
+
     </div>
 
     <p id="error" class="error" hidden></p>
