@@ -111,8 +111,9 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   bottom), the matrix cells cascade and their figures count up from zero (`countUpAll`, `data-value`), sparklines
   and stat bars wipe in, section titles unmask from the baseline (`clip-path`), the hero title rises line by line on
   load and the whole hero block parallaxes, shrinks and fades as the reader leaves it (`heroMotion`), section titles
-  are scroll-linked in size (`titleMotion`: full size at the reading line 38 % down the viewport, down to 0.84 at the
-  edges, via the `scale` property so the unmask transition is untouched), and the nav indicator slides between sections. All of it is off under `prefers-reduced-motion`. Each figure's
+  are scroll-linked in size (`titleMotion`, user preference 2026-10-13: a title arrives at up to 1.9× and settles to 1×
+  at the reading line 38 % down the viewport, then stays; the section note fades in as it settles; via the `scale`
+  property from the top-left so the unmask transition is untouched), and the nav indicator slides between sections. All of it is off under `prefers-reduced-motion`. Each figure's
   form is a URL-hash key (`oaMode`, `dasMode`, `hiMode`, `ftdMode`, `eqMode`, `t4Layout`, `cmMode`, `journalMode`,
   `trendLayout`). Exports serialise the SVG with the page background (a system sans stands in for Instrument Sans).
 - Visual system (2026-10-12, calibrated on the user's references: tresmarescapital.com, nickho-motorsports.nl,
