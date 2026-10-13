@@ -198,6 +198,7 @@ h1, h2, h3, p { margin: 0; }
 .caption { font-size: var(--fs-sm); line-height: 18px; color: var(--ink-3); margin: 10px 0 0; max-width: 100ch; }
 .caption .fno { color: var(--ink); font-weight: 500; margin-right: 10px; }
 .grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 48px; }
+.grid-2 > .fig.is-wide { grid-column: 1 / -1; }
 
 .chart { width: 100%; max-width: 100%; overflow: visible; min-height: 48px; }
 .chart svg.ch { overflow: visible; }
@@ -222,6 +223,13 @@ h1, h2, h3, p { margin: 0; }
 .export { display: flex; justify-content: flex-end; gap: 16px; margin-top: 4px; }
 .export button { font: inherit; font-size: var(--fs-xs); color: var(--ink-3); background: transparent; border: 0; padding: 0; cursor: pointer; border-bottom: 1px solid var(--hair); line-height: 16px; }
 .export button:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* Year scrubber under the bubble chart */
+.scrub { display: flex; align-items: center; gap: 18px; margin: 10px 0 0; }
+.scrub-range { -webkit-appearance: none; appearance: none; width: min(420px, 60%); height: 2px; background: var(--hair); margin: 0; }
+.scrub-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 2px solid var(--bg); cursor: pointer; }
+.scrub-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); border: 2px solid var(--bg); cursor: pointer; }
+.scrub .readout { font-family: var(--serif); font-size: 24px; line-height: 24px; min-width: 3ch; }
 
 /* Tables */
 .table-view { margin-top: 12px; }

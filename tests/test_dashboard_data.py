@@ -145,6 +145,7 @@ def test_top_n_folding_journals_and_countries():
     # blank country is folded into Other too
     assert other_c == int((~country.isin(top3)).sum())
     assert agg["countries"][0]["label"] == bdd.ISO2_NAMES[top3[0]]
+    assert all("income" in c for c in agg["countries"]) and agg["countries"][-1]["income"] == ""
 
 
 def test_funders_multivalued_and_no_funder_bucket():
