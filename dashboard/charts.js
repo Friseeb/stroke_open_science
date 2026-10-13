@@ -22,7 +22,15 @@ window.Charts = (function () {
   const fmtInt = (v) => (v === null || v === undefined || Number.isNaN(v)) ? "—" : Math.round(v).toLocaleString("en-US");
   const fmtX = (v) => (v === null || v === undefined || Number.isNaN(v)) ? "—" : v.toFixed(1) + "×";
   const formatter = (kind) => (kind === "int" ? fmtInt : kind === "x" ? fmtX : kind === "pct1" ? (v) => fmtPct(v, 1) : fmtPct);
-  const tickFormat = (kind) => (kind === "int" ? d3.format("~s") : kind === "x" ? (v) => v + "×" : (v) => Math.round(v * 100) + "%");
+  /** Axis tick labels. Percent ticks keep as many decimals as the scale needs: a 0-0.6% axis must not read 0%, 0%, 1%. */
+  const tickFormat = (kind, scale) => {
+    if (kind === "int") return d3.format("~s");
+    if (kind === "x") return (v) => v + "×";
+    const ticks = scale ? scale.ticks(4) : [];
+    const step = ticks.length > 1 ? Math.abs(ticks[1] - ticks[0]) * 100 : 1;
+    const digits = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
+    return (v) => (v * 100).toFixed(digits) + "%";
+  };
   const textW = (s, size) => String(s || "").length * (size || 12) * 0.56;   // good enough for layout decisions
   const onDark = (hex) => { try { return d3.hcl(hex).l < 62; } catch (e) { return true; } };
   const truncate = (s, max) => (s.length > max ? s.slice(0, Math.max(1, max - 1)) + "…" : s);
@@ -176,7 +184,7 @@ window.Charts = (function () {
     const slot = F.iw / Math.max(1, xs.length - 1);
     partialBand(F.g, o.partial, xs, x, slot, F.ih, t);
     milestones(F.g, o.markers, xs, x, slot, F.ih, F.iw, t);
-    yAxis(F.g, y, t, tickFormat(o.fmt), 4);
+    yAxis(F.g, y, t, tickFormat(o.fmt, y), 4);
     xAxisBand(F.g, xs, x, F.ih, F.iw, t, slot < 26 ? 3 : slot < 44 ? 2 : 1);
     const data = series.map((s) => ({ key: s.key, label: s.label, color: s.color, emphasis: !!s.emphasis, pts: xs.map((xv, i) => ({ x: xv, v: s.values[i], n: s.ns ? s.ns[i] : null })) }));
     const line = d3.line().defined((d) => d.v !== null && d.v !== undefined).x((d) => x(d.x)).y((d) => y(d.v));
@@ -319,7 +327,7 @@ window.Charts = (function () {
       // ticks: y labels in the first column only, x labels first and last year
       const yt = g.select("g.yt").selectAll("text").data(i % cols === 0 ? y.ticks(3) : []);
       yt.exit().remove();
-      yt.enter().append("text").attr("font-size", 10).attr("fill", t.ink3).attr("text-anchor", "end").attr("dy", "0.32em").merge(yt).attr("x", -8).attr("y", (v) => y(v)).text(tickFormat(o.fmt));
+      yt.enter().append("text").attr("font-size", 10).attr("fill", t.ink3).attr("text-anchor", "end").attr("dy", "0.32em").merge(yt).attr("x", -8).attr("y", (v) => y(v)).text(tickFormat(o.fmt, y));
       const xt = g.select("g.xt").selectAll("text").data([xs[0], xs[xs.length - 1]]);
       xt.exit().remove();
       xt.enter().append("text").attr("font-size", 10).attr("fill", t.ink3).merge(xt).attr("x", (v) => x(v)).attr("y", ph + 16).attr("text-anchor", (v, k) => (k === 0 ? "start" : "end")).text((v) => v);
@@ -493,7 +501,7 @@ window.Charts = (function () {
     base.enter().append("line").attr("class", "base").merge(base).attr("x1", x(ticks[0])).attr("x2", x(ticks[ticks.length - 1])).attr("y1", F.ih + 0.5).attr("y2", F.ih + 0.5).attr("stroke", t.hair);
     const tk = ax.selectAll("text").data(ticks, (d) => d);
     tk.exit().remove();
-    tk.enter().append("text").attr("font-size", 11).attr("fill", t.ink3).attr("text-anchor", "middle").merge(tk).attr("x", (d) => x(d)).attr("y", F.ih + 18).text(tickFormat(o.fmt));
+    tk.enter().append("text").attr("font-size", 11).attr("fill", t.ink3).attr("text-anchor", "middle").merge(tk).attr("x", (d) => x(d)).attr("y", F.ih + 18).text(tickFormat(o.fmt, x));
     const R = layer(F.g, "rows").selectAll("g.row").data(rows, (d) => d.key);
     R.exit().transition().duration(dur).style("opacity", 0).remove();
     const Re = R.enter().append("g").attr("class", "row").style("opacity", 0);
@@ -682,14 +690,14 @@ window.Charts = (function () {
     const x = d3.scaleLinear().domain([0, Math.min(cap(o.xFmt), d3.max(all, (d) => d.x) * 1.08)]).nice(4).range([0, F.iw]);
     const y = d3.scaleLinear().domain([0, Math.min(cap(o.yFmt), d3.max(all, (d) => d.y) * 1.08)]).nice(4).range([F.ih, 0]);
     const r = d3.scaleSqrt().domain([0, d3.max(all, (d) => d.size)]).range([3, Math.max(14, Math.min(36, F.iw / 13))]);
-    yAxis(F.g, y, t, tickFormat(o.yFmt || "pct"), 4);
+    yAxis(F.g, y, t, tickFormat(o.yFmt || "pct", y), 4);
     const ax = layer(F.g, "xaxis");
     const xt = x.ticks(4);
     const base = ax.selectAll("line.base").data([0]);
     base.enter().append("line").attr("class", "base").merge(base).attr("x1", x(xt[0])).attr("x2", x(xt[xt.length - 1])).attr("y1", F.ih + 0.5).attr("y2", F.ih + 0.5).attr("stroke", t.hair);
     const tk = ax.selectAll("text.xl").data(xt, (d) => d);
     tk.exit().remove();
-    tk.enter().append("text").attr("class", "xl").attr("font-size", 11).attr("fill", t.ink3).attr("text-anchor", "middle").merge(tk).attr("x", (d) => x(d)).attr("y", F.ih + 18).text(tickFormat(o.xFmt || "pct"));
+    tk.enter().append("text").attr("class", "xl").attr("font-size", 11).attr("fill", t.ink3).attr("text-anchor", "middle").merge(tk).attr("x", (d) => x(d)).attr("y", F.ih + 18).text(tickFormat(o.xFmt || "pct", x));
     const titles = layer(F.g, "axtitles").selectAll("text").data([{ k: "x", s: o.xLabel }, { k: "y", s: o.yLabel }], (d) => d.k);
     titles.enter().append("text").attr("font-size", 11.5).attr("fill", t.ink2).merge(titles)
       .attr("x", (d) => (d.k === "x" ? F.iw : -40)).attr("y", (d) => (d.k === "x" ? F.ih + 38 : -12)).attr("text-anchor", (d) => (d.k === "x" ? "end" : "start")).text((d) => d.s);
