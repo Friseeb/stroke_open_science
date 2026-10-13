@@ -4,20 +4,20 @@ World Stroke Congress 2026, Seoul. Thu 22 Oct 2026, 15:45-16:00 (15 min), sessio
 "The latest in stroke implementation science" (ID 340), Conference Room 202-203.
 Speaker: Sebastian Fridman (Western University, London, Canada).
 
-Goal set by the speaker: leave the room with an agenda of incentives for open science
-in stroke, grounded in the first stroke-specific measurement of these practices.
+Version 3 (2026-10-13). The arc the speaker asked for: the moment that started the project,
+why open science matters (the reproducibility crisis in psychology and neuroscience), the same
+problem in stroke, what open science is made of, what we measured, and what to do next (a task
+force, a prize, awareness). The deck (14 slides) is the Slides artifact "Open Science in Stroke
+Research"; it reuses the dashboard's figures and visual system.
 
-Numbers below come from `talk/outputs/numbers.json` and `talk/outputs/tables/`
-(stroke corpus: OpenAlex journal articles and reviews with a DOI, 2015-2025, n = 126,207; open access = any OpenAlex status other than closed; full-text audit = 20,515 open-access stroke articles with full text in Europe PMC, 2,000 sampled per year, seed 2026; comparators audited the same way) and from
-`talk/evidence_brief.md`. All numbers come from pipeline output: run
-`scripts/search_stroke_dois.py` per discipline (with `--das-audit-all` or
-`--das-audit-sample-per-year N` for stroke), then `scripts/wsc2026_talk_analysis.py`
-before finalising. The two standalone scripts were retired on 2026-10-11.
+Numbers come from `talk/outputs/numbers.json` and `talk/outputs/tables/` (stroke corpus:
+OpenAlex journal articles and reviews with a DOI, 2015-2025, n = 126,207; open access = any
+OpenAlex status other than closed; full-text audit = 20,515 open-access stroke articles with full
+text in Europe PMC, 2,000 sampled per year, seed 2026; comparators audited the same way) and from
+`talk/evidence_brief.md`. The figures on the slides are exports of the public dashboard
+(https://friseeb.github.io/stroke_open_science_outputs/), so slide and dashboard agree.
 
-Timing plan: 13 slides, roughly 1 minute each, 2 minutes spare for the agenda slide.
-Regenerated 2026-10-11 from pipeline output (all four disciplines audited). Slides 8b and 8c
-are the two new slides for the equity and prize arguments; to stay at 13, fold slide 6 into
-slide 7 and slide 8c into slide 11.
+Timing: 14 slides in 14:30, leaving 30 s. Minutes in brackets are cumulative at the start of the slide.
 
 ---
 
@@ -25,257 +25,239 @@ slide 7 and slide 8c into slide 11.
 
 **Open science in stroke research: measuring reproducibility and transparency**
 
-Notes: One sentence. "I am going to show you ten years of stroke publishing measured
-automatically, and then argue that what we measured is a design problem, not a
-motivation problem."
+Notes: One sentence, no agenda slide. "I want to tell you how this project started, what it
+found, and what I think we should do with it."
 
-## 2. Why measure (0:45)
+## 2. The moment this started (0:20, 40 s) — NEW, personal
 
-- Open science has four practical parts for a clinical field: can people read it, can
-  they check it, can they reuse it, was it planned in advance.
-- Reproducibility audits exist for neurology, cardiology and general medicine. None
-  exist for stroke. (Rauh 2020; Heckerman 2025; Scutt 2020)
-- Implementation science applies to our own practices too: you cannot improve what you
-  do not measure.
+One large sentence on an otherwise empty slide, in the speaker's words. Draft to personalise:
 
-Notes: Position the talk inside the session theme. Implementation science for research
-practice itself.
+> I came to stroke from imaging and neuroscience. [In 20__ I tried to build on a published
+> result: the data were "available on request", the code was not there, and the request went
+> unanswered. I could not tell whether the finding was wrong or I was.]
 
-## 3. How we measured (1:45)
+Three small lines underneath: imaging · neuroscience · neurology.
 
-- Living pipeline: OpenAlex title search, 2015 onward, stroke plus three comparator
-  fields (neurology, neuroscience, cardiology). About 200,000 stroke records, 126,000
-  journal articles and reviews with a DOI after cleaning (no-DOI records are mostly
-  conference abstracts and are dropped).
-- Signals: open-access status (six OpenAlex categories), repository links for data and
-  code, preprint versions, registration identifiers in abstracts.
-- Automated, re-runs every six months, code on GitHub, dashboard public. Figure: pipeline
-  schematic (one line of boxes). Show the dashboard URL.
-- Lower bounds: abstracts and metadata only, not full text. We fix that with a full-text
-  audit of 20,515 open-access stroke articles (and the three comparators) on slide 8:
-  abstracts find code in 0.04% of articles, the full text in 1.4%; registration 7.9% vs 14.9%.
+Notes: Thirty to forty seconds, first person, no slide reading. The point is not the anecdote;
+it is that the speaker has been on the receiving end of a closed literature. Alternative openings
+if the story above is not right: a model from a paper that could not be retrained because the
+training set was never released; a perfusion-threshold result that two groups reproduced with
+opposite signs because the processing code differed.
 
-Notes: Keep to 60 seconds. The method is the credibility; the audience does not need
-details.
+## 3. Why open science: the fields next door had their crisis first (1:00, 60 s) — NEW
 
-## 4. Finding 1: stroke went open access (2:45)
+Four numbers, then one line on what those fields did about it.
 
-Figure: `fig01_oa_trend` (stroke 53% in 2015 to 75% in 2024).
+- **36%**: of 100 psychology findings replicated with a significant result; effect sizes about
+  half the originals (Open Science Collaboration, Science 2015).
+- **21%**: median statistical power of neuroscience studies (Button 2013, Nat Rev Neurosci).
+- **6 of 53**: landmark preclinical cancer findings that Amgen could reproduce (Begley & Ellis,
+  Nature 2012).
+- **70%**: of 1,576 researchers had failed to reproduce another group's experiment; 52% called
+  it a significant crisis (Baker, Nature 2016).
+- What changed: preregistration and Registered Reports (300+ journals), open-data badges, the
+  Open Science Framework, data and code as a condition of publication. Registered Reports:
+  44% positive results against 96% in the standard literature (Scheel 2021).
 
-- Open access in stroke articles rose from 53% to 75% in ten years (66% over the decade).
-- Comparators over the decade: cardiology 70%, neurology 61%, neuroscience 60%. Stroke sits
-  between cardiology and neurology throughout.
+Notes: Psychology and neuroscience are the speaker's former fields; say so. "They measured
+themselves, it hurt, and they changed how they publish."
 
-Notes: This is the good news slide. Let it land, then turn it.
+## 4. Stroke is not immune (2:00, 60 s) — NEW
 
-## 5. Finding 2: but it is mostly paid (3:45)
+Preclinical, then clinical.
 
-Figure: `fig02_stroke_oa_status`.
+- **1,026** candidate neuroprotectants in animal stroke; none translated (O'Collins 2006, Ann
+  Neurol). Publication bias alone overstated efficacy by about a third: one in seven animal
+  experiments never published (Sena 2010, PLoS Biol). NXY-059: SAINT I positive (NEJM 2006),
+  SAINT II negative (NEJM 2007).
+- **Tirofiban**: no benefit before thrombectomy in RESCUE BT (JAMA 2022), benefit without a
+  large-vessel occlusion in RESCUE BT2 (NEJM 2023). Different question, different answer; only
+  protocols, data and code tell us which.
+- **Middle meningeal artery embolisation**: three trials in one issue of the NEJM (20 Nov 2024).
+  EMBOLISE positive (recurrence 4% vs 11%), STEM positive, MAGIC-MT neutral (6.7% vs 9.9%).
+  [Confirm with the speaker that "MMA embo trials" is the example meant; the pooled analysis
+  found benefit only without surgery.]
+- Line: "Replication is how a field finds out which result to trust. Without the data and the
+  code, we are left arguing about it."
 
-- Of all stroke articles 2015-2025: gold 25%, diamond 15%, hybrid 9%, bronze 10%,
-  green 7%, closed 34%. Cardiology: gold 25%, diamond 15%, hybrid 10%, bronze 13%, green 7%,
-  closed 30%. Neuroscience is the only field where green (12%) beats diamond (9%).
-  The journal Stroke itself is 69% free to read, mostly bronze after the 12-month embargo
-  (43%) plus green (17%).
-- Gold and hybrid, the paid routes, grew the most. Green (repository) stayed flat near
-  7%. Bronze (free to read, no licence) is 10% and can disappear.
+Notes: Keep to three examples; the audience knows these trials. Do not editorialise on any
+single trial; the point is heterogeneity that cannot be resolved from the papers alone.
+
+## 5. What open science is made of (3:00, 45 s)
+
+Four questions a field should be able to answer about its own literature (existing slide):
+can people read it (open access, by which route); can they check it (data and code); can they
+reuse it (deposited, not promised on request); was it planned in advance (registration).
+Footer: audits exist for neurology, cardiology and general medicine; none for stroke (Rauh 2020;
+Heckerman 2025; Scutt 2020).
+
+## 6. How we measured (3:45, 45 s)
+
+- Living pipeline: OpenAlex, 2015 onward, stroke plus neurology, neuroscience and cardiology;
+  126,207 stroke journal articles and reviews with a DOI (199,000 records retrieved).
+- Signals from metadata and abstracts (open-access status, repository links, preprint versions,
+  registration identifiers), plus a full-text audit of data-availability statements for 2,000
+  open-access articles per year via Europe PMC, for all four fields.
+- Automated, re-runs every six months, code and data public, dashboard public.
+- Figure: the dashboard's report card (indicator by discipline) as the overview.
+
+Notes: Sixty seconds at most. "Everything I show next is on the dashboard, and you can change
+the selection yourself."
+
+## 7. Finding 1: stroke went open access (4:30, 45 s)
+
+Figure: dashboard trend, open access by year and discipline.
+
+- 53% in 2015 to 75% in 2024 (66% over the decade). Cardiology 70%, neurology 61%,
+  neuroscience 60% over the decade; stroke sits between cardiology and neurology throughout.
+
+Notes: The good-news slide. Let it land, then turn it.
+
+## 8. Finding 2: mostly paid (5:15, 45 s)
+
+Figure: dashboard open-access status by year, six statuses in their own colours.
+
+- Of all stroke articles 2015-2025: gold 25%, diamond 15%, hybrid 9%, bronze 10%, green 7%,
+  closed 34%. Gold and hybrid, the paid routes, grew the most; green stayed flat near 7%;
+  bronze can disappear.
 - Open access became a transaction between funders and publishers. It did not come with
   openness of anything else.
 
-Notes: Mention APCs and the LMIC angle briefly: a 15-minute talk cannot do the equity
-argument justice, but the audience in Seoul includes many LMIC trialists.
+## 9. Finding 3: nothing else moved (6:00, 60 s)
 
-## 6. Finding 3: nothing else moved (4:45)
+Figures: dashboard trends for data in a repository, code links and preprints (three small
+charts) and the registration trend.
 
-Figure: `fig03_data_sharing_trend` and `fig04_code_sharing_trend` side by side, or the
-high-impact chart `fig07`.
+- Data in a public repository: 0.2% of stroke articles in 2015, 0.2% in 2024, never above 0.6%.
+  Code or repository link: under 0.1% every year. Preprint version: 0.1%, even during COVID.
+  Registration identifier in the abstract: 2.9% in 2015, 6.0% in 2024; stroke (4.8%) ahead of
+  cardiology (3.6%), neurology (2.3%) and neuroscience (1.1%).
+- High impact is not better: top-cited or IF 10+ (16% of the corpus): open access 73% vs 64%,
+  registration 10.1% vs 3.8%, data 0.4% vs 0.4%, code 0.07% vs 0.07%.
+- These are lower bounds from abstracts and metadata. "So we read the full text."
 
-- Data in a public repository, detectable from metadata: 0.2% of stroke articles in
-  2015, 0.2% in 2024. Never above 0.6% in any year. Comparators 0.2-0.3%.
-- Code or repository link: under 0.1% every year (0.2% in 2025).
-- Preprint version: 0.1%. Stroke did not adopt preprints even during COVID (neuroscience 0.5%).
-- Registration identifier in the abstract: 2.9% in 2015, 6.0% in 2024, 6.9% in 2025. Rising,
-  but that is trials and systematic reviews catching up with mandates from 2005 and 2011.
-  Stroke (4.8%) is ahead of cardiology (3.6%), neurology (2.3%) and neuroscience (1.1%).
+## 10. What data-availability statements actually say (7:00, 75 s)
 
-Notes: Say the caveat out loud: these are lower bounds from abstracts. Then: "so we
-read the full text."
+Figures: dashboard statements by year (five classes) and full-text indicators by discipline.
 
-## 7. High impact is not better (5:45)
+- Share with any statement: 49% over the decade, 14% in 2015, 78% in 2025. Statements arrived
+  with the journal mandates, so the trend is policy, not culture.
+- Of all audited articles: "available on request" 21% (32% in 2025); authors' own repository
+  deposit 2.8% (5.0% in 2025); public dataset 1.5%; restricted or controlled 6%; in the article
+  or supplement 10%; "not available" 4%.
+- 2022-2025 against the others: a statement in 70% (cardiology 61%, neurology 63%); "on
+  request" 31% (cardiology 21%, neurology 26%, neuroscience 10%); deposit or public source 6.5%
+  (cardiology 10.1%, neuroscience 8.9%, neurology 5.9%). Stroke writes the most statements and
+  deposits the least.
+- Full text versus abstract: GitHub in 1.4% of full texts vs code links in 0.04% of abstracts;
+  trial registration 14.9% vs 7.9%.
+- What "on request" delivers elsewhere: 6.8% of authors who promised data delivered (Gabelica
+  2022); 0.5% of top-journal RCTs declaring sharing had downloadable data (Danchev 2021); 20% of
+  391 vascular and cognitive trials yielded data, median 241 days (Scutt 2020).
 
-Figure: `fig07_high_impact_vs_rest`.
+Notes: The slide people photograph. Three numbers huge: 78% write a statement, 32% say "on
+request", 5% deposit. Caveat out loud: open-access full text only, so optimistic.
 
-- Top 10% cited within their publication year, or impact factor 10+ (n = 20,568, 16% of
-  the corpus): open access 73% vs 64%, registration 10.1% vs 3.8%, data in a repository
-  0.4% vs 0.4%, code 0.07% vs 0.07%.
-- The papers we cite most are not the ones we can check most.
+## 11. Who pays to be read, and who shares (8:15, 60 s)
 
-## 8. What data-availability statements actually say (6:45)
-
-Figure: `fig11_das_audit` (Europe PMC audit, 20,515 open-access stroke articles 2015-2025,
-2,000 sampled per year).
-
-- Share with any statement: 49% over the decade, 14% in 2015, 78% in 2025. Statements
-  arrived with the journal mandates, so the trend is policy, not culture.
-- Of all audited articles: "available on request" 21% (32% in 2025); authors' own
-  repository deposit 2.8% (5.0% in 2025); secondary analysis of a public dataset 1.5%;
-  restricted or controlled 6%; in the article or supplement 10%; "not available" 4%.
-- 2022-2025, stroke vs the others: a statement in 70% (cardiology 61%, neurology 63%);
-  "on request" 31% (cardiology 21%, neurology 26%, neuroscience 10%); deposit or public
-  source 6.5% (cardiology 10.1%, neuroscience 8.9%, neurology 5.9%). Stroke writes the
-  most statements and deposits the least.
-- Full text vs abstract (same articles): GitHub in 1.4% of full texts vs code links in
-  0.04% of abstracts; trial registration 14.9% vs 7.9%.
-- The literature on "on request": 6.8% of authors who promised data delivered
-  (Gabelica 2022); 0.5% of top-journal RCTs declaring sharing had downloadable data
-  (Danchev 2021); surgical journals 3.1% before and 3.1% after the ICMJE statement
-  rule (Bergeat 2022). Stroke trials: 20% of 391 vascular and cognitive trials yielded
-  data, median 241 days (Scutt 2020).
-
-Notes: Caveat: open-access full text only, so optimistic for stroke overall. This is the
-slide the audience will photograph; make the three numbers huge: 78% write a statement,
-32% say "on request", 5% deposit.
-
-## 8b. Who pays to be read, and who shares (NEW, equity)
-
-Figures: `fig12_oa_route_by_income` and `fig13_fulltext_sharing_by_income`. Tables:
-`stroke_equity_by_income_group.csv`. World Bank income group of the first author's country
-(known for 86% of the corpus): high 63%, upper-middle 30% (mostly China), lower-middle 6%,
-low 0.3% (355 articles; do not lean on it).
+Figures: dashboard open-access route by income group and full-text indicators by income group.
+World Bank income group of the first author's country (known for 86% of the corpus): high 63%,
+upper-middle 30% (mostly China), lower-middle 6%, low 0.3% (355 articles; do not lean on it).
 
 - Open access is highest where income is lowest: 66% (high), 69% (upper-middle), 74%
-  (lower-middle), 86% (low). But the route differs. Lower-middle-income authors publish
-  42% of their articles through routes that cost the author nothing (diamond, green);
-  high-income authors 19%. Upper-middle-income authors pay an APC for 43%.
-- Sharing in the full text runs the other way. Data deposited or a public source: 4.2%
-  (high), 5.0% (upper-middle), 2.6% (lower-middle). GitHub: 1.9%, 0.8%, 0.1%. Trial
-  registration mentioned: 15.5%, 15.3%, 6.8%. Statements at all: 45%, 60%, 27%.
-- Reading access has been solved for the global South by free routes. Reuse has not:
-  the data and code that lower-income teams could build on are not there, and their own
-  work is the least likely to be shared. That is the inequality open science can close.
+  (lower-middle), 86% (low). Lower-middle-income authors publish 42% through routes that cost
+  the author nothing (diamond, green); high-income authors 19%; upper-middle-income authors pay
+  an APC for 43%.
+- Sharing runs the other way. Deposit or public source: 4.2% (high), 5.0% (upper-middle), 2.6%
+  (lower-middle). GitHub: 1.9%, 0.8%, 0.1%. Registration in the full text: 15.5%, 15.3%, 6.8%.
+  Statements at all: 45%, 60%, 27%.
+- Reading access has been solved for the global South by free routes. Reuse has not. That is the
+  inequality open science can close, and the word "stroke" in the room makes it concrete.
 
-Notes: Seoul is a high-income audience with LMIC trialists in the room. Korea: 4,950
-first-author articles, 75% open access, 0% detectable data sharing.
+Notes: Korea: 4,950 first-author articles, 75% open access, 0% detectable data sharing.
 
-## 8c. Who is already doing it (NEW, the prize shortlist)
+## 12. Who is already doing it (9:15, 60 s)
 
-Figure: `fig14_commitment_institutions`. Tables: `stroke_commitment_{institutions,journals,
-funders,countries}.csv`. Commitment index = mean over three verified full-text signals
-(data deposit or public source in the statement, GitHub in the full text, trial
-registration in the full text) of the entity's rate divided by the stroke-wide rate
-(4.3%, 1.4%, 14.9%). 1.0 = stroke average. Minimum 30 audited articles; an institution
-gets credit for any author.
+Figure: dashboard commitment index, institutions (minimum 50 audited articles). Commitment index
+= mean over three verified full-text signals (data deposit or public source in the statement,
+GitHub in the full text, trial registration in the full text) of the entity's rate divided by the
+stroke-wide rate (4.3%, 1.4%, 14.9%). 1.0 = stroke average.
 
-- Institutions: MIT 10x (n=33), Pompeu Fabra 8x (36), Institut für Schlaganfall- und
-  Demenzforschung Munich 8x (69), Padua 7x (98), USC 7x (226), Rochester 6x, Exeter 6x,
-  Yale 6x (188), Guangdong Medical College 6x. Say the n out loud; under 50 is a hint,
-  not a ranking.
-- Journals: Brain Communications 8x, PeerJ 8x (84% deposit), Nature Communications 7x,
-  NeuroImage Clinical 4x. The big stroke journals are not on the list.
-- Funders: NIH institutes (NIDCD 8x, NIBIB 6x, NIMH 6x), the ERC 6x, Center for Stroke
-  Research Berlin 6x, ANR 5x, Horizon 2020 4x.
-- Countries (first author): Belgium 2.7x, Ireland 2.1x, Germany 2.0x, UK 1.7x.
-- This is what a WSO prize would recognise: measurable, verified in full text, repeatable
-  every six months by the pipeline.
+- Institutions (≥ 50 audited): Charité 3.7x, Edinburgh 3.0x, Hamburg-Eppendorf 3.0x, Johns
+  Hopkins 2.6x, Oxford 2.4x, Massachusetts General 2.3x, Nottingham 2.2x, UCL 2.1x. Say the n.
+- Journals: Brain Communications, PeerJ (84% deposit), Nature Communications, NeuroImage
+  Clinical lead; the big stroke journals are not on the list. Funders: NIH institutes, the ERC,
+  the Center for Stroke Research Berlin. Countries: Belgium 2.7x, Ireland 2.1x, Germany 2.0x,
+  UK 1.7x.
+- This is what a prize would recognise: measurable, verified in full text, repeatable every six
+  months.
 
-Notes: Hand this slide to agenda item 3. The point is not the names; it is that the
-measurement exists and is cheap.
+## 13. Why mandates alone did not work (10:15, 60 s)
 
-## 9. Why mandates alone did not work (7:45)
+Existing slide: 3.1% to 3.1% (Bergeat 2022); OR 0.9 for badges at BMJ Open vs under 3% to 39% at
+Psychological Science (Rowhani-Farid 2020; Kidwell 2016); 0 of 92 promotion guidelines (Rice
+2020); 44% vs 96% positive results in Registered Reports (Scheel 2021). The pivot sentence:
+"Stroke researchers are not less honest than psychologists. They respond to the same incentives,
+and ours point the other way."
 
-- Statements without verification produce statements, not data (Bergeat; Danchev).
-- Badges: worked at Psychological Science (under 3% to 39%), failed in the one medical
-  trial at BMJ Open (OR 0.9) (Kidwell 2016; Rowhani-Farid 2020).
-- Careers: of 92 biomedical promotion guidelines worldwide, zero mention data sharing,
-  registration or open access (Rice 2020).
-- Cardiology survey: researchers name funding the most essential incentive and say
-  "policy alone will not lead to implementation" (Cobey 2024).
+## 14. What to do next: a task force, a prize, awareness (11:15, 2 min 15 s)
 
-Notes: The pivot sentence: "Stroke researchers are not less honest than psychologists.
-They respond to the same incentives, and ours point the other way."
+Three columns, each with an owner and the items from the incentives agenda folded in.
 
-## 10. Where stroke already has the pieces (8:45)
+1. **A WSO task force on open science** (costs nothing to start): a position statement (no
+   stroke society has one); retire "available on request" in Stroke, IJS, ESJ and JSCVD in
+   favour of a repository, a controlled-access platform (VISTA, Vivli) or a stated reason;
+   Registered Reports for stroke trials and cohort analyses, with in-principle acceptance tied
+   to WSO and ESO grants (the Children's Tumor Foundation and PLOS ONE model; Nature opened the
+   format to clinical science in June 2026); embargoed sharing as the trial default (12 months,
+   as in COMPASS and ACT-GLOBAL).
+2. **A prize** for the teams, institutions and journals that share: the commitment index on the
+   previous slide, verified in full text and recomputed every six months; on the Einstein
+   Foundation model; presented at this congress.
+3. **Awareness**: the public dashboard and its six-monthly benchmark; open-science items in
+   promotion criteria (0 of 92 today; CIHR's narrative CV and UKRI's R4RI already allow datasets
+   and code as outputs); targets to discuss: data in a repository or controlled-access platform
+   for 25% of stroke articles by 2030, "on request" under 10%, one Registered Report track in a
+   stroke journal by 2028.
 
-- VISTA holds more than 82,000 patients from 38 acute trials. HERMES pooled 1,287
-  patients from 5 thrombectomy trials in a year because trialists wanted to.
-- ATLAS v2.0: 1,271 open lesion-segmented MRIs. ENIGMA Stroke Recovery: 2,100 patients
-  across 39 cohorts by federated analysis.
-- Stroke, IJS and ESJ all require a data-availability statement. None offers
-  Registered Reports. No WSO or ESO position statement on open science exists.
+Notes: Two minutes. Invite the WSO leadership in the room to take the task force home. Say which
+items cost nothing (statement, retiring "on request", promotion criteria) and which need money
+(Registered Reports, the prize, infrastructure that mostly exists: VISTA, ATLAS, ENIGMA).
 
-Notes: The point is that infrastructure is not the bottleneck. Recognition is.
+## 15. Close: collaborate (13:30, 60 s)
 
-## 11. An incentives agenda for stroke (9:45, 2.5 min)
+One line: "We measured ourselves. The numbers are not flattering, but they are measurable, which
+means they are improvable."
 
-Six items, each with an owner.
+Then the invitation, with links and QR codes: the Stroke Open-Science Benchmark
+(https://friseeb.github.io/stroke_open_science_outputs/), the code
+(https://github.com/Friseeb/stroke_open_science), and the speaker's contact (sfridma@uwo.ca).
+"Fork it, challenge it, run it on your field, or join the task force."
 
-1. **Journals: retire "available on request".** Stroke, IJS, ESJ and JSCVD accept
-   either a repository or a controlled-access platform (VISTA, Vivli) or a stated
-   reason. Verified, not self-declared.
-2. **Journals and WSO: Registered Reports for stroke trials and cohort analyses**, with
-   in-principle acceptance tied to WSO and ESO grant awards, as the Children's Tumor
-   Foundation did with PLOS ONE. Nature opened Registered Reports to clinical science
-   in June 2026.
-3. **WSO: a position statement and a reproducibility prize.** The Einstein Foundation
-   award model; a WSO award for reuse of stroke data, presented at this congress.
-4. **Funders: count datasets and code as outputs.** CIHR's narrative CV and UKRI's R4RI
-   already allow it; stroke funders can require it.
-5. **Institutions: put open-science items in promotion criteria.** Zero of 92 do today.
-   Utrecht dropped the impact factor in 2022; Columbia and Calgary count datasets.
-6. **Embargoed sharing as the default for trials**, 12 months after the primary
-   publication, already written into COMPASS and ACT-GLOBAL. VISTA as the trusted
-   archive; federated or synthetic access where consent or GDPR blocks sharing.
-
-Notes: Say which items cost nothing (1, 3, 5) and which need money (2, 4, 6).
-
-## 12. How we will know it worked (12:15)
-
-- The pipeline re-runs every six months; the dashboard is public. Code and data are
-  open. The audit on slide 8 can be repeated by anyone with the script.
-- Targets to propose: repository or controlled-access data for 25% of stroke articles
-  by 2030; "on request" below 10%; one Registered Report track in a stroke journal by
-  2028.
-
-Notes: Implementation science closes the loop with measurement. Put the dashboard URL
-and the GitHub repository on the slide.
-
-## 12b. From articles to people, carefully (NEW, one slide before the close)
-
-Companion project: **Author Context Explorer** (`~/Projects/author_analysis`, in development).
-A provenance-first tool that documents, for the authors of one paper, their publication-derived
-expertise, affiliations, funding and disclosure statements, and corrections or retractions,
-with every finding sourced, dated and held as a proposal until a human reviewer confirms it.
-It never labels an author biased or a paper invalid.
-
-- This talk measured practices at the level of articles, journals, funders and institutions.
-  A prize or a task force eventually has to name people and teams. That step needs
-  verified identities (ORCID, OpenAlex), sourced affiliations and declared interests, and a
-  review gate, or recognition turns into surveillance.
-- The same infrastructure answers the mirror question: when an article shares nothing, who
-  funded it and what did they declare? Disclosure and data availability are both
-  transparency practices; the explorer treats them the same way, evidence first, no
-  inferred motive.
-- Design rules carried over to the open-science benchmark: report evidence, not accusations;
-  "no evidence found" is not "nothing exists"; never infer protected attributes from
-  names, institutions or countries; human confirmation before anything attaches to a person.
-
-Notes: One slide, 45 seconds. The point is that measuring open science and documenting author
-context are the same discipline, and both need the same restraint. If asked, the explorer is
-local-first, providers off by default, and not yet public.
-
-## 13. Close (13:15)
-
-One line. "We measured ourselves. The numbers are not flattering, but they are
-measurable, which means they are improvable."
-
-Acknowledgements, funding, conflicts, contact.
+Companion project if asked: the Author Context Explorer (provenance-first author context, human
+review before anything attaches to a person); the same restraint applies to any prize that names
+people.
 
 ---
 
+## Sources added in version 3
+
+- Open Science Collaboration. Estimating the reproducibility of psychological science. Science
+  2015;349:aac4716.
+- Button KS et al. Power failure. Nat Rev Neurosci 2013;14:365-376.
+- Begley CG, Ellis LM. Raise standards for preclinical cancer research. Nature 2012;483:531-533.
+- Baker M. 1,500 scientists lift the lid on reproducibility. Nature 2016;533:452-454.
+- O'Collins VE et al. 1,026 experimental treatments in acute stroke. Ann Neurol 2006;59:467-477.
+- Sena ES et al. Publication bias in reports of animal stroke studies. PLoS Biol 2010;8:e1000344.
+- Lees KR et al. NXY-059 for acute ischemic stroke (SAINT I). NEJM 2006;354:588-600. Shuaib A
+  et al. SAINT II. NEJM 2007;357:562-571.
+- Qiu Z et al. RESCUE BT. JAMA 2022;328:543-553. Zi W et al. RESCUE BT2. NEJM 2023;388:2025-2036.
+- Davies JM et al. EMBOLISE; Fiorella D et al. STEM; Liu J et al. MAGIC-MT. NEJM 2024;391
+  (20 Nov 2024).
+
 ## Numbers to re-verify before the slides are final
 
-- Diamond 15%: check which journals drive it (expect Frontiers, MDPI, Korean and Chinese
-  society journals). If it is mostly Frontiers and MDPI, say "APC-free in DOAJ" rather
-  than "diamond" to avoid a debate.
-- AHA Stroke data-sharing policy wording and start date (page blocked automated fetch).
-- Nature Registered Reports expansion date (June 2026) from the Nature page.
+- RESCUE BT2 primary outcome figures if quoted (mRS 0-1 at 90 days, tirofiban vs aspirin).
+- STEM primary outcome figures if quoted.
+- Diamond 15%: which journals drive it (expect Frontiers, MDPI, Korean and Chinese society
+  journals); if mostly Frontiers and MDPI, say "APC-free in DOAJ" rather than "diamond".
