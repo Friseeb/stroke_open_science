@@ -101,9 +101,11 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   `Charts.stacked` (100 % `bars` with 2 px surface gaps and end labels on the last column, `area`, `panels`; eight DAS
   categories are forced to panels), `Charts.dotPlot` (rows × coloured dots with a min–max range line and one labelled
   value per row; `bars` alternative), `Charts.rankDots` (sorted lollipop/dot rows with a reference line; `bars`
-  alternative), `Charts.raincloud` (the OA figure's `rain` form: per year, a half-violin of the open-access rate
-  across journals with ≥ 30 papers of known status, one drop per journal sized by papers and coloured by its dominant
-  route, the median as a tick; drops literally rain in on first scroll-in) and `Charts.bubbles` (Rosling-style: countries /
+  alternative), `Charts.raincloud` (the OA figure's `rain` form, horizontal: one row per year across the full width, the
+  density of open-access rates across journals with ≥ 30 papers of known status as a cloud above the baseline (scaled to
+  the body of the distribution so the pile of fully open journals at 100 % plateaus), one drop per journal below it sized
+  by papers and coloured by its dominant route, IQR bar and median tick on the baseline with the value at right; drops
+  literally rain in on first scroll-in; the user rejected the first, vertical version as unreadable) and `Charts.bubbles` (Rosling-style: countries /
   journals / disciplines as bubbles sized by papers, any indicator on each axis, trails for the labelled bubbles, the
   year as a serif watermark, Play / scrubber under the figure; `bbEntity`, `bbX`, `bbY`, `bbTrails`, `bbYear` in the
   hash; countries are coloured by World Bank income group, which `build_dashboard_data.py` now writes per country as
