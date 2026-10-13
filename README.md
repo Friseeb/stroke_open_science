@@ -52,10 +52,11 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # open h
 `scripts/build_discipline_dashboard.py` writes two things to `--out-dir`: the single-file Plotly
 report (`discipline_dashboard.html`, kept on GitHub Pages as `legacy.html`) and the interactive
 static site in `site/` (`index.html`, `app.js`, `styles.css` from `dashboard/`, plus
-`dashboard_data.json`). The site is a tabbed explorer (overview, trends, open-access routes,
-data-availability statements, equity by first-author income group, a commitment index for
-institutions / journals / funders / countries, journals, countries and funders, methods) behind one
-selection bar; the selection is kept in the URL so links reproduce a view. The JSON holds
+`dashboard_data.json`). The site is an audit report card: one selection line, an indicator ×
+discipline matrix (rate, year trend and counts per cell), then numbered figures for trends,
+open-access routes, data-availability statements, first-author income groups, a commitment index
+for institutions / journals / funders / countries, journals, countries and funders, and methods;
+the selection is kept in the URL so links reproduce a view. The JSON holds
 pre-aggregated **counts** (discipline × year × high-impact ×
 journal × first-author country, and discipline × year × high-impact × funder, top-N + "Other") so the
 browser recomputes every rate for any filter combination without row-level data; it stays well under

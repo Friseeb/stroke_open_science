@@ -100,7 +100,7 @@ jobs:
         run: |
           mkdir -p "data/benchmarks/${{ matrix.discipline }}"
           if gh release download caches --repo Friseeb/stroke_open_science_outputs \
-               --pattern "${{ matrix.discipline }}-caches.tar.gz" --dir /tmp --clobber 2>/dev/null; then
+               --pattern "${{ matrix.discipline }}-caches.tar.gz" --dir /tmp --clobber; then
             tar --skip-old-files -xzf "/tmp/${{ matrix.discipline }}-caches.tar.gz" -C "data/benchmarks/${{ matrix.discipline }}"
             echo "Seeded caches for ${{ matrix.discipline }}:"; ls -la "data/benchmarks/${{ matrix.discipline }}"
           else
@@ -127,7 +127,9 @@ jobs:
           # stop the slice cleanly (partial saved, cache kept) and let the next run resume instead.
           # The data-availability-statement audit samples 1,500 open-access full texts per year
           # from Europe PMC (free, no key; resumable via das_cache.jsonl).
-          ARGS="--disciplines ${{ matrix.discipline }} --start-year $START_YEAR --skip-dashboard --disable-dataset-search --openalex-budget-wait-max-hours 5 --das-audit-sample-per-year 1500"
+          # Embedding scores and LLM extraction are optional and nothing published uses them; on a two-core
+          # runner the embedding stage alone took two hours (run 38281139782), so both are off in CI.
+          ARGS="--disciplines ${{ matrix.discipline }} --start-year $START_YEAR --skip-dashboard --disable-dataset-search --embedding-top-k 0 --llm-max-items 0 --openalex-budget-wait-max-hours 5 --das-audit-sample-per-year 1500"
           if [ "$MAX_PER_QUERY" != "0" ]; then
             # Smoke test: the later --das-audit-sample-per-year wins (argparse), keeping the audit tiny.
             ARGS="$ARGS --max-per-query $MAX_PER_QUERY --disable-api-enrich --das-audit-sample-per-year 20"

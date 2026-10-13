@@ -230,7 +230,7 @@ def test_payload_json_shape_and_size():
     assert len(text) < 200_000
     assert payload["count_keys"] == bdd.COUNT_KEYS
     assert [d["key"] for d in payload["disciplines"]] == ["stroke", "neurology"]
-    assert payload["disciplines"][0]["color"] == "#2a78d6" and payload["disciplines"][1]["color"] == "#eb6834"
+    assert payload["disciplines"][0]["color"] == "#d7263d" and payload["disciplines"][1]["color"] == "#2a78d6"
     assert payload["years"] == [2019, 2020, 2021, 2022]
     assert payload["partial_years"] == []
     assert payload["high_impact"]["settings"]["impact_factor_threshold"] == 10.0
@@ -439,3 +439,16 @@ def test_payload_v2_carries_new_keys():
     d = payload["disciplines"][0]
     assert d["income_cells"] and d["institution_cells"] and d["institutions"][-1] == bdd.NO_INSTITUTION_LABEL
     assert all(m.get("denominator", "n") in ("n", "n_abs", "das_audited") for m in payload["metrics"])
+
+
+def test_policy_events_shipped_from_config(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    events = bdd.read_policy_events(root)
+    assert events and all(set(e) == {"year", "label", "short", "detail", "scope"} for e in events)
+    assert [e["year"] for e in events] == sorted(e["year"] for e in events)
+    assert bdd.read_policy_events(tmp_path) == []
+    (tmp_path / "configs").mkdir()
+    (tmp_path / "configs" / "policy_events.json").write_text('[{"year": 2023, "label": "x"}, {"label": "no year"}, 5]')
+    assert bdd.read_policy_events(tmp_path) == [{"year": 2023, "label": "x", "short": "x", "detail": "", "scope": ""}]
+    payload = bdd.assemble_payload([bdd.aggregate_discipline(make_frame(), "stroke")], run_date="2026-10-12", repo_root=root)
+    assert payload["policy_events"] == events

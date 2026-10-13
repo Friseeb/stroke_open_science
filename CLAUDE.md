@@ -78,19 +78,32 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   (year × hi × funder, multi-valued), `income_cells` (year × hi × first-author World Bank income group) and
   `institution_cells` (year × hi × institution, multi-valued, top 60 by audited papers). The full-text flags
   (`ft_*`) and the DAS categories use `das_audited` as denominator; `METRICS[*].denominator` says which.
-- The site (`dashboard/index.html`, `app.js`, `styles.css`, no build step) is a tabbed explorer: one sticky
-  selection bar (year presets + custom range, disciplines, focus, a single *slice* control for income group /
-  journal / country / funder, all vs high-impact, reset, copy link, CSV) scoping nine views: Overview (hero,
-  tiles, emphasis OA trend, DAS five classes, full text vs abstract table), Trends (metric × compare
-  disciplines / income groups / subset × rate or count), Open access (routes free-to-author / APC / bronze /
-  closed or six statuses; by year and by discipline), Data statements (five ordered classes or eight categories as
-  small multiples; denominator audited or with-statement; signals by discipline), Equity (income-group tiles,
-  OA route or any metric by income group, full-text signals by income group), Commitment (index = mean over the
-  chosen verified full-text signals of entity rate ÷ discipline rate, 1 = average; entity, min audited, top N),
-  Journals (metric, min papers, top N), Countries & funders (sortable tables with full-text columns), Methods.
-  The selection lives in the URL hash, so a link reproduces a view. Colours: one validated blue ordinal ramp
-  (darkest = most open) plus a neutral grey for closed / no statement; one fixed colour per discipline;
-  dark-mode steps are selected, not flipped. Every chart has a table twin.
+- The site (`dashboard/index.html`, `app.js`, `styles.css`, no build step) is an **audit report card** (form chosen
+  by the user on 2026-10-12 over an annotated chart essay and a ledger): one scrolling page, a sticky top bar (wordmark,
+  section nav, current-selection readout, theme, "Download CSV" block), a full-height typographic hero, one selection
+  line (pill toggles for years / papers / disciplines, inline selects for focus and "within" slice, custom year
+  range, reset / copy link), then six numbered sections with plain-noun titles: 01 *Indicators* (the centrepiece: an
+  indicator × discipline matrix, hairline grid, big serif rate per cell with its year sparkline and numerator of
+  denominator; the focus column carries the accent; clicking a row name picks the indicator drawn in Trends),
+  02 *Trends* (indicator by year across disciplines, overlay or small multiples; OA route by year; all vs
+  high-impact), 03 *Data statements* (five classes or eight categories, denominator option; full-text indicators by
+  discipline; full text vs abstract table), 04 *Income groups* (stat grid of shares; OA route or any indicator by
+  income group; full-text indicators; indicator by year by income group), 05 *Rankings* (commitment index with
+  entity / min audited / top N / indicator pills; journals; countries and funders tables), 06 *Methods*. Figures
+  carry numbered captions (Fig. n / Table n) that state the selection and the denominator. The selection lives in
+  the URL hash (`view` = section id s1..s6; a bare `#s3` anchor also works). Policy milestones from
+  `configs/policy_events.json` draw as hairlines with hover detail; every chart has PNG / SVG download and a table
+  twin. Screenshots for review are taken with puppeteer-core driving the installed Chrome (Chrome's own --screenshot
+  flag misreports phone widths; headless Chrome inherits the macOS dark theme, so emulate `prefers-color-scheme`).
+- Visual system (2026-10-12, calibrated on the user's references: tresmarescapital.com, nickho-motorsports.nl,
+  grids.obys.agency): light grey ground (`#f1f1ef`) with near-black ink (`#141414`), hairlines (`#c6c6c1`) for all
+  structure, no cards or shadows; a faint six-column grid behind the hero; one accent = the focus discipline's
+  colour, set on `--accent` at render (stroke is red `#d7263d`, validated with the dataviz palette checker on both
+  surfaces; comparators blue / green / yellow; dark steps mapped in `DARK_SERIES`). Type: Instrument Sans (400 /
+  500 / 600) for everything, Instrument Serif only for the big figures in the matrix and stat grid; a 12px module
+  (`--m`, `--fs-*`); hero title at clamp(64px, 10.4vw, 152px), weight 500, tracking −0.045em, three staggered lines;
+  section titles 60px; eyebrows 13px grey with the section number in the accent. Controls are outline / ink-filled
+  pills (the only control style) and underlined text links. Dark theme is a selected token set, not a flip.
 - **One OA definition** (`build_discipline_dashboard.derive_open_access`, text in `OA_DEFINITION`): open =
   OpenAlex `oa_status` known and not `closed`; the legacy `infer_oa_series` inference (`is_oa` / OA journal /
   OA URL / licence) applies only where `oa_status` is unknown. Both the site `oa` count and the legacy report's
@@ -208,6 +221,10 @@ Where the accumulated caches live, in order of preference:
    skipped for smoke tests and dry runs): survives Actions-cache expiry and lets a local run seed CI. The first seed
    (2026-10-12) came from the local talk run: 2,000 audited articles per year per discipline.
 3. **Local `data/<discipline>/`**: the same files; copy or symlink them to seed a local run.
+
+CI runs skip the embedding and LLM stages (`--embedding-top-k 0 --llm-max-items 0`): the published outputs do not use
+them and the embedding stage alone took two hours on a hosted runner. The seed and publish steps need a valid
+`OUTPUTS_REPO_PAT` (fine-grained, Contents read/write on the outputs repo); a 401 there means the token expired.
 
 Consequences: a six-monthly run costs about $2 and two to three hours of runner time in total; a re-dispatch after a
 timeout resumes rather than repeats; and the full-text audit grows monotonically into a census over time. The one
