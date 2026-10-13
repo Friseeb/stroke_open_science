@@ -439,7 +439,6 @@ class PipelinePaths:
 class PipelineConfig:
     discipline: str
     terms: List[str]
-    openalex_search_field: str
     years: List[int]
     query_window_months: int
     include_pubmed: bool
@@ -498,6 +497,7 @@ class PipelineConfig:
     das_audit_all: bool = False
     das_audit_refetch_empty: bool = False
     country_income_csv: str = ""
+    openalex_search_field: str = "title"   # title.search (benchmark) or title_and_abstract.search (sensitivity)
 
 
 def parse_dotenv_file(path: Path) -> Dict[str, str]:
