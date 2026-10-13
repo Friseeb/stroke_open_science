@@ -367,9 +367,9 @@ def test_copy_site_bundles_static_assets(tmp_path):
     site = tmp_path / "site"
     copied = bdd.copy_site(json_path, site)
     names = sorted(p.name for p in copied)
-    assert names == ["app.js", "dashboard_data.json", "index.html", "styles.css"]
+    assert names == ["app.js", "charts.js", "dashboard_data.json", "index.html", "styles.css"]
     html = (site / "index.html").read_text(encoding="utf-8")
-    assert 'src="app.js"' in html and 'href="styles.css"' in html
+    assert 'src="app.js"' in html and 'src="charts.js"' in html and 'href="styles.css"' in html
     assert "dashboard_data.json" in (site / "app.js").read_text(encoding="utf-8")
 
 

@@ -351,7 +351,7 @@ jobs:
           echo "$TIMESTAMP" > outputs_repo/LATEST_RUN.txt
 
           # Update GitHub Pages root so the dashboard is always at the repo's Pages URL.
-          # The interactive static site (index.html + app.js + styles.css + dashboard_data.json) is the
+          # The interactive static site (index.html + app.js + charts.js + styles.css + dashboard_data.json) is the
           # landing page; the single-file Plotly dashboard stays available as legacy.html.
           if [ -d "data/benchmarks/dashboard/site" ]; then
             mkdir -p outputs_repo/docs

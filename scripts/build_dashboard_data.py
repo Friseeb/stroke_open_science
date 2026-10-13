@@ -208,7 +208,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
                         help="Directory with <discipline>_work_metadata.csv files; left-joined by DOI "
                              "when the main CSV lacks the OpenAlex work-metadata columns")
     parser.add_argument("--site-dir", default=None,
-                        help="If given, copy dashboard/ (index.html, app.js, styles.css) plus the JSON here")
+                        help="If given, copy dashboard/ (index.html, app.js, charts.js, styles.css) plus the JSON here")
     parser.add_argument("--top-journals", type=int, default=40)
     parser.add_argument("--top-countries", type=int, default=25)
     parser.add_argument("--top-funders", type=int, default=25)
@@ -703,7 +703,7 @@ def copy_site(json_path: Path, site_dir: Path, dashboard_src: Optional[Path] = N
     dashboard_src = dashboard_src or (SCRIPT_DIR.parent / "dashboard")
     site_dir.mkdir(parents=True, exist_ok=True)
     copied: List[Path] = []
-    for name in ("index.html", "app.js", "styles.css"):
+    for name in ("index.html", "app.js", "charts.js", "styles.css"):
         src = dashboard_src / name
         if src.exists():
             shutil.copy2(src, site_dir / name)
