@@ -230,7 +230,7 @@ def test_payload_json_shape_and_size():
     assert len(text) < 200_000
     assert payload["count_keys"] == bdd.COUNT_KEYS
     assert [d["key"] for d in payload["disciplines"]] == ["stroke", "neurology"]
-    assert payload["disciplines"][0]["color"] == "#2a78d6" and payload["disciplines"][1]["color"] == "#eb6834"
+    assert payload["disciplines"][0]["color"] == "#d7263d" and payload["disciplines"][1]["color"] == "#2a78d6"
     assert payload["years"] == [2019, 2020, 2021, 2022]
     assert payload["partial_years"] == []
     assert payload["high_impact"]["settings"]["impact_factor_threshold"] == 10.0

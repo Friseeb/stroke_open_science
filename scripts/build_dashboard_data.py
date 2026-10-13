@@ -73,14 +73,16 @@ OTHER_LABEL = "Other"
 UNKNOWN_LABEL = "(unknown)"
 NO_FUNDER_LABEL = "(no funder listed)"
 
+# Validated categorical set (dataviz validator, light surface #f1f1ef and dark #141414): stroke carries the
+# page accent (red); the comparators keep blue / green / yellow. The page maps dark-mode steps itself.
 DISCIPLINE_COLORS: Dict[str, str] = {
-    "stroke": "#2a78d6",
-    "neurology": "#eb6834",
+    "stroke": "#d7263d",
+    "neurology": "#2a78d6",
     "neuroscience": "#1baf7a",
     "cardiology": "#eda100",
 }
 DISCIPLINE_ORDER = ["stroke", "neurology", "neuroscience", "cardiology"]
-EXTRA_COLORS = ["#7b61c9", "#c04d8c", "#5c7f8f", "#8a7a3a"]
+EXTRA_COLORS = ["#eb6834", "#7b61c9", "#c04d8c", "#5c7f8f", "#8a7a3a"]
 
 OA_STATUS_COLORS: Dict[str, str] = {
     "diamond": "#0d366b", "gold": "#1c5cab", "hybrid": "#2a78d6",
