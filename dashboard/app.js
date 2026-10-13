@@ -28,11 +28,18 @@
   const RAMP4 = { light: ["#0d366b", "#1c5cab", "#5598e7", "#86b6ef"], dark: ["#184f95", "#256abf", "#6da7ec", "#9ec5f4"] };
 
   const OA_ROUTES = [
-    { key: "free", label: "Free to author (diamond, green)", statuses: ["diamond", "green"] },
-    { key: "paid", label: "APC paid (gold, hybrid)", statuses: ["gold", "hybrid"] },
-    { key: "bronze", label: "Bronze (free to read, no licence)", statuses: ["bronze"] },
+    { key: "free", label: "Free to author (diamond, green)", statuses: ["diamond", "green"], status: "green" },
+    { key: "paid", label: "APC paid (gold, hybrid)", statuses: ["gold", "hybrid"], status: "gold" },
+    { key: "bronze", label: "Bronze (free to read, no licence)", statuses: ["bronze"], status: "bronze" },
     { key: "closed", label: "Closed", statuses: ["closed"], neutral: true },
   ];
+  // Open-access statuses wear their names' colours (validated as a categorical set on both surfaces; green↔hybrid sits in
+  // the 6–8 CVD band, covered by the 2 px gaps, the key row and the labels). Closed is the neutral grey.
+  const OA_COLORS = {
+    light: { diamond: "#5598e7", gold: "#eda100", hybrid: "#c04d8c", green: "#1baf7a", bronze: "#9a5a1f" },
+    dark: { diamond: "#4f95e8", gold: "#c98500", hybrid: "#d85fa3", green: "#199e70", bronze: "#8f4e2b" },
+  };
+  const oaColor = (status) => (isDark() ? OA_COLORS.dark : OA_COLORS.light)[status] || null;
   const DAS_FIVE = [
     { key: "deposit", label: "Deposited or public source", cats: ["repository", "public_source"] },
     { key: "controlled", label: "Controlled or restricted", cats: ["controlled_or_restricted"] },
@@ -634,7 +641,7 @@
     const nonNeutral = opts.classes.filter((c) => !c.neutral).length;
     const colors = ramp(nonNeutral <= 3 ? RAMP3 : RAMP5);
     let ci = 0;
-    const classes = opts.classes.map((c) => ({ key: c.key, label: c.label, neutral: !!c.neutral, color: c.neutral ? t.neutral : colors[Math.min(ci++, colors.length - 1)], sum: c.sum }));
+    const classes = opts.classes.map((c) => ({ key: c.key, label: c.label, neutral: !!c.neutral, color: c.neutral ? t.neutral : (c.color || colors[Math.min(ci++, colors.length - 1)]), sum: c.sum }));
     const shares = {}, counts = {};
     for (const c of classes) {
       counts[c.key] = years.map((y) => (agg.byYear.get(y) ? c.sum(agg.byYear.get(y)) : 0));
@@ -813,8 +820,8 @@
 
   // ------------------------------------------------------------------ open access
   function oaClasses(grouping) {
-    if (grouping === "status") return DATA.oa_status_order.map((s) => ({ key: s, label: s[0].toUpperCase() + s.slice(1), sum: (c) => c[K["oa_" + s]], neutral: s === "closed" }));
-    return OA_ROUTES.map((r) => ({ key: r.key, label: r.label, sum: (c) => r.statuses.reduce((s, st) => s + c[K["oa_" + st]], 0), neutral: !!r.neutral }));
+    if (grouping === "status") return DATA.oa_status_order.map((s) => ({ key: s, label: s[0].toUpperCase() + s.slice(1), sum: (c) => c[K["oa_" + s]], neutral: s === "closed", color: oaColor(s) }));
+    return OA_ROUTES.map((r) => ({ key: r.key, label: r.label, sum: (c) => r.statuses.reduce((s, st) => s + c[K["oa_" + st]], 0), neutral: !!r.neutral, color: r.status ? oaColor(r.status) : null }));
   }
   function renderOa(d) {
     // the raincloud needs the full width: both figures of the row go wide while it is on
@@ -832,8 +839,7 @@
     const t = Charts.theme();
     const years = yearsInRange();
     const byYear = aggregateByYearFor(d, "journal");
-    const colors = ramp(RAMP3);
-    const routeColor = { free: colors[0], paid: colors[1], bronze: colors[2], closed: t.neutral };
+    const routeColor = { free: oaColor("green"), paid: oaColor("gold"), bronze: oaColor("bronze"), closed: t.neutral };
     const routeLabel = { free: "free to author", paid: "APC paid", bronze: "bronze", closed: "closed" };
     const groups = {}; years.forEach((yr) => { groups[yr] = []; });
     const MIN_J = 30;
@@ -1002,9 +1008,7 @@
     }
     const labels = groups.map((g) => g.label.replace(" income", ""));
     if (state.eqSignal === "route") {
-      const colors = ramp(RAMP3);
-      let ci = 0;
-      const classes = oaClasses("route").map((c) => ({ key: c.key, label: c.label, neutral: !!c.neutral, color: c.neutral ? t.neutral : colors[Math.min(ci++, 2)], sum: c.sum }));
+      const classes = oaClasses("route").map((c) => ({ key: c.key, label: c.label, neutral: !!c.neutral, color: c.neutral ? t.neutral : c.color, sum: c.sum }));
       const denoms = groups.map((g) => oaKnown(g.counts));
       const shares = {}, counts = {};
       for (const c of classes) { counts[c.key] = groups.map((g) => c.sum(g.counts)); shares[c.key] = groups.map((g, i) => (denoms[i] >= MIN_N_RATE ? counts[c.key][i] / denoms[i] : null)); }
@@ -1257,7 +1261,7 @@
     block("Corpus", ul1);
     const ul2 = el("ul");
     for (const n of DATA.methods_notes) ul2.append(el("li", { text: n }));
-    ul2.append(el("li", { text: "Rates are not drawn for cells with fewer than " + MIN_N_RATE + " papers. Colours: one blue ramp for ordered classes (darkest = most open), a neutral grey for closed / no statement, and one fixed colour per discipline; the focus discipline carries the page accent. Every chart has a table twin, at least two forms, and PNG / SVG export (exports use a system sans)." }));
+    ul2.append(el("li", { text: "Rates are not drawn for cells with fewer than " + MIN_N_RATE + " papers. Colours: open-access statuses wear their names (diamond blue, gold, hybrid pink, green, bronze) and routes take the colour of their main status; the ordered data-statement classes use one blue ramp (darkest = most open); closed / no statement are a neutral grey; one fixed colour per discipline, the focus discipline carrying the page accent. Every chart has a table twin, at least two forms, and PNG / SVG export (exports use a system sans)." }));
     block("Reading notes", ul2);
     block("How this page works", el("p", { text: "The pipeline writes pre-aggregated counts (discipline × year × high-impact × journal × first-author country; plus × funder, × first-author income group and × institution) to dashboard_data.json; this page sums the counts for your selection and divides. No row-level data is shipped. The address bar carries the full selection, so a link reproduces the view. Generated " + DATA.generated_at + "." }));
   }

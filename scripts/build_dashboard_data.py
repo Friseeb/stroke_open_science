@@ -84,9 +84,10 @@ DISCIPLINE_COLORS: Dict[str, str] = {
 DISCIPLINE_ORDER = ["stroke", "neurology", "neuroscience", "cardiology"]
 EXTRA_COLORS = ["#eb6834", "#7b61c9", "#c04d8c", "#5c7f8f", "#8a7a3a"]
 
+# Statuses wear their names' colours (validated categorical set, light surface); the site maps dark-mode steps itself.
 OA_STATUS_COLORS: Dict[str, str] = {
-    "diamond": "#0d366b", "gold": "#1c5cab", "hybrid": "#2a78d6",
-    "green": "#5598e7", "bronze": "#9ec5f4", "closed": "#d9d8d4",
+    "diamond": "#5598e7", "gold": "#eda100", "hybrid": "#c04d8c",
+    "green": "#1baf7a", "bronze": "#9a5a1f", "closed": "#d9d8d4",
 }
 DAS_COLORS: Dict[str, str] = {
     "repository": "#0d366b", "public_source": "#1c5cab", "controlled_or_restricted": "#2a78d6",
