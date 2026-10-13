@@ -247,6 +247,15 @@ how they age and in what they cost, and the workflow is organised around that:
 | OpenAlex metadata backfill | n/a for new retrievals (captured at retrieval) | free when cached | `openalex_metadata_cache.jsonl`, only for legacy frames. |
 | Dashboard, high-impact subset, exports | derived | minutes | Recomputed from the frames every run. |
 
+Publishing (`scripts/publish_outputs.sh`, called by the workflow's publish job; env `DATA_DIR`, `OUTPUTS_DIR`,
+`OUTPUTS_REPO`, `TIMESTAMP`, `ARCHIVE_DIR`, `GIT_LIMIT_MB`): `fully_enriched.csv` and any other output over 50 MB go to the
+run's GitHub Release (`run-<timestamp>`, discipline-prefixed asset names, a `<file>.release.txt` pointer left in git);
+everything smaller goes to `runs/<timestamp>/` in the outputs repo; the dashboard site goes to `docs/` (Pages). The
+2026-10-13 run's publish job failed because two `high_impact_subset.csv` files (118 and 211 MB) were committed to git
+(GitHub's limit is 100 MB); the script replaced the inline step. That run was published by hand with the same script
+from the run's `benchmark-outputs-<run id>` artifact, after rebuilding the dashboard with the current code (the run
+had checked out `main` before the dashboard rebuild).
+
 Where the accumulated caches live, in order of preference:
 1. **Actions cache** (`stage-caches-v1-<discipline>-...`, restored by prefix): fast path between consecutive runs.
 2. **Outputs repo release `caches`** (`<discipline>-caches.tar.gz`, one rolling release, replaced after every real run,

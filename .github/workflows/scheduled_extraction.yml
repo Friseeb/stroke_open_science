@@ -303,70 +303,14 @@ jobs:
           token: ${{ secrets.OUTPUTS_REPO_PAT }}
           path: outputs_repo
 
-      - name: Upload fully_enriched CSVs to GitHub Release and copy summary files to git
+      - name: Upload the big CSVs to a GitHub Release and copy everything that fits to git
         if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.OUTPUTS_REPO_PAT }}
-        run: |
-          TIMESTAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
-          TAG="run-${TIMESTAMP}"
-
-          # Upload fully_enriched.csv (250-315 MB each) as release assets.
-          # GitHub requires unique asset names within a release, so each file
-          # is copied to a discipline-prefixed name before uploading.
-          ASSETS=()
-          for discipline in stroke neuroscience neurology cardiology; do
-            csv="data/benchmarks/$discipline/fully_enriched.csv"
-            if [ -f "$csv" ]; then
-              dest="/tmp/${discipline}-fully_enriched.csv"
-              cp "$csv" "$dest"
-              ASSETS+=("$dest")
-            fi
-          done
-
-          if [ ${#ASSETS[@]} -gt 0 ]; then
-            gh release create "$TAG" \
-              --repo "Friseeb/stroke_open_science_outputs" \
-              --title "Benchmark Run ${TIMESTAMP}" \
-              --notes "Full enriched datasets for all disciplines are attached as release assets (e.g. stroke-fully_enriched.csv). The git commit contains high-impact subsets and dashboard." \
-              "${ASSETS[@]}"
-            echo "Release created: $TAG"
-          fi
-
-          # Copy only the files that fit in git (<100 MB each)
-          DEST="outputs_repo/runs/${TIMESTAMP}"
-          mkdir -p "$DEST"
-          rsync -a \
-            --exclude='retrieval_slices/' \
-            --exclude='raw_openalex_articles.csv' \
-            --exclude='enriched_preview.csv' \
-            --exclude='enrich_cache.json' \
-            --exclude='llm_cache.json' \
-            --exclude='openalex_metadata_cache.jsonl' \
-            --exclude='das_cache.jsonl' \
-            --exclude='fully_enriched.csv' \
-            data/benchmarks/. "$DEST/"
-          cp outputs_archive/manifest.csv "$DEST/manifest.csv" 2>/dev/null || true
-          cp outputs_archive/metadata.json "$DEST/metadata.json" 2>/dev/null || true
-          echo "$TIMESTAMP" > outputs_repo/LATEST_RUN.txt
-
-          # Update GitHub Pages root so the dashboard is always at the repo's Pages URL.
-          # The interactive static site (index.html + app.js + charts.js + styles.css + dashboard_data.json) is the
-          # landing page; the single-file Plotly dashboard stays available as legacy.html.
-          if [ -d "data/benchmarks/dashboard/site" ]; then
-            mkdir -p outputs_repo/docs
-            cp data/benchmarks/dashboard/site/* outputs_repo/docs/
-            touch outputs_repo/docs/.nojekyll
-          fi
-          if [ -f "data/benchmarks/dashboard/discipline_dashboard.html" ]; then
-            mkdir -p outputs_repo/docs
-            cp data/benchmarks/dashboard/discipline_dashboard.html outputs_repo/docs/legacy.html
-            if [ ! -f outputs_repo/docs/index.html ]; then
-              cp data/benchmarks/dashboard/discipline_dashboard.html outputs_repo/docs/index.html
-            fi
-            cp data/benchmarks/dashboard/discipline_overall_summary.csv outputs_repo/docs/ 2>/dev/null || true
-            cp data/benchmarks/dashboard/discipline_year_summary.csv outputs_repo/docs/ 2>/dev/null || true
-          fi
+          OUTPUTS_REPO: Friseeb/stroke_open_science_outputs
+          OUTPUTS_DIR: outputs_repo
+          DATA_DIR: data/benchmarks
+        run: bash scripts/publish_outputs.sh   # fully_enriched.csv and any file over 50 MB go to the release
 
       - name: Commit and push to outputs repo
         if: ${{ github.event.inputs.dry_run != 'true' }}
