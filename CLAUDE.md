@@ -132,7 +132,10 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   500 / 600) for everything, Instrument Serif only for the big figures in the matrix and stat grid; a 12px module
   (`--m`, `--fs-*`); hero title at clamp(64px, 10.4vw, 152px), weight 500, tracking −0.045em, three staggered lines;
   section titles 60px; eyebrows 13px grey with the section number in the accent. Controls are outline / ink-filled
-  pills (the only control style) and underlined text links. Dark theme is a selected token set, not a flip.
+  pills (the only control style) and underlined text links. Dark theme is a selected token set, not a flip. Open-access
+  statuses wear their names' colours (user request 2026-10-13: diamond blue #5598e7, gold #eda100, hybrid pink #c04d8c,
+  green #1baf7a, bronze #9a5a1f; dark steps in `OA_COLORS` in app.js, validated with the palette checker) and the routes
+  take the colour of their main status; the ordered data-statement classes keep the blue ramp.
 - **One OA definition** (`build_discipline_dashboard.derive_open_access`, text in `OA_DEFINITION`): open =
   OpenAlex `oa_status` known and not `closed`; the legacy `infer_oa_series` inference (`is_oa` / OA journal /
   OA URL / licence) applies only where `oa_status` is unknown. Both the site `oa` count and the legacy report's
