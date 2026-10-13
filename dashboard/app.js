@@ -55,7 +55,7 @@
     ft_github: "github.com anywhere in the text", ft_reg: "Registry ID or clinicaltrials.gov anywhere in the text" };
   const PILL_LABELS = { oa: "Open access", data: "Data", code: "Code", material: "Any repository", reg: "Registration", preprint: "Preprint",
     das_stmt: "Statement", das_deposit: "Deposit", das_on_request: "On request", ft_github: "GitHub", ft_reg: "Registration (full text)" };
-  const FIG_ORDER = ["trend", "oa", "hi", "das", "das-disc", "eq", "eq-ft", "t4", "cm", "journal"];
+  const FIG_ORDER = ["trend", "oa", "hi", "bb", "das", "das-disc", "eq", "eq-ft", "t4", "cm", "journal"];
   const TABLE_ORDER = ["report", "ft", "country", "funder"];
 
   let DATA = null;
@@ -72,9 +72,11 @@
     markers: true,
     // chart forms (every figure offers at least two)
     oaMode: "bars", dasMode: "bars", hiMode: "lines", ftdMode: "dots", eqMode: "bars", t4Layout: "overlay", cmMode: "dots", journalMode: "dots",
+    // bubbles through the years
+    bbEntity: "countries", bbX: "oa", bbY: "das_stmt", bbTrails: "on", bbYear: null, bbPlaying: false,
     sort: {},
   };
-  const FORM_KEYS = ["oaMode", "dasMode", "hiMode", "ftdMode", "eqMode", "t4Layout", "cmMode", "journalMode"];
+  const FORM_KEYS = ["oaMode", "dasMode", "hiMode", "ftdMode", "eqMode", "t4Layout", "cmMode", "journalMode", "bbEntity", "bbX", "bbY", "bbTrails"];
   const PREV_VALS = new Map();    // last rendered big figures, so a selection change counts up from the previous value
 
   // ------------------------------------------------------------------ utilities
@@ -271,6 +273,7 @@
     p.set("disc", state.disciplines.join(","));
     if (state.slice.kind) p.set("slice", state.slice.kind + ":" + state.slice.key);
     p.set("cmSignals", state.cmSignals.join(","));
+    if (state.bbYear) p.set("bbYear", String(state.bbYear));
     history.replaceState(null, "", "#" + p.toString());
   }
   function readHash() {
@@ -292,6 +295,8 @@
       if (p.get(k) && /^[a-z]+$/.test(p.get(k))) state[k] = p.get(k);
     }
     for (const k of ["cmMin", "cmTop", "journalMin", "journalTop"]) if (p.get(k) && !Number.isNaN(+p.get(k))) state[k] = +p.get(k);
+    if (p.get("bbYear") && DATA.years.includes(+p.get("bbYear"))) state.bbYear = +p.get("bbYear");
+    for (const k of ["bbX", "bbY"]) if (!METRICS.some((m) => m.key === state[k])) state[k] = k === "bbX" ? "oa" : "das_stmt";
     const sig = (p.get("cmSignals") || "").split(",").filter(Boolean);
     if (sig.length) state.cmSignals = sig;
     if (!VIEWS.some((v) => v[0] === state.view)) state.view = "s1";
@@ -308,7 +313,9 @@
     state.cmEntity = "institutions"; state.cmMin = 50; state.cmTop = 15; state.cmSignals = ["das_deposit", "ft_github", "ft_reg"];
     state.journalMetric = "oa"; state.journalMin = 100; state.journalTop = 25;
     state.markers = true;
-    Object.assign(state, { oaMode: "bars", dasMode: "bars", hiMode: "lines", ftdMode: "dots", eqMode: "bars", t4Layout: "overlay", cmMode: "dots", journalMode: "dots" });
+    Object.assign(state, { oaMode: "bars", dasMode: "bars", hiMode: "lines", ftdMode: "dots", eqMode: "bars", t4Layout: "overlay", cmMode: "dots", journalMode: "dots",
+      bbEntity: "countries", bbX: "oa", bbY: "das_stmt", bbTrails: "on", bbYear: null, bbPlaying: false });
+    stopPlay();
   }
 
   // ------------------------------------------------------------------ pills (the one control)
@@ -573,7 +580,13 @@
     const STACK_FORMS = [{ value: "bars", label: "Bars" }, { value: "area", label: "Area" }, { value: "panels", label: "Small multiples" }];
     const DOT_FORMS = [{ value: "dots", label: "Dots" }, { value: "bars", label: "Bars" }];
     pillSelect("trend-layout", "trendLayout", LINE_FORMS);
-    pillSelect("oa-mode", "oaMode", STACK_FORMS);
+    pillSelect("oa-mode", "oaMode", STACK_FORMS.concat([{ value: "rain", label: "Raincloud" }]));
+    pillSelect("bb-entity", "bbEntity", [{ value: "countries", label: "Countries" }, { value: "journals", label: "Journals" }, { value: "disciplines", label: "Disciplines" }]);
+    pillSelect("bb-x", "bbX", metricOptions(["material"]));
+    pillSelect("bb-y", "bbY", metricOptions(["material"]));
+    pillSelect("bb-trails", "bbTrails", [{ value: "on", label: "On" }, { value: "off", label: "Off" }]);
+    $("bb-play").onclick = () => { if (state.bbPlaying) stopPlay(); else startPlay(); };
+    $("bb-year").oninput = (e) => { stopPlay(); state.bbYear = +e.target.value; renderBubbles(focusDisc(), false); writeHash(); };
     pillSelect("hi-mode", "hiMode", [{ value: "lines", label: "Lines" }, { value: "gap", label: "Gap" }]);
     pillSelect("das-mode", "dasMode", STACK_FORMS);
     pillSelect("ftd-mode", "ftdMode", DOT_FORMS);
@@ -655,6 +668,7 @@
     renderTrendChart({ id: "trend-chart", tableId: "trend-table", titleId: "trend-title", subId: "trend-sub", keyId: "trend-key", fig: "trend", metricKey: state.metric, compare: "disciplines", layout: state.trendLayout, show: state.trendShow, d, height: 440 });
     renderOa(d);
     renderTrendChart({ id: "hi-chart", tableId: "hi-table", titleId: "hi-title", subId: "hi-sub", keyId: "hi-key", fig: "hi", metricKey: state.metric, compare: "subset", layout: state.hiMode === "gap" ? "gap" : "overlay", show: "rate", d, height: 360 });
+    renderBubbles(d, false);
     renderDas(d);
     renderFtTable(d);
     renderIncome(d);
@@ -803,10 +817,122 @@
     return OA_ROUTES.map((r) => ({ key: r.key, label: r.label, sum: (c) => r.statuses.reduce((s, st) => s + c[K["oa_" + st]], 0), neutral: !!r.neutral }));
   }
   function renderOa(d) {
+    // the raincloud needs the full width: both figures of the row go wide while it is on
+    for (const id of ["oa-chart", "hi-chart"]) { const fig = $(id).closest(".fig"); if (fig) fig.classList.toggle("is-wide", state.oaMode === "rain"); }
+    if (state.oaMode === "rain") return renderOaRain(d);
     const classes = oaClasses(state.oaGrouping);
     const res = stackedFor({ id: "oa-chart", tableId: "oa-table", keyId: "oa-key", classes, denomFn: oaKnown, mode: state.oaMode, height: 360 });
     $("oa-title").textContent = (state.oaGrouping === "status" ? "Open-access status by year, " : "Open-access route by year, ") + d.label.toLowerCase();
     caption("oa-sub", "oa", res ? fmtInt(res.denomTotal) + " papers with a known status. " + cap(selectionLabel()) + ". Shares of papers with a known OpenAlex status." : "No OA-status data for this selection.");
+  }
+
+  /** Raincloud: per year, the spread of open-access rates across journals (one drop per journal, sized by papers,
+   *  coloured by its dominant route), the density as a half-cloud and the median as a tick. */
+  function renderOaRain(d) {
+    const t = Charts.theme();
+    const years = yearsInRange();
+    const byYear = aggregateByYearFor(d, "journal");
+    const colors = ramp(RAMP3);
+    const routeColor = { free: colors[0], paid: colors[1], bronze: colors[2], closed: t.neutral };
+    const routeLabel = { free: "free to author", paid: "APC paid", bronze: "bronze", closed: "closed" };
+    const groups = {}; years.forEach((yr) => { groups[yr] = []; });
+    const MIN_J = 30;
+    const matrix = [];
+    for (const [idx, m] of byYear.entries()) {
+      const j = d.journals[idx];
+      if (!j || j.key === "Other") continue;
+      const row = { label: j.label };
+      for (const yr of years) {
+        const c = m.get(yr);
+        if (!c || oaKnown(c) < MIN_J) { row["y" + yr] = null; continue; }
+        const shares = OA_ROUTES.map((r) => [r.key, r.statuses.reduce((s, st) => s + c[K["oa_" + st]], 0) / oaKnown(c)]);
+        const dom = shares.slice().sort((a, b) => b[1] - a[1])[0][0];
+        const v = rate(c, "oa");
+        row["y" + yr] = v;
+        if (v !== null) groups[yr].push({ key: j.key, label: j.label, value: v, n: c[K.n], color: routeColor[dom], sub: "mostly " + routeLabel[dom] + " (" + shares.map((s) => routeLabel[s[0]] + " " + fmtPct(s[1], 0)).join(", ") + ")" });
+      }
+      matrix.push(row);
+    }
+    Charts.raincloud($("oa-chart"), { years, groups, partial: DATA.partial_years || [], height: 420 });
+    exportFor("oa-chart");
+    keyFor("oa-key", OA_ROUTES.map((r) => ({ label: "Mostly " + routeLabel[r.key], color: routeColor[r.key], kind: "line" })));
+    $("oa-title").textContent = "Open-access rate across journals by year, " + d.label.toLowerCase();
+    const nJ = new Set(years.flatMap((yr) => groups[yr].map((p) => p.key))).size;
+    caption("oa-sub", "oa", nJ + " journals with at least " + MIN_J + " papers of known status in a year. " + cap(selectionLabel()) + ". Each drop is a journal, sized by its papers that year and coloured by its dominant route; the cloud is the density across journals, the tick the median.");
+    renderTable("oa-table", [{ key: "label", label: "Journal" }].concat(years.map((yr) => ({ key: "y" + yr, label: String(yr), fmt: "pct" }))), matrix, { sortable: false });
+  }
+
+  // ------------------------------------------------------------------ bubbles through the years (Rosling)
+  let playTimer = null;
+  function stopPlay() { if (playTimer) clearInterval(playTimer); playTimer = null; state.bbPlaying = false; const b = $("bb-play"); if (b) b.textContent = "Play"; }
+  function startPlay() {
+    stopPlay();
+    const years = yearsInRange();
+    if (years.length < 2) return;
+    state.bbPlaying = true; $("bb-play").textContent = "Pause";
+    if (state.bbYear === years[years.length - 1]) state.bbYear = years[0];
+    renderBubbles(focusDisc(), true);
+    playTimer = setInterval(() => {
+      const ys = yearsInRange();
+      const i = ys.indexOf(state.bbYear);
+      if (i < 0 || i === ys.length - 1) { stopPlay(); return; }
+      state.bbYear = ys[i + 1];
+      renderBubbles(focusDisc(), true);
+      writeHash();
+    }, 1100);
+  }
+  function bubbleFrames(d) {
+    const t = Charts.theme();
+    const years = yearsInRange();
+    const mx = metric(state.bbX), my = metric(state.bbY);
+    const frames = {}; years.forEach((yr) => { frames[yr] = []; });
+    const push = (yr, key, label, counts, color, group, pinned) => {
+      const vx = rate(counts, mx), vy = rate(counts, my);
+      if (vx === null || vy === null) return;
+      frames[yr].push({ key, label, x: vx, y: vy, size: counts[K.n], color, group, pinned });
+    };
+    let keyItems = [];
+    if (state.bbEntity === "disciplines") {
+      for (const xd of selectedDiscs()) {
+        if (!metricAvailable(xd, mx.key) || !metricAvailable(xd, my.key)) continue;
+        const a = aggregateDiscipline(xd);
+        if (!a.applicable) continue;
+        for (const yr of years) { const c = a.byYear.get(yr); if (c) push(yr, xd.key, xd.label, c, discColor(xd), null, true); }
+        keyItems.push({ label: xd.label, color: discColor(xd) });
+      }
+    } else if (metricAvailable(d, mx.key) && metricAvailable(d, my.key)) {
+      const dim = state.bbEntity === "journals" ? "journal" : "country";
+      const list = dim === "journal" ? d.journals : d.countries;
+      const byYear = aggregateByYearFor(d, dim);
+      const colors = ramp(RAMP4);
+      const order = DATA.income_order || [];
+      for (const [idx, m] of byYear.entries()) {
+        const item = list[idx];
+        if (!item || item.key === "Other") continue;
+        const gi = dim === "country" ? order.indexOf(item.income || "") : -1;
+        const color = dim === "country" ? (gi >= 0 ? colors[gi] : t.neutral) : discColor(d);
+        const group = dim === "country" ? (gi >= 0 ? (DATA.income_labels || {})[item.income] : "income group unknown") : null;
+        for (const yr of years) { const c = m.get(yr); if (c) push(yr, item.key, item.label, c, color, group, false); }
+      }
+      if (dim === "country") keyItems = order.map((g, i) => ({ label: (DATA.income_labels || {})[g] || g, color: colors[i] })).concat([{ label: "Income group unknown", color: t.neutral }]);
+    }
+    return { years, frames, mx, my, keyItems };
+  }
+  function renderBubbles(d, playing) {
+    const { years, frames, mx, my, keyItems } = bubbleFrames(d);
+    if (!years.includes(state.bbYear)) state.bbYear = years[years.length - 1];
+    Charts.bubbles($("bb-chart"), { frames, years, year: state.bbYear, xFmt: "pct", yFmt: "pct", xLabel: mx.label + " →", yLabel: my.label + " ↑", trails: state.bbTrails === "on", labels: state.bbEntity === "disciplines" ? 8 : 7, playing, partial: DATA.partial_years || [], height: 520 });
+    exportFor("bb-chart");
+    keyFor("bb-key", keyItems);
+    const entity = { countries: "first-author countries", journals: "journals", disciplines: "disciplines" }[state.bbEntity];
+    $("bb-title").textContent = my.label + " against " + mx.label.toLowerCase() + ", " + entity + (state.bbEntity === "disciplines" ? "" : ", " + d.label.toLowerCase());
+    const slider = $("bb-year");
+    slider.min = years[0]; slider.max = years[years.length - 1]; slider.value = state.bbYear;
+    $("bb-readout").textContent = String(state.bbYear);
+    const n = (frames[state.bbYear] || []).length;
+    caption("bb-sub", "bb", n + " bubbles in " + state.bbYear + ", area = papers that year; the largest carry labels and trails. " + cap(selectionLabel()) + ". Across: " + mx.label.toLowerCase() + " (" + denomText(mx).toLowerCase().replace(/\.$/, "") + "); up: " + my.label.toLowerCase() + " (" + denomText(my).toLowerCase().replace(/\.$/, "") + "). Entities with fewer than " + MIN_N_RATE + " papers in a year are hidden; press Play to move through the years.");
+    renderTable("bb-table", [{ key: "label", label: state.bbEntity === "journals" ? "Journal" : state.bbEntity === "countries" ? "Country" : "Discipline" }, { key: "size", label: "Papers " + state.bbYear, fmt: "int" }, { key: "x", label: mx.label, fmt: "pct" }, { key: "y", label: my.label, fmt: "pct" }, { key: "group", label: "Group" }],
+      (frames[state.bbYear] || []).slice().sort((a, b) => b.size - a.size).map((p) => ({ label: p.label, size: p.size, x: p.x, y: p.y, group: p.group || "" })), { sortable: false });
   }
 
   // ------------------------------------------------------------------ data statements

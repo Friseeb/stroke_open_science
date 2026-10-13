@@ -101,7 +101,13 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   `Charts.stacked` (100 % `bars` with 2 px surface gaps and end labels on the last column, `area`, `panels`; eight DAS
   categories are forced to panels), `Charts.dotPlot` (rows × coloured dots with a min–max range line and one labelled
   value per row; `bars` alternative), `Charts.rankDots` (sorted lollipop/dot rows with a reference line; `bars`
-  alternative) plus `Charts.key`, `Charts.exportBar`, `Charts.countUp`. Tufte rules applied: range-frame axes, no
+  alternative), `Charts.raincloud` (the OA figure's `rain` form: per year, a half-violin of the open-access rate
+  across journals with ≥ 30 papers of known status, one drop per journal sized by papers and coloured by its dominant
+  route, the median as a tick; drops literally rain in on first scroll-in) and `Charts.bubbles` (Rosling-style: countries /
+  journals / disciplines as bubbles sized by papers, any indicator on each axis, trails for the labelled bubbles, the
+  year as a serif watermark, Play / scrubber under the figure; `bbEntity`, `bbX`, `bbY`, `bbTrails`, `bbYear` in the
+  hash; countries are coloured by World Bank income group, which `build_dashboard_data.py` now writes per country as
+  `countries[].income`, the modal group of its papers) plus `Charts.key`, `Charts.exportBar`, `Charts.countUp`. Tufte rules applied: range-frame axes, no
   gridlines, hairlines one step off the surface, direct and selective labels, policy milestones as hairlines with
   labels in the top margin, partial years shaded, rates capped at 100 %. Motion (user asked for "motion graphics" on 2026-10-13): every chart keeps its `<svg>` so a
   selection change morphs lines / grows bars / slides dots (650 ms, cubic-out, named transitions so the entrance

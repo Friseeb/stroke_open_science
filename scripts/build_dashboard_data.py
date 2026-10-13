@@ -489,6 +489,12 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
     country_list = countries + [OTHER_LABEL]
     country_index = {c: i for i, c in enumerate(country_list)}
     country_folded = _fold(flags["country"], countries).map(country_index)
+    # World Bank income group per country (the modal group of its papers), for colouring countries on the site
+    country_income: Dict[str, str] = {}
+    if "income" in flags.columns:
+        known = flags[flags["income"].isin(INCOME_ORDER)]
+        if len(known):
+            country_income = known.groupby("country")["income"].agg(lambda s: s.value_counts().idxmax()).to_dict()
 
     key_frame = flags[["year", "hi"] + COUNT_KEYS].copy()
     key_frame["journal"] = journal_folded.astype(int)
@@ -550,7 +556,8 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
         "label": dash.discipline_label(discipline),
         "years": years,
         "journals": [{"key": j, "label": journal_labels.get(j, j)} for j in journal_list],
-        "countries": [{"key": c, "label": ISO2_NAMES.get(c, c) if c not in (OTHER_LABEL,) else c}
+        "countries": [{"key": c, "label": ISO2_NAMES.get(c, c) if c not in (OTHER_LABEL,) else c,
+                       "income": country_income.get(c, "") if c != OTHER_LABEL else ""}
                       for c in country_list],
         "funders": funder_list,
         "income_groups": income_list,

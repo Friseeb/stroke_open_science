@@ -56,7 +56,7 @@ static site in `site/` (`index.html`, `app.js`, `charts.js`, `styles.css` from `
 discipline matrix (rate, year trend and counts per cell), then numbered figures for trends,
 open-access routes, data-availability statements, first-author income groups, a commitment index
 for institutions / journals / funders / countries, journals, countries and funders, and methods;
-the selection is kept in the URL so links reproduce a view. Charts are hand-drawn SVG on D3 (lines, slopegraphs, small multiples, dot plots, 100 % stacks), each with at least two forms, a table twin and PNG / SVG export; selection changes animate. The JSON holds
+the selection is kept in the URL so links reproduce a view. Charts are hand-drawn SVG on D3 (lines, slopegraphs, small multiples, dot plots, 100 % stacks, a raincloud of journal open-access rates by year, and Rosling-style bubbles that play through the years), each with at least two forms, a table twin and PNG / SVG export; selection changes animate. The JSON holds
 pre-aggregated **counts** (discipline × year × high-impact ×
 journal × first-author country, and discipline × year × high-impact × funder, top-N + "Other") so the
 browser recomputes every rate for any filter combination without row-level data; it stays well under

@@ -594,6 +594,122 @@ window.Charts = (function () {
     };
   }
 
+  // ------------------------------------------------------------------ raincloud (distribution per year: half-violin, rain of entities, median)
+  /** o = { years:[...], groups:{year:[{key,label,value,n,color,sub}]}, partial, height } — values in [0,1] */
+  function raincloud(el, o) {
+    const t = theme(), fmt = formatter("pct"), dur = DUR();
+    const have = o.years.filter((yr) => (o.groups[yr] || []).length);
+    if (!have.length) { empty(el); return; }
+    const m = { top: 30, right: 16, bottom: 32, left: 44 };
+    const F = frame(el, o.height || 440, m);
+    const x = d3.scaleBand().domain(o.years).range([0, F.iw]).paddingInner(0.18).paddingOuter(0.08);
+    const bw = x.bandwidth(), xc = (yr) => x(yr) + bw / 2;
+    const y = d3.scaleLinear().domain([0, 1]).range([F.ih, 0]);
+    const nMax = Math.max(1, ...have.flatMap((yr) => o.groups[yr].map((p) => p.n)));
+    const r = d3.scaleSqrt().domain([0, nMax]).range([1.6, Math.max(3, Math.min(6.5, bw * 0.08))]);
+    for (const name of ["bars", "areas", "panels", "lines", "dots", "labels", "hover", "gap", "milestones"]) layer(F.g, name).selectAll("*").remove();
+    partialBand(F.g, o.partial, o.years, xc, x.step(), F.ih, t);
+    yAxis(F.g, y, t, (v) => Math.round(v * 100) + "%", 4);
+    xAxisBand(F.g, o.years, xc, F.ih, F.iw, t, x.step() < 40 ? 2 : 1);
+    // density per year (Epanechnikov kernel on [0, 1]); the cloud is the left half of the band
+    const grid = d3.range(0, 1.0001, 0.02);
+    const kde = (vals, h) => grid.map((g) => [g, d3.mean(vals, (v) => { const u = (g - v) / h; return Math.abs(u) <= 1 ? 0.75 * (1 - u * u) / h : 0; }) || 0]);
+    const dens = {}, dmax = {};
+    for (const yr of have) { const vals = o.groups[yr].map((p) => p.value); if (vals.length >= 4) { dens[yr] = kde(vals, 0.07); dmax[yr] = Math.max(1e-9, ...dens[yr].map((d) => d[1])); } }
+    const halfW = bw * 0.44;   // every cloud gets the same maximum width, so the shape (not the count) is what differs
+    const cloud = (yr) => d3.area().x0(() => x(yr) + halfW).x1((d) => x(yr) + halfW - (d[1] / dmax[yr]) * (halfW - 4)).y((d) => y(d[0])).curve(d3.curveCatmullRom)(dens[yr]);
+    const V = layer(F.g, "violins").selectAll("path").data(have.filter((yr) => dens[yr]), (d) => d);
+    V.exit().remove();
+    V.enter().append("path").attr("fill", t.ink3).attr("fill-opacity", 0.16).attr("stroke", t.ink3).attr("stroke-width", 1).attr("d", (yr) => cloud(yr)).merge(V)
+      .each(function (yr) { pathTween(d3.select(this), cloud(yr), dur); });
+    // the rain: one drop per entity, jittered deterministically by key so drops keep their place across renders
+    const seed = (k) => { let h = 2166136261; for (const ch of String(k)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return ((h >>> 0) % 1000) / 1000; };
+    const pts = have.flatMap((yr) => o.groups[yr].map((p) => Object.assign({}, p, { yr, id: yr + "|" + p.key, jx: x(yr) + halfW + 7 + seed(p.key) * (bw - halfW - 11) })));
+    const D = layer(F.g, "drops").selectAll("circle").data(pts, (d) => d.id);
+    D.exit().transition().duration(dur / 2).style("opacity", 0).remove();
+    const De = D.enter().append("circle").attr("cx", (d) => d.jx).attr("cy", (d) => y(d.value)).attr("r", 0).attr("stroke", t.bg).attr("stroke-width", 1);
+    De.merge(D).attr("fill", (d) => d.color).attr("fill-opacity", 0.9).transition("move").duration(dur).ease(EASE).attr("cx", (d) => d.jx).attr("cy", (d) => y(d.value)).attr("r", (d) => r(d.n));
+    // the median as a short ink tick with its value
+    const medOf = (yr) => d3.median(o.groups[yr], (p) => p.value);
+    const M = layer(F.g, "medians").selectAll("g").data(have, (d) => d);
+    M.exit().remove();
+    const Me = M.enter().append("g");
+    Me.append("line").attr("stroke", t.ink).attr("stroke-width", 2);
+    Me.append("text").attr("font-size", 10.5).attr("font-weight", 500).attr("fill", t.ink).attr("text-anchor", "end");
+    const Mm = Me.merge(M);
+    Mm.select("line").transition("move").duration(dur).ease(EASE).attr("x1", (yr) => x(yr) + halfW - 12).attr("x2", (yr) => x(yr) + halfW + 2).attr("y1", (yr) => y(medOf(yr))).attr("y2", (yr) => y(medOf(yr)));
+    Mm.select("text").text((yr) => fmt(medOf(yr))).transition("move").duration(dur).ease(EASE).attr("x", (yr) => x(yr) + halfW - 14).attr("y", (yr) => y(medOf(yr)) - 6);
+    layer(F.g, "drops").selectAll("circle").on("pointermove", (evt, d) => { d3.select(evt.currentTarget).attr("stroke", t.ink); showTip(evt, d.label, [{ value: fmt(d.value), label: "open access", color: d.color }, { value: fmtInt(d.n), label: "papers in " + d.yr, color: "transparent" }].concat(d.sub ? [{ value: "", label: d.sub, color: "transparent" }] : [])); })
+      .on("pointerleave", (evt) => { d3.select(evt.currentTarget).attr("stroke", t.bg); hideTip(); });
+    el.__replay = () => {
+      const d = DUR(); if (!d) return;
+      layer(F.g, "drops").selectAll("circle").attr("cy", -24).attr("r", (q) => r(q.n)).transition("move").delay((q) => 120 + seed(q.key + q.yr) * 700 + (o.years.indexOf(q.yr)) * 40).duration(d * 1.1).ease(d3.easeBounceOut).attr("cy", (q) => y(q.value));
+      layer(F.g, "violins").selectAll("path").style("opacity", 0).transition("enter").delay(600).duration(700).style("opacity", 1);
+      layer(F.g, "medians").selectAll("g").style("opacity", 0).transition("enter").delay(900).duration(500).style("opacity", 1);
+    };
+  }
+
+  // ------------------------------------------------------------------ bubbles through the years (Rosling)
+  /** o = { frames:{year:[{key,label,x,y,size,color,group}]}, years, year, xFmt, yFmt, xLabel, yLabel, trails, labels, playing, height } */
+  function bubbles(el, o) {
+    const t = theme(), fx = formatter(o.xFmt || "pct"), fy = formatter(o.yFmt || "pct");
+    const dur = o.playing ? 900 : DUR();
+    const all = o.years.flatMap((yr) => o.frames[yr] || []);
+    if (!all.length) { empty(el); return; }
+    const m = { top: 28, right: 32, bottom: 48, left: 56 };
+    const F = frame(el, o.height || 520, m);
+    const cap = (f) => (f === "int" ? Infinity : 1);
+    const x = d3.scaleLinear().domain([0, Math.min(cap(o.xFmt), d3.max(all, (d) => d.x) * 1.08)]).nice(4).range([0, F.iw]);
+    const y = d3.scaleLinear().domain([0, Math.min(cap(o.yFmt), d3.max(all, (d) => d.y) * 1.08)]).nice(4).range([F.ih, 0]);
+    const r = d3.scaleSqrt().domain([0, d3.max(all, (d) => d.size)]).range([3, Math.max(14, Math.min(36, F.iw / 13))]);
+    yAxis(F.g, y, t, tickFormat(o.yFmt || "pct"), 4);
+    const ax = layer(F.g, "xaxis");
+    const xt = x.ticks(4);
+    const base = ax.selectAll("line.base").data([0]);
+    base.enter().append("line").attr("class", "base").merge(base).attr("x1", x(xt[0])).attr("x2", x(xt[xt.length - 1])).attr("y1", F.ih + 0.5).attr("y2", F.ih + 0.5).attr("stroke", t.hair);
+    const tk = ax.selectAll("text.xl").data(xt, (d) => d);
+    tk.exit().remove();
+    tk.enter().append("text").attr("class", "xl").attr("font-size", 11).attr("fill", t.ink3).attr("text-anchor", "middle").merge(tk).attr("x", (d) => x(d)).attr("y", F.ih + 18).text(tickFormat(o.xFmt || "pct"));
+    const titles = layer(F.g, "axtitles").selectAll("text").data([{ k: "x", s: o.xLabel }, { k: "y", s: o.yLabel }], (d) => d.k);
+    titles.enter().append("text").attr("font-size", 11.5).attr("fill", t.ink2).merge(titles)
+      .attr("x", (d) => (d.k === "x" ? F.iw : -40)).attr("y", (d) => (d.k === "x" ? F.ih + 38 : -12)).attr("text-anchor", (d) => (d.k === "x" ? "end" : "start")).text((d) => d.s);
+    // the year, large and quiet, behind the data
+    let wm = layer(F.g, "wm").select("text");
+    if (wm.empty()) wm = layer(F.g, "wm").append("text").attr("font-family", '"Instrument Serif", "Times New Roman", serif').attr("text-anchor", "end");
+    wm.attr("x", F.iw - 6).attr("y", F.ih - 14).attr("font-size", Math.min(170, F.ih * 0.42)).attr("fill", t.grid).text(o.year);
+    const cur = (o.frames[o.year] || []).slice().sort((a, b) => b.size - a.size);
+    const nLab = o.labels || 6;
+    const labelled = cur.slice(0, nLab).concat(cur.filter((d) => d.pinned && !cur.slice(0, nLab).includes(d)));
+    // trails: the path of each labelled bubble from the first year to the current one (all of them would be noise)
+    const T = layer(F.g, "trails").selectAll("path").data(o.trails ? labelled : [], (d) => d.key);
+    T.exit().remove();
+    const trail = (d) => { const pts = o.years.filter((yr) => yr <= o.year).map((yr) => (o.frames[yr] || []).find((p) => p.key === d.key)).filter(Boolean); return pts.length >= 2 ? d3.line().x((p) => x(p.x)).y((p) => y(p.y))(pts) : null; };
+    T.enter().append("path").attr("fill", "none").attr("stroke-width", 1).attr("stroke-opacity", 0.4).merge(T).attr("stroke", (d) => d.color).each(function (d) { const p = trail(d); if (p) pathTween(d3.select(this), p, dur); else d3.select(this).attr("d", null); });
+    const B = layer(F.g, "bubbles").selectAll("circle").data(cur, (d) => d.key);
+    B.exit().transition("move").duration(dur / 2).attr("r", 0).remove();
+    const Be = B.enter().append("circle").attr("cx", (d) => x(d.x)).attr("cy", (d) => y(d.y)).attr("r", 0).attr("stroke", t.bg).attr("stroke-width", 1.5);
+    Be.merge(B).attr("fill", (d) => d.color).attr("fill-opacity", 0.82).transition("move").duration(dur).ease(o.playing ? d3.easeCubicInOut : EASE).attr("cx", (d) => x(d.x)).attr("cy", (d) => y(d.y)).attr("r", (d) => r(d.size));
+    // labels: to the right of the bubble unless that runs off the frame; nudged apart vertically when they collide
+    const side = (d) => (x(d.x) + r(d.size) + 6 + textW(d.label, 11) > F.iw + m.right - 6 ? -1 : 1);
+    const placed = spread(labelled.map((d) => Object.assign({}, d, { y: y(d.y) })), 13, 4, F.ih - 4);
+    const L = layer(F.g, "labels").selectAll("text").data(placed, (d) => d.key);
+    L.exit().remove();
+    L.enter().append("text").attr("font-size", 11).attr("fill", t.ink).attr("dy", "0.32em").attr("x", (d) => x(d.x) + side(d) * (r(d.size) + 5)).attr("y", (d) => d.ly).style("opacity", 0).merge(L)
+      .text((d) => d.label).attr("text-anchor", (d) => (side(d) < 0 ? "end" : "start"))
+      .transition("move").duration(dur).ease(o.playing ? d3.easeCubicInOut : EASE).attr("x", (d) => x(d.x) + side(d) * (r(d.size) + 5)).attr("y", (d) => d.ly).style("opacity", 1);
+    // a partial year says so under the watermark
+    const note = layer(F.g, "wm").selectAll("text.note").data((o.partial || []).includes(o.year) ? [0] : []);
+    note.exit().remove();
+    note.enter().append("text").attr("class", "note").attr("font-size", 11).attr("fill", t.ink3).attr("text-anchor", "end").merge(note).attr("x", F.iw - 8).attr("y", F.ih - 2).text("incomplete year");
+    layer(F.g, "bubbles").selectAll("circle").on("pointermove", (evt, d) => { d3.select(evt.currentTarget).attr("stroke", t.ink).attr("fill-opacity", 1); showTip(evt, d.label + " · " + o.year, [{ value: fy(d.y), label: o.yLabel, color: d.color }, { value: fx(d.x), label: o.xLabel, color: d.color }, { value: fmtInt(d.size), label: "papers", color: "transparent" }].concat(d.group ? [{ value: "", label: d.group, color: "transparent" }] : [])); })
+      .on("pointerleave", (evt) => { d3.select(evt.currentTarget).attr("stroke", t.bg).attr("fill-opacity", 0.82); hideTip(); });
+    el.__replay = () => {
+      const d = DUR(); if (!d) return;
+      layer(F.g, "bubbles").selectAll("circle").attr("r", 0).transition("move").delay((q, i) => i * 25).duration(d).ease(d3.easeBackOut.overshoot(1.4)).attr("r", (q) => r(q.size));
+      layer(F.g, "labels").selectAll("text").style("opacity", 0).transition("enter").delay(d).duration(400).style("opacity", 1);
+    };
+  }
+
   // ------------------------------------------------------------------ key (legend) row — always present for ≥ 2 series
   function key(el, items) {
     if (!el) return;
@@ -652,5 +768,5 @@ window.Charts = (function () {
   /** Build the chart in `el` from nothing (called once, when it first scrolls into view). */
   function replay(el) { if (el && typeof el.__replay === "function") el.__replay(); }
 
-  return { lineChart, stacked, dotPlot, rankDots, key, exportBar, download, countUp, replay, theme, hideTip, reduced };
+  return { lineChart, stacked, dotPlot, rankDots, raincloud, bubbles, key, exportBar, download, countUp, replay, theme, hideTip, reduced };
 })();

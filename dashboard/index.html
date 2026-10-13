@@ -119,6 +119,27 @@
           <details class="table-view"><summary>table</summary><div id="hi-table" class="table-scroll"></div></details>
         </figure>
       </div>
+      <figure class="fig">
+        <div class="fig-head">
+          <h3 class="fig-title" id="bb-title"></h3>
+          <div class="fig-opts"><div class="opt"><span class="ctl-label">Bubbles</span><div class="pills small" id="bb-entity" role="group" aria-label="Entity"></div></div></div>
+        </div>
+        <div class="fig-opts" style="justify-content:flex-start; margin-bottom:12px">
+          <div class="opt"><span class="ctl-label">Across</span><div class="pills small" id="bb-x" role="group" aria-label="Horizontal axis"></div></div>
+          <div class="opt"><span class="ctl-label">Up</span><div class="pills small" id="bb-y" role="group" aria-label="Vertical axis"></div></div>
+          <div class="opt"><span class="ctl-label">Trails</span><div class="pills small" id="bb-trails" role="group"></div></div>
+        </div>
+        <div class="key" id="bb-key"></div>
+        <div id="bb-chart" class="chart" role="img" aria-label="Bubbles by year"></div>
+        <div class="scrub">
+          <button type="button" id="bb-play" class="ulink-btn">Play</button>
+          <label class="sr-only" for="bb-year">Year</label>
+          <input id="bb-year" type="range" step="1" class="scrub-range">
+          <span class="readout" id="bb-readout"></span>
+        </div>
+        <figcaption class="caption" id="bb-sub"></figcaption>
+        <details class="table-view"><summary>table</summary><div id="bb-table" class="table-scroll"></div></details>
+      </figure>
     </section>
 
     <!-- 03 Data statements -->
