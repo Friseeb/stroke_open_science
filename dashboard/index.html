@@ -8,8 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&display=swap">
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly.min.js" charset="utf-8"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" charset="utf-8"></script>
 </head>
 <body>
   <a class="skip-link" href="#s1">Skip to content</a>
@@ -94,7 +95,8 @@
           <div class="opt"><span class="ctl-label">Layout</span><div class="pills small" id="trend-layout" role="group"></div></div>
           <div class="opt"><span class="ctl-label">Policy milestones</span><div class="pills small" id="trend-markers" role="group"></div></div>
         </div>
-        <div id="trend-chart" class="chart chart-tall" role="img" aria-label="Trend lines by discipline"></div>
+        <div class="key" id="trend-key"></div>
+        <div id="trend-chart" class="chart" role="img" aria-label="Trend lines by discipline"></div>
         <figcaption class="caption" id="trend-sub"></figcaption>
         <details class="table-view"><summary>table</summary><div id="trend-table" class="table-scroll"></div></details>
       </figure>
@@ -102,14 +104,16 @@
         <figure class="fig">
           <div class="fig-head">
             <h3 class="fig-title" id="oa-title">Open-access route by year</h3>
-            <div class="fig-opts"><div class="opt"><div class="pills small" id="oa-grouping" role="group" aria-label="Grouping"></div></div></div>
+            <div class="fig-opts"><div class="opt"><div class="pills small" id="oa-grouping" role="group" aria-label="Grouping"></div></div><div class="opt"><div class="pills small" id="oa-mode" role="group" aria-label="Form"></div></div></div>
           </div>
-          <div id="oa-chart" class="chart" role="img" aria-label="Open-access route stacked bars by year"></div>
+          <div class="key" id="oa-key"></div>
+          <div id="oa-chart" class="chart" role="img" aria-label="Open-access route by year"></div>
           <figcaption class="caption" id="oa-sub"></figcaption>
           <details class="table-view"><summary>table</summary><div id="oa-table" class="table-scroll"></div></details>
         </figure>
         <figure class="fig">
-          <div class="fig-head"><h3 class="fig-title" id="hi-title"></h3></div>
+          <div class="fig-head"><h3 class="fig-title" id="hi-title"></h3><div class="fig-opts"><div class="opt"><div class="pills small" id="hi-mode" role="group" aria-label="Form"></div></div></div></div>
+          <div class="key" id="hi-key"></div>
           <div id="hi-chart" class="chart" role="img" aria-label="All papers against the high-impact subset"></div>
           <figcaption class="caption" id="hi-sub"></figcaption>
           <details class="table-view"><summary>table</summary><div id="hi-table" class="table-scroll"></div></details>
@@ -130,15 +134,18 @@
           <div class="fig-opts">
             <div class="opt"><span class="ctl-label">Classes</span><div class="pills small" id="das-grouping" role="group"></div></div>
             <div class="opt"><span class="ctl-label">Denominator</span><div class="pills small" id="das-denominator" role="group"></div></div>
+            <div class="opt"><span class="ctl-label">Form</span><div class="pills small" id="das-mode" role="group"></div></div>
           </div>
         </div>
-        <div id="das-chart" class="chart chart-tall" role="img" aria-label="Data-availability statement classes by year"></div>
+        <div class="key" id="das-key"></div>
+        <div id="das-chart" class="chart" role="img" aria-label="Data-availability statement classes by year"></div>
         <figcaption class="caption" id="das-sub"></figcaption>
         <details class="table-view"><summary>table</summary><div id="das-table" class="table-scroll"></div></details>
       </figure>
       <div class="grid-2">
         <figure class="fig">
-          <div class="fig-head"><h3 class="fig-title" id="das-disc-title">Full-text indicators by discipline</h3></div>
+          <div class="fig-head"><h3 class="fig-title" id="das-disc-title">Full-text indicators by discipline</h3><div class="fig-opts"><div class="opt"><div class="pills small" id="ftd-mode" role="group" aria-label="Form"></div></div></div></div>
+          <div class="key" id="das-disc-key"></div>
           <div id="das-disc-chart" class="chart" role="img" aria-label="Full-text indicators per discipline"></div>
           <figcaption class="caption" id="das-disc-sub"></figcaption>
           <details class="table-view"><summary>table</summary><div id="das-disc-table" class="table-scroll"></div></details>
@@ -163,14 +170,16 @@
         <figure class="fig">
           <div class="fig-head">
             <h3 class="fig-title" id="eq-title"></h3>
-            <div class="fig-opts"><div class="opt"><span class="ctl-label">Indicator</span><div class="pills small" id="eq-signal" role="group"></div></div></div>
+            <div class="fig-opts"><div class="opt"><span class="ctl-label">Indicator</span><div class="pills small" id="eq-signal" role="group"></div></div><div class="opt"><div class="pills small" id="eq-mode" role="group" aria-label="Form"></div></div></div>
           </div>
+          <div class="key" id="eq-key"></div>
           <div id="eq-chart" class="chart" role="img" aria-label="Indicator by first-author income group"></div>
           <figcaption class="caption" id="eq-sub"></figcaption>
           <details class="table-view"><summary>table</summary><div id="eq-table" class="table-scroll"></div></details>
         </figure>
         <figure class="fig">
           <div class="fig-head"><h3 class="fig-title" id="eq-ft-title">Full-text indicators by income group</h3></div>
+          <div class="key" id="eq-ft-key"></div>
           <div id="eq-ft-chart" class="chart" role="img" aria-label="Full-text indicators by income group"></div>
           <figcaption class="caption" id="eq-ft-sub"></figcaption>
           <details class="table-view"><summary>table</summary><div id="eq-ft-table" class="table-scroll"></div></details>
@@ -179,8 +188,9 @@
       <figure class="fig">
         <div class="fig-head">
           <h3 class="fig-title" id="t4-title"></h3>
-          <div class="fig-opts"><div class="opt"><span class="ctl-label">Indicator</span><div class="pills small" id="t4-metric" role="group"></div></div></div>
+          <div class="fig-opts"><div class="opt"><span class="ctl-label">Indicator</span><div class="pills small" id="t4-metric" role="group"></div></div><div class="opt"><div class="pills small" id="t4-layout" role="group" aria-label="Form"></div></div></div>
         </div>
+        <div class="key" id="t4-key"></div>
         <div id="t4-chart" class="chart" role="img" aria-label="Trend by income group"></div>
         <figcaption class="caption" id="t4-sub"></figcaption>
         <details class="table-view"><summary>table</summary><div id="t4-table" class="table-scroll"></div></details>
@@ -205,6 +215,7 @@
           <div class="opt"><span class="ctl-label">Min. audited</span><div class="pills small" id="cm-min" role="group"></div></div>
           <div class="opt"><span class="ctl-label">Show top</span><div class="pills small" id="cm-top" role="group"></div></div>
           <div class="opt"><span class="ctl-label">Indicators in the index</span><div class="pills small" id="cm-signals" role="group"></div></div>
+          <div class="opt"><span class="ctl-label">Form</span><div class="pills small" id="cm-mode" role="group"></div></div>
         </div>
         <div id="cm-chart" class="chart" role="img" aria-label="Commitment index by entity"></div>
         <figcaption class="caption" id="cm-sub"></figcaption>
@@ -218,6 +229,7 @@
         <div class="fig-opts" style="justify-content:flex-start; margin-bottom:12px">
           <div class="opt"><span class="ctl-label">Min. papers</span><div class="pills small" id="journal-min" role="group"></div></div>
           <div class="opt"><span class="ctl-label">Show top</span><div class="pills small" id="journal-top" role="group"></div></div>
+          <div class="opt"><span class="ctl-label">Form</span><div class="pills small" id="journal-mode" role="group"></div></div>
         </div>
         <div id="journal-chart" class="chart" role="img" aria-label="Journals ranked on the chosen indicator"></div>
         <figcaption class="caption" id="journal-sub"></figcaption>
@@ -254,6 +266,7 @@
     <div class="wrap" id="footer-body"></div>
   </footer>
 
+  <script src="charts.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

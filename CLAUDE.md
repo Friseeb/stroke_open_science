@@ -78,23 +78,37 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   (year × hi × funder, multi-valued), `income_cells` (year × hi × first-author World Bank income group) and
   `institution_cells` (year × hi × institution, multi-valued, top 60 by audited papers). The full-text flags
   (`ft_*`) and the DAS categories use `das_audited` as denominator; `METRICS[*].denominator` says which.
-- The site (`dashboard/index.html`, `app.js`, `styles.css`, no build step) is an **audit report card** (form chosen
+- The site (`dashboard/index.html`, `app.js`, `charts.js`, `styles.css`, no build step) is an **audit report card** (form chosen
   by the user on 2026-10-12 over an annotated chart essay and a ledger): one scrolling page, a sticky top bar (wordmark,
   section nav, current-selection readout, theme, "Download CSV" block), a full-height typographic hero, one selection
   line (pill toggles for years / papers / disciplines, inline selects for focus and "within" slice, custom year
   range, reset / copy link), then six numbered sections with plain-noun titles: 01 *Indicators* (the centrepiece: an
   indicator × discipline matrix, hairline grid, big serif rate per cell with its year sparkline and numerator of
   denominator; the focus column carries the accent; clicking a row name picks the indicator drawn in Trends),
-  02 *Trends* (indicator by year across disciplines, overlay or small multiples; OA route by year; all vs
-  high-impact), 03 *Data statements* (five classes or eight categories, denominator option; full-text indicators by
-  discipline; full text vs abstract table), 04 *Income groups* (stat grid of shares; OA route or any indicator by
-  income group; full-text indicators; indicator by year by income group), 05 *Rankings* (commitment index with
-  entity / min audited / top N / indicator pills; journals; countries and funders tables), 06 *Methods*. Figures
-  carry numbered captions (Fig. n / Table n) that state the selection and the denominator. The selection lives in
-  the URL hash (`view` = section id s1..s6; a bare `#s3` anchor also works). Policy milestones from
-  `configs/policy_events.json` draw as hairlines with hover detail; every chart has PNG / SVG download and a table
-  twin. Screenshots for review are taken with puppeteer-core driving the installed Chrome (Chrome's own --screenshot
+  02 *Trends* (indicator by year across disciplines; OA route by year; all vs high-impact), 03 *Data statements*
+  (classes by year; full-text indicators by discipline; full text vs abstract table), 04 *Income groups* (stat grid of
+  shares; OA route or any indicator by income group; full-text indicators; indicator by year by income group),
+  05 *Rankings* (commitment index with entity / min audited / top N / indicator pills; journals; countries and
+  funders tables), 06 *Methods*. Figures carry numbered captions (Fig. n / Table n) that state the selection and
+  the denominator. The selection lives in the URL hash (`view` = section id s1..s6; a bare `#s3` anchor also
+  works). Every chart has PNG / SVG download, a table twin and a key row whenever it has two or more series.
+  Screenshots for review are taken with puppeteer-core driving the installed Chrome (Chrome's own --screenshot
   flag misreports phone widths; headless Chrome inherits the macOS dark theme, so emulate `prefers-color-scheme`).
+- **Charts are hand-drawn SVG on D3 v7** (`dashboard/charts.js`, loaded from cdnjs before `app.js`; Plotly was
+  dropped on 2026-10-13 at the user's request for Tufte-grade graphics with motion). `app.js` only shapes data and
+  calls `Charts.lineChart` (forms: `overlay` lines with direct end labels and a crosshair tooltip, `panels` small
+  multiples with the other series ghosted in grey, `slope` first-year→last-year slopegraph, `gap` dumbbells per year),
+  `Charts.stacked` (100 % `bars` with 2 px surface gaps and end labels on the last column, `area`, `panels`; eight DAS
+  categories are forced to panels), `Charts.dotPlot` (rows × coloured dots with a min–max range line and one labelled
+  value per row; `bars` alternative), `Charts.rankDots` (sorted lollipop/dot rows with a reference line; `bars`
+  alternative) plus `Charts.key`, `Charts.exportBar`, `Charts.countUp`. Tufte rules applied: range-frame axes, no
+  gridlines, hairlines one step off the surface, direct and selective labels, policy milestones as hairlines with
+  labels in the top margin, partial years shaded, rates capped at 100 %. Motion: every chart keeps its `<svg>` so a
+  selection change morphs lines / grows bars / slides dots (650 ms, cubic-out, named transitions so the entrance
+  draw-on is never cancelled), the matrix and stat-grid figures count up from their previous value, and figures rise
+  into view once via IntersectionObserver (`.reveal`); all of it is off under `prefers-reduced-motion`. Each figure's
+  form is a URL-hash key (`oaMode`, `dasMode`, `hiMode`, `ftdMode`, `eqMode`, `t4Layout`, `cmMode`, `journalMode`,
+  `trendLayout`). Exports serialise the SVG with the page background (a system sans stands in for Instrument Sans).
 - Visual system (2026-10-12, calibrated on the user's references: tresmarescapital.com, nickho-motorsports.nl,
   grids.obys.agency): light grey ground (`#f1f1ef`) with near-black ink (`#141414`), hairlines (`#c6c6c1`) for all
   structure, no cards or shadows; a faint six-column grid behind the hero; one accent = the focus discipline's
