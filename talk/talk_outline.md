@@ -255,7 +255,22 @@ people.
 - Davies JM et al. EMBOLISE; Fiorella D et al. STEM; Liu J et al. MAGIC-MT. NEJM 2024;391
   (20 Nov 2024).
 
+## Corpus sensitivity (2026-10-13)
+
+The benchmark corpus is an OpenAlex **title** search for the six stroke terms. A title-and-abstract search for
+stroke 2024 (`--openalex-search-field title_and_abstract`, `scripts/compare_corpus_definitions.py`, table
+`talk/outputs/tables/corpus_sensitivity_2024.csv`) returns 2.4 times as many in-corpus articles (37,878 vs 15,602;
+99% of the title corpus is inside it) with the same open-access share (75.5% vs 75.2%; every status within 1.4
+points), the same data, code and preprint rates, and a slightly lower registration signal (3.7% vs 3.3% among the
+extra articles, vs 4.3%). The corpus definition does not move the headline numbers; say so if asked. PubMed is not
+used: the scheduled runs are OpenAlex only.
+
 ## Numbers to re-verify before the slides are final
+
+- The public dashboard now shows the 2026-10-13 run (fresh retrieval, 1,500 audited full texts per year); the
+  slides and this outline still use the talk frames (June retrieval, 2,000 per year). Re-run
+  `scripts/wsc2026_talk_analysis.py` on the new frames and re-export the dashboard figures before the talk, or
+  the QR code will lead the audience to slightly different numbers.
 
 - RESCUE BT2 primary outcome figures if quoted (mRS 0-1 at 90 days, tirofiban vs aspirin).
 - STEM primary outcome figures if quoted.

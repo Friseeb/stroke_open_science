@@ -1,0 +1,22 @@
+indicator,title,title+abstract,difference_pp
+Articles in corpus,15602,37878,
+DOIs also in the other corpus,99.1%,40.8%,
+Open access,75.2%,75.5%,+0.3
+  diamond,19.6%,18.7%,-0.8
+  gold,30.4%,29.1%,-1.3
+  hybrid,13.7%,14.6%,+0.9
+  green,4.3%,4.5%,+0.2
+  bronze,7.2%,8.6%,+1.4
+  closed,24.8%,24.5%,-0.3
+Data in a repository,0.2%,0.1%,-0.1
+Code link,0.0%,0.0%,+0.0
+Any repository / materials,0.2%,0.2%,-0.0
+Preprint version,2.7%,2.9%,+0.2
+Registration signal (of papers with an abstract),4.3%,3.7%,-0.6
+Only in title+abstract: articles,,22411,
+Only in title+abstract: Open access,,75.7%,
+Only in title+abstract: Data in a repository,,0.1%,
+Only in title+abstract: Code link,,0.0%,
+Only in title+abstract: Any repository / materials,,0.2%,
+Only in title+abstract: Preprint version,,3.0%,
+Only in title+abstract: Registration signal (of papers with an abstract),,3.3%,
