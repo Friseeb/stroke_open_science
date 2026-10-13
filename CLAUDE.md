@@ -110,8 +110,9 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   lines draw on, bars grow column by column, areas wipe in, dots slide from the axis, ranked rows fade in top to
   bottom), the matrix cells cascade and their figures count up from zero (`countUpAll`, `data-value`), sparklines
   and stat bars wipe in, section titles unmask from the baseline (`clip-path`), the hero title rises line by line on
-  load and the whole hero block parallaxes and fades as the reader leaves it (`heroMotion`), and the nav indicator
-  slides between sections. All of it is off under `prefers-reduced-motion`. Each figure's
+  load and the whole hero block parallaxes, shrinks and fades as the reader leaves it (`heroMotion`), section titles
+  are scroll-linked in size (`titleMotion`: full size at the reading line 38 % down the viewport, down to 0.84 at the
+  edges, via the `scale` property so the unmask transition is untouched), and the nav indicator slides between sections. All of it is off under `prefers-reduced-motion`. Each figure's
   form is a URL-hash key (`oaMode`, `dasMode`, `hiMode`, `ftdMode`, `eqMode`, `t4Layout`, `cmMode`, `journalMode`,
   `trendLayout`). Exports serialise the SVG with the page background (a system sans stands in for Instrument Sans).
 - Visual system (2026-10-12, calibrated on the user's references: tresmarescapital.com, nickho-motorsports.nl,

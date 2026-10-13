@@ -277,6 +277,8 @@ table.data tbody tr:hover td { background: var(--surface-2); }
   .hero .eyebrow, .hero-aside, .hero-foot { animation: fade-in 0.8s ease-out both; animation-delay: 0.5s; }
   .hero::before { transform: translateY(var(--py, 0px)); }
   .hero > * { will-change: transform, opacity; }
+  .display { transform-origin: 0 0; }
+  .sec-title { transform-origin: 0 100%; will-change: scale; }   /* scroll-linked scale (the `scale` property, so the unmask transition is untouched) */
   .hero.is-settled > *, .hero.is-settled .display span { animation: none; }
   @keyframes rise-in { from { opacity: 0; transform: translateY(48px); } to { opacity: 1; transform: none; } }
   @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }

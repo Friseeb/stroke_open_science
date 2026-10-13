@@ -513,10 +513,34 @@
       const y = window.scrollY, h = hero.offsetHeight || 1;
       const k = Math.min(1, y / (h * 0.8));
       for (const p of parts) { p.style.transform = "translateY(" + (y * 0.18).toFixed(1) + "px)"; p.style.opacity = String(1 - k); }
+      const title = hero.querySelector(".display");
+      if (title) title.style.scale = (1 - 0.2 * k).toFixed(3);          // the title also shrinks as it goes
       hero.style.setProperty("--py", (y * 0.06).toFixed(1) + "px");
     };
     window.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
     setTimeout(() => { hero.classList.add("is-settled"); update(); }, 1700);   // load animations done: inline transforms take over
+    update();
+  }
+  /** Section titles grow to full size at the reading line (38 % down the viewport) and shrink towards either edge. */
+  function titleMotion() {
+    if (Charts.reduced()) return;
+    const titles = [...document.querySelectorAll(".sec-title")];
+    if (!titles.length) return;
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      const vh = window.innerHeight || 900, focus = vh * 0.38;
+      for (const h of titles) {
+        const r = h.getBoundingClientRect();
+        if (r.bottom < -300 || r.top > vh + 300) continue;
+        const centre = r.top + r.height / 2;
+        const dist = Math.min(1, Math.abs(centre - focus) / (vh * 0.62));
+        h.style.scale = (1 - 0.16 * dist * dist).toFixed(3);                 // 1.0 at the line, 0.84 at the edges, eased
+      }
+    };
+    const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
     update();
   }
   function markNav() {
@@ -1172,6 +1196,7 @@
     renderAll();
     observeReveal();
     heroMotion();
+    titleMotion();
     if (state.view !== "s1") showView(state.view, true);
     window.addEventListener("hashchange", () => { readHash(); buildSelection(); buildViewOptions(); renderAll(); showView(state.view, true); });
   }
