@@ -521,7 +521,8 @@
     setTimeout(() => { hero.classList.add("is-settled"); update(); }, 1700);   // load animations done: inline transforms take over
     update();
   }
-  /** Section titles grow to full size at the reading line (38 % down the viewport) and shrink towards either edge. */
+  /** Section titles arrive large (up to 1.9×) and settle to their real size at the reading line (38 % down the
+   *  viewport); above the line they stay at 1×. The note beside the title fades in as the title settles. */
   function titleMotion() {
     if (Charts.reduced()) return;
     const titles = [...document.querySelectorAll(".sec-title")];
@@ -531,11 +532,13 @@
       ticking = false;
       const vh = window.innerHeight || 900, focus = vh * 0.38;
       for (const h of titles) {
-        const r = h.getBoundingClientRect();
+        const r = h.getBoundingClientRect();                     // origin is top-left, so r.top is unaffected by the scale
         if (r.bottom < -300 || r.top > vh + 300) continue;
-        const centre = r.top + r.height / 2;
-        const dist = Math.min(1, Math.abs(centre - focus) / (vh * 0.62));
-        h.style.scale = (1 - 0.16 * dist * dist).toFixed(3);                 // 1.0 at the line, 0.84 at the edges, eased
+        const p = r.top > focus ? Math.min(1, (r.top - focus) / (vh - focus)) : 0;   // 0 at the line, 1 at the bottom edge
+        const e = p * p;
+        h.style.scale = (1 + 0.9 * e).toFixed(3);
+        const note = h.parentElement && h.parentElement.querySelector(".sec-note");
+        if (note) note.style.opacity = (1 - e).toFixed(3);
       }
     };
     const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
