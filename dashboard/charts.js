@@ -28,11 +28,13 @@ window.Charts = (function () {
   const truncate = (s, max) => (s.length > max ? s.slice(0, Math.max(1, max - 1)) + "…" : s);
 
   // ------------------------------------------------------------------ frame + layers
-  function frame(el, height, m) {
+  /** The chart's <svg>, kept between renders so the same form morphs; a different form (`kind`) starts from a clean plot. */
+  function frame(el, height, m, kind) {
     const width = Math.max(320, el.clientWidth || 800);
     let svg = d3.select(el).select("svg.ch");
-    const fresh = svg.empty();
+    let fresh = svg.empty();
     if (fresh) { el.replaceChildren(); svg = d3.select(el).append("svg").attr("class", "ch"); }
+    if (kind && svg.attr("data-kind") !== kind) { svg.selectAll("*").remove(); svg.attr("data-kind", kind); fresh = true; }
     svg.attr("viewBox", `0 0 ${width} ${height}`).attr("width", width).attr("height", height)
       .style("font-family", FONT).style("display", "block").style("max-width", "100%").style("height", "auto");
     let g = svg.select("g.plot");
@@ -166,7 +168,7 @@ window.Charts = (function () {
     const t = theme(), fmt = formatter(o.fmt), dur = DUR();
     const labelW = Math.min(170, Math.round((el.clientWidth || 800) * 0.38), Math.max(...series.map((s) => textW(s.label, 12))) + 60);
     const m = { top: 30, right: labelW, bottom: 32, left: 44 };
-    const F = frame(el, o.height || 420, m);
+    const F = frame(el, o.height || 420, m, o.layout === "gap" ? "gap" : "line");
     const xs = o.xs;
     const x = d3.scaleLinear().domain([xs[0] - 0.4, xs[xs.length - 1] + 0.4]).range([0, F.iw]);
     const vmax = o.yMax || Math.min(o.fmt === "int" ? Infinity : 1, Math.max(1e-9, ...series.flatMap((s) => s.values.filter((v) => v !== null))) * 1.08);
@@ -276,7 +278,7 @@ window.Charts = (function () {
     const n = series.length, cols = width < 560 ? 1 : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols);
     const ph = 190, gapX = 36, gapY = 44;
     const m = { top: 28, right: 12, bottom: 30, left: 44 };
-    const F = frame(el, m.top + rows * ph + (rows - 1) * gapY + m.bottom, m);
+    const F = frame(el, m.top + rows * ph + (rows - 1) * gapY + m.bottom, m, "panels");
     const pw = (F.iw - (cols - 1) * gapX) / cols;
     const xs = o.xs;
     const vmax = o.yMax || Math.min(o.fmt === "int" ? Infinity : 1, Math.max(1e-9, ...series.flatMap((s) => s.values.filter((v) => v !== null))) * 1.08);
@@ -347,7 +349,7 @@ window.Charts = (function () {
     const t = theme(), fmt = formatter(o.fmt), dur = DUR();
     const labelW = Math.min(190, Math.max(...series.map((s) => textW(s.label, 12))) + 64);
     const m = { top: 36, right: labelW, bottom: 20, left: labelW };
-    const F = frame(el, o.height || 420, m);
+    const F = frame(el, o.height || 420, m, "slope");
     const xs = o.xs;
     const items = series.map((s) => { let a = 0; while (a < s.values.length && s.values[a] === null) a++; let b = s.values.length - 1; while (b >= 0 && s.values[b] === null) b--; return a < b ? { key: s.key, label: s.label, color: s.color, emphasis: !!s.emphasis, x0: xs[a], x1: xs[b], v0: s.values[a], v1: s.values[b] } : null; }).filter(Boolean);
     if (!items.length) { empty(el); return; }
@@ -395,7 +397,7 @@ window.Charts = (function () {
     const narrow = (el.clientWidth || 800) < 560;          // phones: the key row carries identity, no end labels
     const labelW = narrow ? 16 : Math.min(190, Math.max(...o.classes.map((c) => textW(c.label, 11))) + 64);
     const m = { top: 30, right: labelW, bottom: 32, left: 44 };
-    const F = frame(el, o.height || 400, m);
+    const F = frame(el, o.height || 400, m, o.mode === "area" ? "area" : "stacked");
     const x = d3.scaleBand().domain(xs).range([0, F.iw]).paddingInner(0.35).paddingOuter(0.15);
     const xc = (v) => x(v) + x.bandwidth() / 2;
     const bw = Math.min(40, x.bandwidth());
@@ -482,7 +484,7 @@ window.Charts = (function () {
     const rowH = o.mode === "bars" ? nPts * 11 + 18 : 40;
     const labelW = Math.min(200, Math.max(...rows.map((r) => textW(r.label, 13))) + 20);
     const m = { top: 10, right: 56, bottom: 30, left: labelW };
-    const F = frame(el, m.top + rows.length * rowH + m.bottom, m);
+    const F = frame(el, m.top + rows.length * rowH + m.bottom, m, o.mode === "bars" ? "dotbars" : "dots");
     const xmax = o.xMax || Math.max(1e-9, ...rows.flatMap((r) => r.points.map((p) => p.value || 0))) * 1.12;
     const x = d3.scaleLinear().domain([0, Math.min(1, xmax)]).nice(4).range([0, F.iw]);
     const ticks = x.ticks(4);
@@ -552,7 +554,7 @@ window.Charts = (function () {
     const width = Math.max(320, el.clientWidth || 800);
     const labelW = Math.min(o.labelWidth || 300, Math.max(120, Math.round(width * 0.34)));
     const m = { top: 26, right: 64, bottom: 8, left: labelW };
-    const F = frame(el, m.top + items.length * rowH + m.bottom, m);
+    const F = frame(el, m.top + items.length * rowH + m.bottom, m, "rank");
     const xmax = o.xMax || Math.max(1e-9, ...items.map((d) => d.value), o.reference ? o.reference.value * 1.3 : 0) * 1.08;
     const x = d3.scaleLinear().domain([0, xmax]).range([0, F.iw]);
     const maxChars = Math.floor(labelW / 7.2);
@@ -602,7 +604,7 @@ window.Charts = (function () {
     if (!have.length) { empty(el); return; }
     const rowH = 50, cloudH = 24, rainH = 18;
     const m = { top: 14, right: 64, bottom: 30, left: 56 };
-    const F = frame(el, m.top + have.length * rowH + m.bottom, m);
+    const F = frame(el, m.top + have.length * rowH + m.bottom, m, "rain");
     const x = d3.scaleLinear().domain([0, 1]).range([0, F.iw]);
     const base = (yr) => have.indexOf(yr) * rowH + cloudH + 4;        // the baseline between cloud and rain
     for (const name of ["bars", "areas", "panels", "lines", "dots", "labels", "hover", "gap", "milestones", "yaxis", "partial"]) layer(F.g, name).selectAll("*").remove();
@@ -675,7 +677,7 @@ window.Charts = (function () {
     const all = o.years.flatMap((yr) => o.frames[yr] || []);
     if (!all.length) { empty(el); return; }
     const m = { top: 28, right: 32, bottom: 48, left: 56 };
-    const F = frame(el, o.height || 520, m);
+    const F = frame(el, o.height || 520, m, "bubbles");
     const cap = (f) => (f === "int" ? Infinity : 1);
     const x = d3.scaleLinear().domain([0, Math.min(cap(o.xFmt), d3.max(all, (d) => d.x) * 1.08)]).nice(4).range([0, F.iw]);
     const y = d3.scaleLinear().domain([0, Math.min(cap(o.yFmt), d3.max(all, (d) => d.y) * 1.08)]).nice(4).range([F.ih, 0]);
