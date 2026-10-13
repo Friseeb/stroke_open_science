@@ -383,3 +383,15 @@ def test_keyword_signal_score_multiple_signals_higher():
 def test_normalize_journal_name_lowercases_and_collapses_whitespace():
     assert pipeline.normalize_journal_name("Stroke") == "stroke"
     assert pipeline.normalize_journal_name("  New England  Journal  ") == "new england journal"
+
+
+def test_openalex_search_filter_fields():
+    import datetime as dt
+    f = pipeline.openalex_search_filter("stroke", dt.date(2024, 1, 1), dt.date(2024, 12, 31))
+    assert f.startswith("title.search:stroke,") and "from_publication_date:2024-01-01" in f and f.endswith("to_publication_date:2024-12-31")
+    wide = pipeline.openalex_search_filter("stroke", dt.date(2024, 1, 1), dt.date(2024, 12, 31), "title_and_abstract")
+    assert wide.startswith("title_and_abstract.search:stroke,")
+    assert pipeline.openalex_slice_source("title") == "openalex" and pipeline.openalex_slice_source("title_and_abstract") == "openalex_title_and_abstract"
+    import pytest
+    with pytest.raises(ValueError):
+        pipeline.openalex_search_filter("stroke", dt.date(2024, 1, 1), dt.date(2024, 12, 31), "fulltext")
