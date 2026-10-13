@@ -853,12 +853,12 @@
       }
       matrix.push(row);
     }
-    Charts.raincloud($("oa-chart"), { years, groups, partial: DATA.partial_years || [], height: 420 });
+    Charts.raincloud($("oa-chart"), { years, groups, partial: DATA.partial_years || [], valueLabel: "open access" });
     exportFor("oa-chart");
     keyFor("oa-key", OA_ROUTES.map((r) => ({ label: "Mostly " + routeLabel[r.key], color: routeColor[r.key], kind: "line" })));
     $("oa-title").textContent = "Open-access rate across journals by year, " + d.label.toLowerCase();
     const nJ = new Set(years.flatMap((yr) => groups[yr].map((p) => p.key))).size;
-    caption("oa-sub", "oa", nJ + " journals with at least " + MIN_J + " papers of known status in a year. " + cap(selectionLabel()) + ". Each drop is a journal, sized by its papers that year and coloured by its dominant route; the cloud is the density across journals, the tick the median.");
+    caption("oa-sub", "oa", nJ + " journals with at least " + MIN_J + " papers of known status in a year. " + cap(selectionLabel()) + ". One row per year: the cloud is the density of open-access rates across journals, each drop below it a journal sized by its papers that year and coloured by its dominant route, the bar the interquartile range and the tick the median (value at right).");
     renderTable("oa-table", [{ key: "label", label: "Journal" }].concat(years.map((yr) => ({ key: "y" + yr, label: String(yr), fmt: "pct" }))), matrix, { sortable: false });
   }
 
