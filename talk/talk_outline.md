@@ -7,17 +7,23 @@ Speaker: Sebastian Fridman (Western University, London, Canada).
 Version 3 (2026-10-13). The arc the speaker asked for: the moment that started the project,
 why open science matters (the reproducibility crisis in psychology and neuroscience), the same
 problem in stroke, what open science is made of, what we measured, and what to do next (a task
-force, a prize, awareness). The deck (14 slides) is the Slides artifact "Open Science in Stroke
+force, a prize, awareness). The deck (15 slides) is the Slides artifact "Open Science in Stroke
 Research"; it reuses the dashboard's figures and visual system.
 
-Numbers come from `talk/outputs/numbers.json` and `talk/outputs/tables/` (stroke corpus:
-OpenAlex journal articles and reviews with a DOI, 2015-2025, n = 126,207; open access = any
-OpenAlex status other than closed; full-text audit = 20,515 open-access stroke articles with full
-text in Europe PMC, 2,000 sampled per year, seed 2026; comparators audited the same way) and from
-`talk/evidence_brief.md`. The figures on the slides are exports of the public dashboard
-(https://friseeb.github.io/stroke_open_science_outputs/), so slide and dashboard agree.
+Numbers come from the published run of 2026-10-13 (`data/runs/2026-10-13T111229Z`):
+`talk/outputs/numbers.json` and `talk/outputs/tables/`, regenerated from it by
+`scripts/wsc2026_talk_analysis.py`, and the run's dashboard payload. Stroke corpus: OpenAlex
+journal articles and reviews with a DOI from the six title terms, 2015-2025, n = 140,281; open
+access = any OpenAlex status other than closed; full-text audit = up to 1,500 open-access articles
+per year with full text in Europe PMC (seed 2026), 16,362 for stroke; neurology, neuroscience and
+cardiology audited the same way. A pooled audit rate averages equal yearly samples, not the corpus,
+so the outline leads with single years and with 2022-2025. The June talk frames are retired because
+the June retrieval was truncated. Literature numbers come from `talk/evidence_brief.md`. The figures
+on the slides are exports of the public dashboard
+(https://friseeb.github.io/stroke_open_science_outputs/; default view 2015-2025, all papers), so
+slide and dashboard agree.
 
-Timing: 14 slides in 14:30, leaving 30 s. Minutes in brackets are cumulative at the start of the slide.
+Timing: 15 slides in 14:30, leaving 30 s. Minutes in brackets are cumulative at the start of the slide.
 
 ---
 
@@ -36,7 +42,7 @@ One large sentence on an otherwise empty slide, in the speaker's words. Draft to
 > result: the data were "available on request", the code was not there, and the request went
 > unanswered. I could not tell whether the finding was wrong or I was.]
 
-Three small lines underneath: imaging · neuroscience · neurology.
+Four small words underneath: imaging · neuroscience · neurology · stroke.
 
 Notes: Thirty to forty seconds, first person, no slide reading. The point is not the anecdote;
 it is that the speaker has been on the receiving end of a closed literature. Alternative openings
@@ -94,109 +100,163 @@ Heckerman 2025; Scutt 2020).
 ## 6. How we measured (3:45, 45 s)
 
 - Living pipeline: OpenAlex, 2015 onward, stroke plus neurology, neuroscience and cardiology;
-  126,207 stroke journal articles and reviews with a DOI (199,000 records retrieved).
+  140,281 stroke journal articles and reviews with a DOI, 2015-2025, from 231,580 records
+  retrieved for six title terms (2015-2026).
 - Signals from metadata and abstracts (open-access status, repository links, preprint versions,
-  registration identifiers), plus a full-text audit of data-availability statements for 2,000
-  open-access articles per year via Europe PMC, for all four fields.
+  registration identifiers), plus a full-text audit of data-availability statements in up to 1,500
+  open-access articles per year via Europe PMC (16,362 for stroke), for all four fields.
 - Automated, re-runs every six months, code and data public, dashboard public.
 - Figure: the dashboard's report card (indicator by discipline) as the overview.
 
-Notes: Sixty seconds at most. "Everything I show next is on the dashboard, and you can change
-the selection yourself."
+Notes: Forty-five seconds. "Everything I show next is on the dashboard, and you can change
+the selection yourself." Open-access full text only, so audit rates run high, and a pooled rate
+gives every year the same weight: lead with single years. If asked: neurology 129,644,
+neuroscience 509,973, cardiology 312,703 articles. On the report card neuroscience leads on code,
+GitHub, deposit and preprints, partly because its title term "neural" also catches
+machine-learning papers (about 45% of that corpus matches only "neural").
 
 ## 7. Finding 1: stroke went open access (4:30, 45 s)
 
 Figure: dashboard trend, open access by year and discipline.
 
-- 53% in 2015 to 75% in 2024 (66% over the decade). Cardiology 70%, neurology 61%,
-  neuroscience 60% over the decade; stroke sits between cardiology and neurology throughout.
+- 53% in 2015 to 75% in 2024 (66% over 2015-2025). Cardiology 70%, neurology 62%,
+  neuroscience 65% over the same years; stroke sits between cardiology and neurology every year
+  through 2024 (in the incomplete 2025 it is just above cardiology, 75% vs 74%).
 
-Notes: The good-news slide. Let it land, then turn it.
+Notes: The good-news slide. Let it land, then turn it. The peak so far is 77% in 2023. Do not
+rank neuroscience: about 45% of it comes only from the title term "neural", much of it machine
+learning; without those papers it is 67% open access. It is above stroke until 2019 and below
+neurology in 2024 and 2025.
 
-## 8. Finding 2: mostly paid (5:15, 45 s)
+## 8. Finding 2: the growth in open access was paid for (5:15, 45 s)
 
 Figure: dashboard open-access status by year, six statuses in their own colours.
 
-- Of all stroke articles 2015-2025: gold 25%, diamond 15%, hybrid 9%, bronze 10%, green 7%,
-  closed 34%. Gold and hybrid, the paid routes, grew the most; green stayed flat near 7%;
-  bronze can disappear.
+- Of all stroke articles 2015-2025: gold 25%, diamond 16%, hybrid 10%, bronze 10%, green 6%,
+  closed 34%. From 2015 to 2024 gold, a paid route, grew the most (+18 points); diamond (+9)
+  outgrew hybrid (+7). Green fell from 9% in 2015 to 3% in 2025. Bronze can be withdrawn at any
+  time.
 - Open access became a transaction between funders and publishers. It did not come with
   openness of anything else.
 
-## 9. Finding 3: nothing else moved (6:00, 60 s)
+Notes: Gold plus hybrid is about half of the open articles over the decade (52% with 2025, 49%
+through 2024) and the majority every year since 2021: 35% in 2015, 53% in 2021, 59% in 2024. Diamond is a long tail of about 4,800 free journals: Cureus is the largest
+(1,187 articles), then Journal of Physical Therapy Science (487) and Journal of Stroke (334).
+About a quarter of Korean (27%) and Japanese (25%) first-author articles are diamond, Chinese 5%.
+The growth figures stop at 2024 because 2025 is still filling in; green was already down to 4% in
+2024, so its fall does not rest on the partial year.
 
-Figures: dashboard trends for data in a repository, code links and preprints (three small
-charts) and the registration trend.
+## 9. Finding 3: in abstracts, data and code did not move (6:00, 60 s)
+
+Figures: dashboard trends for data in a repository, GitHub or code links and preprints (three
+small charts); registration as a number tile.
 
 - Data in a public repository: 0.2% of stroke articles in 2015, 0.2% in 2024, never above 0.6%.
-  Code or repository link: under 0.1% every year. Preprint version: 0.1%, even during COVID.
-  Registration identifier in the abstract: 2.9% in 2015, 6.0% in 2024; stroke (4.8%) ahead of
-  cardiology (3.6%), neurology (2.3%) and neuroscience (1.1%).
-- High impact is not better: top-cited or IF 10+ (16% of the corpus): open access 73% vs 64%,
-  registration 10.1% vs 3.8%, data 0.4% vs 0.4%, code 0.07% vs 0.07%.
+  Code link: under 0.1% every year 2015-2024. Preprint version: 2.7% in 2024, 1.5% over
+  2015-2025, up from under 0.2% before 2019; a lower bound, and partly publisher-driven.
+  Registration identifier in the abstract: 2.8% in 2015, 5.3% in 2024; stroke (4.6%) ahead of
+  cardiology (4.1%), neurology (2.4%) and neuroscience (1.0%).
+- High impact is barely better at sharing: top-cited or IF 10+ (16% of the corpus): open access
+  74% vs 65%, registration 10.0% vs 3.5%, but data 0.45% vs 0.34%, code 0.08% vs 0.06%.
 - These are lower bounds from abstracts and metadata. "So we read the full text."
+
+Notes: Say the caveat before anyone says it for you: lower bounds from abstracts. Preprints did
+move, but only as far as OpenAlex links them: it merged many preprint records into their published
+articles between 6 and 12 October 2026, and much of what it links is Research Square ("In Review",
+an opt-in at submission) and SSRN (Lancet and Elsevier), so the rise is partly publisher-driven.
+GitHub appears in 2.5% of the 1,500 audited 2024 full texts (1.3% pooled over the decade), against
+code links in under 0.1% of abstracts. Two code definitions are in use: the high-impact line here
+(0.08% vs 0.06%) and the 0.07% of abstracts on slide 10 also count Zenodo and OSF links; the
+dashboard's code chart counts GitHub and code-repository links only, so a viewer who selects high
+impact there sees 0.026% vs 0.015%. Registration nearly doubled, from a low base. Neuroscience
+caveat: its title term "neural" pulls in machine-learning papers; without them its registration
+rate is still only about 1.5%.
 
 ## 10. What data-availability statements actually say (7:00, 75 s)
 
-Figures: dashboard statements by year (five classes) and full-text indicators by discipline.
+Figure: dashboard statements by year (five classes).
 
-- Share with any statement: 49% over the decade, 14% in 2015, 78% in 2025. Statements arrived
-  with the journal mandates, so the trend is policy, not culture.
-- Of all audited articles: "available on request" 21% (32% in 2025); authors' own repository
-  deposit 2.8% (5.0% in 2025); public dataset 1.5%; restricted or controlled 6%; in the article
-  or supplement 10%; "not available" 4%.
-- 2022-2025 against the others: a statement in 70% (cardiology 61%, neurology 63%); "on
-  request" 31% (cardiology 21%, neurology 26%, neuroscience 10%); deposit or public source 6.5%
-  (cardiology 10.1%, neuroscience 8.9%, neurology 5.9%). Stroke writes the most statements and
-  deposits the least.
-- Full text versus abstract: GitHub in 1.4% of full texts vs code links in 0.04% of abstracts;
-  trial registration 14.9% vs 7.9%.
+- Share with any statement: 74% in 2025, from 14% in 2015 (47% pooled over 2015-2025).
+  Statements arrived with the journal mandates, so the trend is policy, not culture.
+- "Available on request": 29% in 2025, from 0.6% in 2015 (19% pooled), now the single largest
+  answer. Deposit or a named public dataset: 9.8% in 2025, from 0.7% in 2015; authors' own
+  repository deposit 5.9% in 2025 (2.8% pooled). Pooled shares of the rest: public dataset 1.4%;
+  restricted or controlled 6%; in the article or supplement 10%; "not available" 4%.
+- 2022-2025 against the others: stroke says "on request" more than any other field (30%;
+  neurology 27%, neuroscience 26%, cardiology 24%), writes statements more often than the other
+  clinical fields (69%; neurology 64%, cardiology 61%) and as often as neuroscience once its
+  machine-learning papers are set aside (68%; 72% as defined), and deposits or names a public
+  dataset at the level of the other clinical fields (6.9%; cardiology 7.3%, neurology 5.6%), well
+  under neuroscience (17.5%).
+- Full text versus abstract, same audited articles: GitHub in 1.3% of full texts vs code, OSF
+  or Zenodo links in 0.07% of abstracts; trial registration 14.1% of full texts vs 7.5% of abstracts.
 - What "on request" delivers elsewhere: 6.8% of authors who promised data delivered (Gabelica
-  2022); 0.5% of top-journal RCTs declaring sharing had downloadable data (Danchev 2021); 20% of
-  391 vascular and cognitive trials yielded data, median 241 days (Scutt 2020).
+  2022); 0.6% (2 of 334) of top-journal RCTs declaring sharing had downloadable data (Danchev
+  2021); 20% of 391 vascular and cognitive trials yielded data, median 241 days (Scutt 2020).
 
-Notes: The slide people photograph. Three numbers huge: 78% write a statement, 32% say "on
-request", 5% deposit. Caveat out loud: open-access full text only, so optimistic.
+Notes: The slide people photograph. Three numbers huge, all for 2025: 74% write a statement, 29%
+say "on request", 9.8% deposit or name a public dataset. Caveat out loud: open-access full text
+only, so optimistic. Pooled shares weigh every year the same (up to 1,500 audited a year), so they
+are not corpus rates. Neuroscience caveat: its title term "neural" also catches machine-learning
+papers; without them neuroscience writes statements in 68% (stroke 69%) and deposits 13.6%.
 
 ## 11. Who pays to be read, and who shares (8:15, 60 s)
 
 Figures: dashboard open-access route by income group and full-text indicators by income group.
-World Bank income group of the first author's country (known for 86% of the corpus): high 63%,
-upper-middle 30% (mostly China), lower-middle 6%, low 0.3% (355 articles; do not lean on it).
+World Bank income group of the first author's country (known for 85% of the corpus): high 62%,
+upper-middle 32% (mostly China), lower-middle 6%, low 0.3% (400 articles; do not lean on it).
 
-- Open access is highest where income is lowest: 66% (high), 69% (upper-middle), 74%
-  (lower-middle), 86% (low). Lower-middle-income authors publish 42% through routes that cost
+- Open access is highest where income is lowest: 67% (high), 70% (upper-middle), 75%
+  (lower-middle), 88% (low). Lower-middle-income authors publish 42% through routes that cost
   the author nothing (diamond, green); high-income authors 19%; upper-middle-income authors pay
   an APC for 43%.
-- Sharing runs the other way. Deposit or public source: 4.2% (high), 5.0% (upper-middle), 2.6%
-  (lower-middle). GitHub: 1.9%, 0.8%, 0.1%. Registration in the full text: 15.5%, 15.3%, 6.8%.
-  Statements at all: 45%, 60%, 27%.
+- Sharing does not follow: lower-middle-income authors share least. Deposit or public source:
+  4.0% (high), 5.2% (upper-middle), 1.8% (lower-middle). GitHub: 1.6%, 0.8%, 0.3%. Registration
+  in the full text: 15.0%, 14.2%, 5.7%. Statements at all: 43%, 57%, 23%.
 - Reading access has been solved for the global South by free routes. Reuse has not. That is the
   inequality open science can close, and the word "stroke" in the room makes it concrete.
 
-Notes: Korea: 4,950 first-author articles, 75% open access, 0% detectable data sharing.
+Notes: The full-text rates pool 2015-2025 over equal yearly samples, and lower-middle rests on
+only 609 audited articles. The gap holds in 2022-2025 alone: a statement in 37% of lower-middle
+full texts vs 65% high and 78% upper-middle; deposit or public source 3.0% vs 6.2% and 8.7%.
+Korea: 5,490 first-author articles, 75% open access, 0% detectable data sharing in abstracts and
+metadata; 1.3% of 1,293 audited full texts deposit or name a public source.
 
 ## 12. Who is already doing it (9:15, 60 s)
 
-Figure: dashboard commitment index, institutions (minimum 50 audited articles). Commitment index
+Figure: dashboard commitment index, institutions (minimum 50 audited articles; the dashboard
+keeps the 60 institutions with the most audited articles, all 82 or more). Commitment index
 = mean over three verified full-text signals (data deposit or public source in the statement,
 GitHub in the full text, trial registration in the full text) of the entity's rate divided by the
-stroke-wide rate (4.3%, 1.4%, 14.9%). 1.0 = stroke average.
+stroke-wide rate (4.2%, 1.3%, 14.1%). 1.0 = stroke average.
 
-- Institutions (≥ 50 audited): Charité 3.7x, Edinburgh 3.0x, Hamburg-Eppendorf 3.0x, Johns
-  Hopkins 2.6x, Oxford 2.4x, Massachusetts General 2.3x, Nottingham 2.2x, UCL 2.1x. Say the n.
-- Journals: Brain Communications, PeerJ (84% deposit), Nature Communications, NeuroImage
-  Clinical lead; the big stroke journals are not on the list. Funders: NIH institutes, the ERC,
-  the Center for Stroke Research Berlin. Countries: Belgium 2.7x, Ireland 2.1x, Germany 2.0x,
-  UK 1.7x.
+- Institutions: Center for Stroke Research Berlin 5.2x (part of Charité), Charité 4.4x, Oxford
+  2.9x, Hamburg-Eppendorf 2.6x, Edinburgh 2.5x, Stanford 2.3x, Nottingham 2.2x, Massachusetts
+  General 2.2x, Glasgow 2.1x, King's College London 2.0x, Johns Hopkins 1.9x. Say the n: Charité
+  129 audited articles, Oxford 177, Hamburg-Eppendorf 109.
+- Journals (30 or more audited): Nature Communications, Brain Communications, PeerJ (81%
+  deposit), NeuroImage Clinical lead; the journal Stroke is about 15th of 99 at 1.5x, above the
+  average but not among the leaders. Funders (30 or more audited): US federal (NIDCD, NIBIB,
+  HHS), ANR, Swiss Heart Foundation, Leducq, DFG, Horizon 2020, BMBF. Countries (50 or more
+  audited): Belgium 2.4x, Germany 2.2x, Switzerland 2.0x, France 1.8x, Ireland 1.7x, UK 1.5x.
 - This is what a prize would recognise: measurable, verified in full text, repeatable every six
   months.
+
+Notes: Small counts are a hint, not a ranking: GitHub is rare (1.3%), so one more GitHub mention
+in 100 audited articles adds about 0.26, and the order shifts between runs. With every institution
+at 50 or more audited, the German Center for Neurodegenerative Diseases (5.6x, 61 audited), the
+Berlin Institute of Health at Charité (5.2x, 64) and Zurich (4.7x, 64) also lead. The baselines
+pool 2015-2025 with every year weighted the same, and the signals rose over the decade, so an
+index also reflects which years an entity published in. Oxford is also listed as a funder in
+OpenAlex (4.9x, 33 audited, second among funders); it is an institution, so it is left out of
+the funders. The point is not the names: the measurement exists and is cheap.
 
 ## 13. Why mandates alone did not work (10:15, 60 s)
 
 Existing slide: 3.1% to 3.1% (Bergeat 2022); OR 0.9 for badges at BMJ Open vs under 3% to 39% at
 Psychological Science (Rowhani-Farid 2020; Kidwell 2016); 0 of 92 promotion guidelines (Rice
-2020); 44% vs 96% positive results in Registered Reports (Scheel 2021). The pivot sentence:
+2020); 44% vs 96% positive results in Registered Reports (Scheel 2021). Footnote: cardiology
+survey, n = 198, funding named the most essential incentive (Cobey 2024, Open Heart). The pivot sentence:
 "Stroke researchers are not less honest than psychologists. They respond to the same incentives,
 and ours point the other way."
 
@@ -211,8 +271,8 @@ Three columns, each with an owner and the items from the incentives agenda folde
    to WSO and ESO grants (the Children's Tumor Foundation and PLOS ONE model; Nature opened the
    format to clinical science in June 2026); embargoed sharing as the trial default (12 months,
    as in COMPASS and ACT-GLOBAL).
-2. **A prize** for the teams, institutions and journals that share: the commitment index on the
-   previous slide, verified in full text and recomputed every six months; on the Einstein
+2. **A prize** for the teams, institutions and journals that share: the commitment index of
+   slide 12, verified in full text and recomputed every six months; on the Einstein
    Foundation model; presented at this congress.
 3. **Awareness**: the public dashboard and its six-monthly benchmark; open-science items in
    promotion criteria (0 of 92 today; CIHR's narrative CV and UKRI's R4RI already allow datasets
@@ -220,9 +280,9 @@ Three columns, each with an owner and the items from the incentives agenda folde
    for 25% of stroke articles by 2030, "on request" under 10%, one Registered Report track in a
    stroke journal by 2028.
 
-Notes: Two minutes. Invite the WSO leadership in the room to take the task force home. Say which
-items cost nothing (statement, retiring "on request", promotion criteria) and which need money
-(Registered Reports, the prize, infrastructure that mostly exists: VISTA, ATLAS, ENIGMA).
+Notes: Two minutes fifteen. Invite the WSO leadership in the room to take the task force home.
+Say which items cost nothing (statement, retiring "on request", promotion criteria) and which need
+money (Registered Reports, the prize, infrastructure that mostly exists: VISTA, ATLAS, ENIGMA).
 
 ## 15. Close: collaborate (13:30, 60 s)
 
@@ -261,18 +321,39 @@ The benchmark corpus is an OpenAlex **title** search for the six stroke terms. A
 stroke 2024 (`--openalex-search-field title_and_abstract`, `scripts/compare_corpus_definitions.py`, table
 `talk/outputs/tables/corpus_sensitivity_2024.csv`) returns 2.4 times as many in-corpus articles (37,878 vs 15,602;
 99% of the title corpus is inside it) with the same open-access share (75.5% vs 75.2%; every status within 1.4
-points), the same data, code and preprint rates, and a slightly lower registration signal (3.7% vs 3.3% among the
-extra articles, vs 4.3%). The corpus definition does not move the headline numbers; say so if asked. PubMed is not
-used: the scheduled runs are OpenAlex only.
+points), the same data, code and preprint rates, and a slightly lower registration signal (3.7% vs 4.3%, and
+3.3% among the extra articles). The comparison script reads no abstracts, so these registration shares are of all
+articles, not of those with an abstract: the title corpus's 4.3% is slide 9's 5.3%. The corpus definition does not
+move the headline numbers; say so if asked.
+
+Should we also search outside OpenAlex? We checked stroke 2024 against PubMed with the same six title terms (live
+query, 13 October 2026). PubMed returns 11,816 records, and 94% of them are already in our corpus: 79% in 2024 and
+most of the rest in 2023, because PubMed's 2024 search also catches articles that went online in 2023 and were
+printed in 2024, while OpenAlex dates them by the online date. OpenAlex types most of what remains as letters,
+errata, editorials, preprints, conference papers or book chapters, and it lacks only 7 PubMed records, all NCBI
+Bookshelf entries. PubMed calls 384 of the records we do not count in any year research articles, reviews or case
+reports; OpenAlex holds almost all of them, but our corpus rule or our title search leaves them out. Adding them
+would move 2024 open access from 75.2% to 74.4%, the data, code, preprint and registration rates by about 0.1 point,
+and the open-access status shares by under 1 point. The gap runs the other way: 37% of our 2024 corpus is not in
+PubMed at all. That part is mostly regional journals outside MEDLINE and conference abstracts in journal
+supplements, and it holds most of the diamond open access (2,259 of 3,051 diamond articles). So OpenAlex stays the
+source, and PubMed serves as a check, not a second search.
+
+If asked about PubMed-based audits: limited to the articles PubMed holds, our 2024 corpus would have the same open
+access (75%) but a different mix: diamond 8% instead of 20%, gold over 40% instead of 30%, and a registration
+identifier in 8% of abstracts instead of 5%. Open-access comparisons with PubMed-based studies are fair; status-mix
+and registration comparisons depend on the source. The pipeline's own `--include-pubmed` option stays off (no
+workflow passes it): as built it cannot add to the corpus, because PubMed rows carry no OpenAlex metadata, and it
+can remove articles, because deduplication prefers the row with a PMID (3 corpus articles lost in the 2024 test).
+Its date split also dropped 515 PMIDs (`return merged[:target_count]`, `scripts/search_stroke_dois.py:1682`).
 
 ## Numbers to re-verify before the slides are final
 
-- The public dashboard now shows the 2026-10-13 run (fresh retrieval, 1,500 audited full texts per year); the
-  slides and this outline still use the talk frames (June retrieval, 2,000 per year). Re-run
-  `scripts/wsc2026_talk_analysis.py` on the new frames and re-export the dashboard figures before the talk, or
-  the QR code will lead the audience to slightly different numbers.
-
 - RESCUE BT2 primary outcome figures if quoted (mRS 0-1 at 90 days, tirofiban vs aspirin).
 - STEM primary outcome figures if quoted.
-- Diamond 15%: which journals drive it (expect Frontiers, MDPI, Korean and Chinese society
-  journals); if mostly Frontiers and MDPI, say "APC-free in DOAJ" rather than "diamond".
+- Diamond 16%: Cureus is its largest journal (1,187 articles), then Journal of Physical Therapy
+  Science (487) and Journal of Stroke (334), in a long tail of about 4,800 journals; it is not
+  driven by Frontiers or MDPI. "Diamond" is OpenAlex's classification, which the dashboard counts
+  as free to the author; if Cureus is questioned, say that it is OpenAlex's label, not ours.
+- Danchev 2021: the evidence brief gives 0.5%, but 2 of 334 is 0.6%, which the das slide notes now
+  uses; check against the paper.
