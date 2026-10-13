@@ -201,6 +201,13 @@ window.Charts = (function () {
       lab.enter().append("text").attr("class", "end").attr("font-size", 12).attr("dy", "0.32em").merge(lab)
         .attr("x", x(last.x) + 12).attr("y", (d) => d.ly).attr("fill", t.ink)
         .each(function (d) { const s = d3.select(this); s.selectAll("*").remove(); s.append("tspan").attr("font-weight", 500).text(fmt(d.v)); s.append("tspan").attr("fill", t.ink3).text(" " + d.s.label); });
+      el.__replay = () => {
+        const d = DUR(); if (!d) return;
+        G.selectAll("line.con").attr("y1", F.ih).attr("y2", F.ih).transition("enter").duration(d).delay((q, i) => i * 40).ease(EASE).attr("y1", (q) => y(q.a)).attr("y2", (q) => y(q.b));
+        G.selectAll("circle.d0").attr("cy", F.ih).transition("enter").duration(d).delay((q, i) => i * 40).ease(EASE).attr("cy", (q) => y(q.a));
+        G.selectAll("circle.d1").attr("cy", F.ih).transition("enter").duration(d).delay((q, i) => i * 40).ease(EASE).attr("cy", (q) => y(q.b));
+        F.g.selectAll("g.labels text.end").style("opacity", 0).transition("enter").delay(d + pairs.length * 40).duration(400).style("opacity", 1);
+      };
       hoverX(F, xs, x, (i, evt) => {
         const p = pairs.find((q) => q.x === xs[i]); if (!p) return null;
         return { title: String(xs[i]), rows: [{ value: fmt(p.b), label: data[1].label, color: data[1].color, sub: "n = " + fmtInt(p.nb) }, { value: fmt(p.a), label: data[0].label, color: data[0].color, sub: "n = " + fmtInt(p.na) }, { value: fmt(p.b - p.a), label: "gap", color: "transparent" }] };
@@ -232,6 +239,11 @@ window.Charts = (function () {
       const rows = data.map((d) => ({ value: fmt(d.pts[i].v), v: d.pts[i].v, label: d.label, color: d.color, sub: d.pts[i].n ? "n = " + fmtInt(d.pts[i].n) : "" })).filter((r) => r.v !== null).sort((a, b) => b.v - a.v);
       return rows.length ? { title: String(xs[i]), rows } : null;
     }, t, y, data.map((d) => ({ color: d.color, at: (i) => d.pts[i].v })));
+    el.__replay = () => {
+      const d = DUR(); if (!d) return;
+      F.g.selectAll("g.lines path.line").call(drawOn, d);
+      F.g.selectAll("g.dots circle.end, g.labels text.end, g.leaders line").style("opacity", 0).transition("enter").delay(d * 1.1).duration(400).style("opacity", 1);
+    };
   }
   /** Crosshair + one tooltip for every series at the nearest x. */
   function hoverX(F, xs, x, rowsAt, t, y, marks) {
@@ -310,6 +322,14 @@ window.Charts = (function () {
       xt.exit().remove();
       xt.enter().append("text").attr("font-size", 10).attr("fill", t.ink3).merge(xt).attr("x", (v) => x(v)).attr("y", ph + 16).attr("text-anchor", (v, k) => (k === 0 ? "start" : "end")).text((v) => v);
     });
+    el.__replay = () => {
+      const d = DUR(); if (!d) return;
+      Pm.each(function (s, i) {
+        const g = d3.select(this);
+        g.select("path.line").transition("draw").delay(i * 140).duration(0).on("end", function () { d3.select(this).call(drawOn, d); });
+        g.selectAll("g.ghosts path, circle.end, text.val").style("opacity", 0).transition("enter").delay(i * 140 + d).duration(400).style("opacity", 1);
+      });
+    };
     // a shared hit layer per panel: hovering a panel reads that series at the nearest year
     Pm.each(function (d) {
       const g = d3.select(this);
@@ -357,6 +377,11 @@ window.Charts = (function () {
         .each(function (d) { const s = d3.select(this); s.selectAll("*").remove(); if (side === "a") { s.append("tspan").attr("fill", t.ink3).text(d.label + " "); s.append("tspan").attr("fill", t.ink).attr("font-weight", 500).text(fmt(d.v)); } else { s.append("tspan").attr("fill", t.ink).attr("font-weight", 500).text(fmt(d.v)); s.append("tspan").attr("fill", t.ink3).text(" " + d.label); } })
         .transition().duration(dur).ease(EASE).attr("y", (d) => d.ly);
     }
+    el.__replay = () => {
+      const d = DUR(); if (!d) return;
+      S.selectAll("line.sl").attr("y2", (q) => y(q.v0)).transition("enter").duration(d * 1.3).ease(EASE).attr("y2", (q) => y(q.v1));
+      S.selectAll("circle.b, text.lb").style("opacity", 0).transition("enter").delay(d * 1.1).duration(400).style("opacity", 1);
+    };
     S.selectAll("line.sl").on("pointermove", (evt, d) => showTip(evt, d.label, [{ value: fmt(d.v1), label: String(d.x1), color: d.color }, { value: fmt(d.v0), label: String(d.x0), color: d.color }, { value: (d.v1 - d.v0 >= 0 ? "+" : "") + fmt(d.v1 - d.v0), label: "change", color: "transparent" }])).on("pointerleave", hideTip).style("cursor", "crosshair");
   }
 
@@ -414,6 +439,21 @@ window.Charts = (function () {
       Cm.selectAll("rect.seg").on("pointermove", (evt, s) => { d3.select(evt.currentTarget).attr("stroke", t.ink).attr("stroke-width", 1); showTip(evt, String(s.x), [{ value: fmt(s.v), label: s.label, color: s.color, kind: "rect", sub: fmtInt(s.n) + " of " + fmtInt(o.denoms[s.i]) }]); })
         .on("pointerleave", (evt) => { d3.select(evt.currentTarget).attr("stroke", null); hideTip(); });
     }
+    el.__replay = () => {
+      const d = DUR(); if (!d) return;
+      if (o.mode === "area") {
+        let clip = F.svg.select("defs clipPath.wipe");
+        if (clip.empty()) clip = F.svg.insert("defs", ":first-child").append("clipPath").attr("class", "wipe").attr("id", "wipe-" + (el.id || Math.random().toString(36).slice(2)));
+        let r = clip.select("rect"); if (r.empty()) r = clip.append("rect");
+        r.attr("x", -2).attr("y", -20).attr("height", F.ih + 40).attr("width", 0).transition("enter").duration(d * 1.6).ease(d3.easeCubicInOut).attr("width", F.iw + 4);
+        layer(F.g, "areas").attr("clip-path", "url(#" + clip.attr("id") + ")");
+      } else {
+        F.g.selectAll("g.bars rect.seg").attr("y", F.ih).attr("height", 0).transition("enter").duration(d).delay((q) => q.i * 45).ease(EASE)
+          .attr("y", (q) => y(q.y1) + 1).attr("height", (q) => Math.max(0, y(q.y0) - y(q.y1) - 2));
+        F.g.selectAll("g.bars text.seg").style("opacity", 0).transition("enter").delay((q) => q.i * 45 + d).duration(300).style("opacity", 1);
+      }
+      F.g.selectAll("g.labels text.cl").style("opacity", 0).transition("enter").delay(d * 1.4).duration(400).style("opacity", 1);
+    };
     // direct labels for the last column at the right edge (legend still present in the key row)
     const lastCol = narrow ? null : cols.slice().reverse().find((c) => c.segs.length);
     const lab = layer(F.g, "labels").selectAll("text.cl").data(lastCol ? spread(lastCol.segs.filter((s) => s.v > 0.015).map((s) => ({ key: s.key, label: s.label, v: s.v, y: (y(s.y0) + y(s.y1)) / 2 })), 14, 6, F.ih - 4) : [], (d) => d.key);
@@ -490,6 +530,16 @@ window.Charts = (function () {
         .text((p) => fmt(p.value)).transition().duration(dur).ease(EASE).attr("x", (p) => x(p.value));
       g.selectAll("circle.pt").on("pointermove", (evt, p) => showTip(evt, d.label, pts.slice().sort((a, b) => b.value - a.value).map((q) => ({ value: fmt(q.value), label: q.label, color: q.color, sub: q.n ? "n = " + fmtInt(q.n) : "" })))).on("pointerleave", hideTip);
     });
+    el.__replay = () => {
+      const d = DUR(); if (!d) return;
+      Rm.each(function (row, i) {
+        const g = d3.select(this);
+        g.selectAll("circle.pt").attr("cx", 0).transition("enter").delay(i * 60).duration(d).ease(EASE).attr("cx", (p) => (p.value === null ? 0 : x(p.value)));
+        g.selectAll("rect.bar").attr("width", 0).transition("enter").delay(i * 60).duration(d).ease(EASE).attr("width", (p) => (p.value === null ? 0 : Math.max(0, x(p.value))));
+        g.select("line.range").attr("x2", (q) => +g.select("line.range").attr("x1")).transition("enter").delay(i * 60).duration(d).ease(EASE).attr("x2", function () { const pts = row.points.filter((p) => p.value !== null); return pts.length ? x(Math.max(...pts.map((p) => p.value))) : 0; });
+        g.selectAll("text.v").style("opacity", 0).transition("enter").delay(i * 60 + d).duration(300).style("opacity", 1);
+      });
+    };
   }
 
   // ------------------------------------------------------------------ ranked dots (one value per row, sorted)
@@ -534,6 +584,14 @@ window.Charts = (function () {
     Rm.select("circle.pt").attr("fill", o.color).style("opacity", bars ? 0 : 1).transition().duration(dur).ease(EASE).attr("cx", (d) => x(d.value));
     Rm.select("text.v").attr("fill", t.ink2).text((d) => fmt(d.value)).transition().duration(dur).ease(EASE).attr("x", (d) => x(d.value) + 11);
     Rm.on("pointermove", (evt, d) => showTip(evt, d.label, [{ value: fmt(d.value), label: o.valueLabel || "", color: o.color }].concat((d.rows || []).map((r) => ({ value: r.value, label: r.label, color: "transparent" }))))).on("pointerleave", hideTip).style("cursor", "default");
+    el.__replay = () => {
+      const d = DUR(); if (!d) return;
+      Rm.style("opacity", 0).transition("enter").delay((q, i) => i * 30).duration(400).style("opacity", 1);
+      Rm.select("line.stem").attr("x2", 0).transition("enter").delay((q, i) => i * 30).duration(d).ease(EASE).attr("x2", (q) => x(q.value));
+      Rm.select("circle.pt").attr("cx", 0).transition("enter").delay((q, i) => i * 30).duration(d).ease(EASE).attr("cx", (q) => x(q.value));
+      Rm.select("path.bar").each(function (q) { this.__w = 0; }).attr("d", barPath(0)).transition("enter").delay((q, i) => i * 30).duration(d).ease(EASE).attrTween("d", function (q) { const to = x(q.value); this.__w = to; return (k) => barPath(to * k); });
+      Rm.select("text.v").style("opacity", 0).transition("enter").delay((q, i) => i * 30 + d).duration(300).style("opacity", 1);
+    };
   }
 
   // ------------------------------------------------------------------ key (legend) row — always present for ≥ 2 series
@@ -591,5 +649,8 @@ window.Charts = (function () {
     d3.select(node).transition().duration(dur).ease(EASE).tween("text", function () { const i = d3.interpolateNumber(from, to); return (k) => { this.textContent = fmt(i(k)); }; });
   }
 
-  return { lineChart, stacked, dotPlot, rankDots, key, exportBar, download, countUp, theme, hideTip, reduced };
+  /** Build the chart in `el` from nothing (called once, when it first scrolls into view). */
+  function replay(el) { if (el && typeof el.__replay === "function") el.__replay(); }
+
+  return { lineChart, stacked, dotPlot, rankDots, key, exportBar, download, countUp, replay, theme, hideTip, reduced };
 })();
