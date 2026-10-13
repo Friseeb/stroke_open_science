@@ -147,6 +147,11 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
 
 ## Pipeline stages (search_stroke_dois.py)
 1. **OpenAlex retrieval** — parallel term×year cursor pagination → `data/{discipline}/raw_openalex_articles.csv`.
+   The terms are searched in the **title** (`title.search`, the benchmark corpus); `--openalex-search-field
+   title_and_abstract` pulls a wider corpus for sensitivity checks (slices cached under
+   `retrieval_slices/openalex_title_and_abstract/`). `scripts/compare_corpus_definitions.py --a label=path --b
+   label=path --year Y` contrasts two pipeline outputs on the metadata indicators with the dashboard's own flagging.
+   PubMed is not part of the scheduled runs (`--include-pubmed` is optional).
    The `select` list includes `type, open_access, locations, authorships, is_retracted, has_fulltext, funders`
    (`funders` is a valid select field; `grants` is not), flattened by `flatten_openalex_work_metadata` into
    `work_type`, `oa_status`, `primary_source_type`, `primary_source_is_in_doaj`, `has_preprint_version`,

@@ -439,6 +439,7 @@ class PipelinePaths:
 class PipelineConfig:
     discipline: str
     terms: List[str]
+    openalex_search_field: str
     years: List[int]
     query_window_months: int
     include_pubmed: bool
@@ -605,6 +606,9 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
     parser.add_argument("--llm-cache", default="llm_cache.json")
 
     parser.add_argument("--terms", nargs="*", default=DEFAULT_TERMS)
+    parser.add_argument("--openalex-search-field", choices=sorted(OPENALEX_SEARCH_FIELDS), default="title",
+                        help="OpenAlex field the terms are searched in: title (the benchmark corpus) or title_and_abstract "
+                             "(a wider corpus for sensitivity checks; retrieval slices are cached under a separate source folder)")
     parser.add_argument("--discipline", default="stroke", help="Cohort label to store in output rows")
     parser.add_argument("--start-year", type=int, default=2015)
     parser.add_argument("--end-year", type=int, default=dt.datetime.now().year)
@@ -768,6 +772,7 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
     cfg = PipelineConfig(
         discipline=args.discipline.strip().lower(),
         terms=[t.strip() for t in args.terms if t and t.strip()],
+        openalex_search_field=args.openalex_search_field,
         years=years,
         query_window_months=min(12, max(1, args.query_window_months)),
         include_pubmed=args.include_pubmed,
@@ -1982,6 +1987,22 @@ class OpenAlexSliceResult:
     stop_reason: str = ""
 
 
+OPENALEX_SEARCH_FIELDS = {"title": "title.search", "title_and_abstract": "title_and_abstract.search"}
+
+
+def openalex_search_filter(term: str, start_date: dt.date, end_date: dt.date, search_field: str = "title") -> str:
+    """The OpenAlex ``filter`` for one term x date window; ``search_field`` picks title-only or title-and-abstract."""
+    key = OPENALEX_SEARCH_FIELDS.get(search_field)
+    if key is None:
+        raise ValueError(f"Unknown OpenAlex search field {search_field!r}; choose one of {sorted(OPENALEX_SEARCH_FIELDS)}")
+    return f"{key}:{term},from_publication_date:{start_date.isoformat()},to_publication_date:{end_date.isoformat()}"
+
+
+def openalex_slice_source(search_field: str) -> str:
+    """Folder name for cached retrieval slices: the benchmark corpus keeps 'openalex'; wider searches get their own."""
+    return "openalex" if search_field == "title" else f"openalex_{search_field}"
+
+
 def search_openalex_term_date_range(
     term: str,
     start_date: dt.date,
@@ -1997,15 +2018,12 @@ def search_openalex_term_date_range(
     max_failures_per_query: int,
     max_retry_after_seconds: int,
     budget_wait_max_hours: float = 30.0,
+    search_field: str = "title",
 ) -> OpenAlexSliceResult:
     url = "https://api.openalex.org/works"
     range_label = f"{start_date.isoformat()}..{end_date.isoformat()}"
     params = {
-        "filter": (
-            f"title.search:{term},"
-            f"from_publication_date:{start_date.isoformat()},"
-            f"to_publication_date:{end_date.isoformat()}"
-        ),
+        "filter": openalex_search_filter(term, start_date, end_date, search_field),
         "per_page": 200,
         "cursor": "*",
         "select": OPENALEX_WORK_SELECT_FIELDS,
@@ -2720,7 +2738,7 @@ def fetch_or_load_openalex(cfg: PipelineConfig, paths: PipelinePaths, session: r
         completed_queries = 0
         incomplete_slices: List[str] = []
         for term, start_date, end_date in query_jobs:
-            slice_path = retrieval_slice_path(paths, "openalex", term, start_date, end_date)
+            slice_path = retrieval_slice_path(paths, openalex_slice_source(cfg.openalex_search_field), term, start_date, end_date)
             partial_path = retrieval_slice_partial_path(slice_path)
             range_label = f"{start_date.isoformat()}..{end_date.isoformat()}"
             if partial_path.exists() and not slice_path.exists():
@@ -2767,6 +2785,7 @@ def fetch_or_load_openalex(cfg: PipelineConfig, paths: PipelinePaths, session: r
                     cfg.openalex_max_failures_per_query,
                     cfg.openalex_max_retry_after_seconds,
                     cfg.openalex_budget_wait_max_hours,
+                    cfg.openalex_search_field,
                 ): (term, start_date, end_date, slice_path)
                 for term, start_date, end_date, slice_path in pending_jobs
             }
