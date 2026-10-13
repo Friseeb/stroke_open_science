@@ -466,6 +466,7 @@
       a.addEventListener("click", (e) => { e.preventDefault(); showView(key, true); writeHash(); });
       nav.append(a);
     }
+    nav.append(el("span", { class: "ind", "aria-hidden": "true" }));
     if ("IntersectionObserver" in window) {
       const io = new IntersectionObserver((entries) => {
         for (const en of entries) if (en.isIntersecting) { state.view = en.target.id; markNav(); }
@@ -478,10 +479,51 @@
     const els = document.querySelectorAll(".sec-head, .report, .stat-grid, .fig");
     els.forEach((e) => e.classList.add("reveal"));
     if (!("IntersectionObserver" in window) || Charts.reduced()) { els.forEach((e) => e.classList.add("is-in")); return; }
-    const io = new IntersectionObserver((entries) => { for (const en of entries) if (en.isIntersecting) { en.target.classList.add("is-in"); io.unobserve(en.target); } }, { rootMargin: "0px 0px -6% 0px" });
+    const io = new IntersectionObserver((entries) => {
+      for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        const node = en.target;
+        node.classList.add("is-in");
+        io.unobserve(node);
+        if (node.classList.contains("fig")) { const chart = node.querySelector(".chart"); if (chart) Charts.replay(chart); }
+        if (node.classList.contains("report") || node.classList.contains("stat-grid")) countUpAll(node);
+      }
+    }, { rootMargin: "0px 0px -10% 0px" });
     els.forEach((e) => io.observe(e));
   }
-  function markNav() { for (const [k] of VIEWS) $("nav-" + k).setAttribute("aria-current", String(k === state.view)); }
+  /** Every big figure inside `root` counts up from zero, staggered left to right. */
+  function countUpAll(root) {
+    const nodes = [...root.querySelectorAll("[data-value]")];
+    nodes.forEach((n, i) => {
+      const v = parseFloat(n.dataset.value);
+      if (Number.isNaN(v)) return;
+      const digits = +n.dataset.digits || 0;
+      setTimeout(() => Charts.countUp(n, 0, v, (q) => fmtPct(q, digits)), Math.min(i * 35, 700));
+    });
+  }
+  /** The hero title drifts up slower than the page and fades as the reader leaves it. */
+  function heroMotion() {
+    if (Charts.reduced()) return;
+    const hero = document.querySelector(".hero");
+    if (!hero) return;
+    const parts = [...hero.children];            // title, eyebrow, standfirst and foot move together, so nothing overlaps
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      const y = window.scrollY, h = hero.offsetHeight || 1;
+      const k = Math.min(1, y / (h * 0.8));
+      for (const p of parts) { p.style.transform = "translateY(" + (y * 0.18).toFixed(1) + "px)"; p.style.opacity = String(1 - k); }
+      hero.style.setProperty("--py", (y * 0.06).toFixed(1) + "px");
+    };
+    window.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+    setTimeout(() => { hero.classList.add("is-settled"); update(); }, 1700);   // load animations done: inline transforms take over
+    update();
+  }
+  function markNav() {
+    for (const [k] of VIEWS) $("nav-" + k).setAttribute("aria-current", String(k === state.view));
+    const cur = $("nav-" + state.view), ind = $("topnav").querySelector(".ind");
+    if (cur && ind) { ind.style.left = cur.offsetLeft + "px"; ind.style.width = cur.offsetWidth + "px"; }
+  }
   function showView(key, scroll) {
     state.view = key;
     markNav();
@@ -639,6 +681,7 @@
           const cell = el("div", { class: "rc-cell" + (x.key === state.focus ? " is-focus" : "") + (v === null ? " is-na" : ""), role: "cell" });
           cell.style.setProperty("--c", discColor(x));
           const valEl = el("div", { class: "rc-val", text: v === null ? (ok ? "—" : "n/a") : fmtPct(v) });
+          if (v !== null) { valEl.dataset.value = String(v); valEl.dataset.digits = String(pctDigits(v)); }
           const pk = x.key + "|" + key, prev = PREV_VALS.get(pk);
           if (v !== null && prev !== undefined && prev !== null && prev !== v) Charts.countUp(valEl, prev, v, (q) => fmtPct(q, pctDigits(v)));
           PREV_VALS.set(pk, v);
@@ -651,6 +694,7 @@
         }
       }
     }
+    [...root.children].forEach((c, i) => c.style.setProperty("--i", String(i)));
     const others = discs.filter((x) => x.key !== d.key).map((x) => x.label.toLowerCase());
     $("s1-note").textContent = d.label + (others.length ? " against " + others.join(", ") : "") + ": " + selectionLabel() + ". Rates below " + MIN_N_RATE + " papers are not shown.";
     caption("s1-caption", "report", "Each cell shows the rate for the selection, its year-by-year trend and the numerator of the denominator. Full-text rows refer to the audited open-access sample only. The marked indicator is drawn in Trends.", true);
@@ -792,6 +836,7 @@
     for (const g of groups) {
       const share = g.counts[K.n] / totalN;
       const val = el("div", { class: "stat-val", text: fmtPct(share) });
+      val.dataset.value = String(share); val.dataset.digits = String(pctDigits(share));
       const pk = "income|" + d.key + "|" + g.key, prev = PREV_VALS.get(pk);
       if (prev !== undefined && prev !== share) Charts.countUp(val, prev, share, (q) => fmtPct(q, pctDigits(share)));
       PREV_VALS.set(pk, share);
@@ -1126,6 +1171,7 @@
     renderFooter();
     renderAll();
     observeReveal();
+    heroMotion();
     if (state.view !== "s1") showView(state.view, true);
     window.addEventListener("hashchange", () => { readHash(); buildSelection(); buildViewOptions(); renderAll(); showView(state.view, true); });
   }

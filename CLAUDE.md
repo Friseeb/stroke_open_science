@@ -103,10 +103,15 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   value per row; `bars` alternative), `Charts.rankDots` (sorted lollipop/dot rows with a reference line; `bars`
   alternative) plus `Charts.key`, `Charts.exportBar`, `Charts.countUp`. Tufte rules applied: range-frame axes, no
   gridlines, hairlines one step off the surface, direct and selective labels, policy milestones as hairlines with
-  labels in the top margin, partial years shaded, rates capped at 100 %. Motion: every chart keeps its `<svg>` so a
+  labels in the top margin, partial years shaded, rates capped at 100 %. Motion (user asked for "motion graphics" on 2026-10-13): every chart keeps its `<svg>` so a
   selection change morphs lines / grows bars / slides dots (650 ms, cubic-out, named transitions so the entrance
-  draw-on is never cancelled), the matrix and stat-grid figures count up from their previous value, and figures rise
-  into view once via IntersectionObserver (`.reveal`); all of it is off under `prefers-reduced-motion`. Each figure's
+  draw-on is never cancelled); scrolling drives the rest via one IntersectionObserver (`observeReveal`): a figure
+  builds itself the first time it enters the viewport (`Charts.replay(el)` runs the chart's stored `__replay`:
+  lines draw on, bars grow column by column, areas wipe in, dots slide from the axis, ranked rows fade in top to
+  bottom), the matrix cells cascade and their figures count up from zero (`countUpAll`, `data-value`), sparklines
+  and stat bars wipe in, section titles unmask from the baseline (`clip-path`), the hero title rises line by line on
+  load and the whole hero block parallaxes and fades as the reader leaves it (`heroMotion`), and the nav indicator
+  slides between sections. All of it is off under `prefers-reduced-motion`. Each figure's
   form is a URL-hash key (`oaMode`, `dasMode`, `hiMode`, `ftdMode`, `eqMode`, `t4Layout`, `cmMode`, `journalMode`,
   `trendLayout`). Exports serialise the SVG with the page background (a system sans stands in for Instrument Sans).
 - Visual system (2026-10-12, calibrated on the user's references: tresmarescapital.com, nickho-motorsports.nl,

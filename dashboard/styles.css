@@ -73,10 +73,11 @@ h1, h2, h3, p { margin: 0; }
 .topbar-in { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; height: var(--bar); padding-left: var(--gutter); padding-right: 0; gap: 32px; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
 .wordmark .sq { width: 10px; height: 10px; background: var(--accent); display: inline-block; }
-.topnav { display: flex; gap: 24px; justify-content: center; min-width: 0; overflow: hidden; }
-.topnav a { font-size: 14px; text-decoration: none; color: var(--ink-2); white-space: nowrap; padding: 4px 0; border-bottom: 1px solid transparent; }
+.topnav { display: flex; gap: 24px; justify-content: center; min-width: 0; overflow: hidden; position: relative; }
+.topnav a { font-size: 14px; text-decoration: none; color: var(--ink-2); white-space: nowrap; padding: 4px 0; }
 .topnav a:hover { color: var(--ink); }
-.topnav a[aria-current="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.topnav a[aria-current="true"] { color: var(--ink); }
+.topnav .ind { position: absolute; bottom: 0; height: 1px; background: var(--ink); left: 0; width: 0; }
 .topbar-right { display: flex; align-items: center; height: 100%; }
 .edition { font-size: var(--fs-sm); color: var(--ink-3); white-space: nowrap; padding: 0 24px; border-left: 1px solid var(--hair); height: 100%; display: inline-flex; align-items: center; font-variant-numeric: tabular-nums; text-decoration: none; max-width: 26ch; overflow: hidden; text-overflow: ellipsis; }
 .edition:hover { color: var(--ink); }
@@ -269,8 +270,29 @@ table.data tbody tr:hover td { background: var(--surface-2); }
 
 /* ------------------------------------------------------------------ motion (none under prefers-reduced-motion) */
 @media (prefers-reduced-motion: no-preference) {
+  /* on load: the title rises line by line, then the rest of the hero fades in */
+  .display span { animation: rise-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .display span:nth-child(2) { animation-delay: 0.1s; }
+  .display span:nth-child(3) { animation-delay: 0.2s; }
+  .hero .eyebrow, .hero-aside, .hero-foot { animation: fade-in 0.8s ease-out both; animation-delay: 0.5s; }
+  .hero::before { transform: translateY(var(--py, 0px)); }
+  .hero > * { will-change: transform, opacity; }
+  .hero.is-settled > *, .hero.is-settled .display span { animation: none; }
+  @keyframes rise-in { from { opacity: 0; transform: translateY(48px); } to { opacity: 1; transform: none; } }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  /* on scroll: each block rises once; section titles unmask from the baseline; matrix cells cascade; sparklines wipe in */
   .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
   .reveal.is-in { opacity: 1; transform: none; }
+  .sec-head.reveal .sec-title { clip-path: inset(0 0 100% 0); transform: translateY(24px); }
+  .sec-head.reveal.is-in .sec-title { clip-path: inset(0 0 -4% 0); transform: none; transition: clip-path 0.8s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1); }
+  .report.reveal > div { opacity: 0; transform: translateY(10px); }
+  .report.reveal.is-in > div { opacity: 1; transform: none; transition: opacity 0.5s ease-out, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); transition-delay: calc(var(--i, 0) * 14ms); }
+  .report.reveal .spark, .stat-grid.reveal .stat-bar span { clip-path: inset(0 100% 0 0); }
+  .report.reveal.is-in .spark, .stat-grid.reveal.is-in .stat-bar span { clip-path: inset(0 -2% 0 0); transition: clip-path 1s cubic-bezier(0.2, 0.7, 0.2, 1); transition-delay: calc(var(--i, 0) * 14ms + 0.3s); }
+  .stat-grid.reveal > .stat { opacity: 0; transform: translateY(10px); }
+  .stat-grid.reveal.is-in > .stat { opacity: 1; transform: none; transition: opacity 0.5s ease-out, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+  .stat-grid.reveal.is-in > .stat:nth-child(2) { transition-delay: 0.08s; } .stat-grid.reveal.is-in > .stat:nth-child(3) { transition-delay: 0.16s; } .stat-grid.reveal.is-in > .stat:nth-child(4) { transition-delay: 0.24s; }
+  .topnav .ind { transition: left 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), width 0.35s cubic-bezier(0.2, 0.7, 0.2, 1); }
   .pill, .ulink, .ulink-btn, .topnav a, .block-btn, .rc-pick .sq, .export button { transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease; }
   .rc-val, .stat-val { transition: color 0.4s ease; }
   table.data tbody tr td { transition: background-color 0.15s ease; }
