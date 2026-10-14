@@ -4,10 +4,16 @@ World Stroke Congress 2026, Seoul. Thu 22 Oct 2026, 15:45-16:00 (15 min), sessio
 "The latest in stroke implementation science" (ID 340), Conference Room 202-203.
 Speaker: Sebastian Fridman (Western University, London, Canada).
 
+Version 4 (2026-10-13, evening): the introduction now shows the open-source lesion-analysis pipelines of
+neuroscience, a new slide says where psychology and neuroscience stand today (consensus documents, the
+newest replication results, neuropsychology), a disclosure slide is slide 2 (no disclosures), and the congress
+.pptx uses the WSC template only for the title and disclosure slides (talk/deck/congress/). Sources for the new
+slides, each re-checked against its source: talk/evidence_intro.md.
+
 Version 3 (2026-10-13). The arc the speaker asked for: the moment that started the project,
 why open science matters (the reproducibility crisis in psychology and neuroscience), the same
 problem in stroke, what open science is made of, what we measured, and what to do next (a task
-force, a prize, awareness). The deck (15 slides) is the Slides artifact "Open Science in Stroke
+force, a prize, awareness). The deck (17 slides) is the Slides artifact "Open Science in Stroke
 Research"; it reuses the dashboard's figures and visual system.
 
 Numbers come from the published run of 2026-10-13 (`data/runs/2026-10-13T111229Z`):
@@ -23,36 +29,50 @@ on the slides are exports of the public dashboard
 (https://friseeb.github.io/stroke_open_science_outputs/; default view 2015-2025, all papers), so
 slide and dashboard agree.
 
-Timing: 15 slides in 14:30, leaving 30 s. Minutes in brackets are cumulative at the start of the slide.
+Timing: 17 slides in 14:45, leaving 15 s (version 4 trimmed several slides by 5-15 s to make room). Minutes in brackets are cumulative at the start of the slide.
 
 ---
 
-## 1. Title (0:00)
+## 1. Title (0:00, 20 s)
 
 **Open science in stroke research: measuring reproducibility and transparency**
 
 Notes: One sentence, no agenda slide. "I want to tell you how this project started, what it
 found, and what I think we should do with it."
 
-## 2. The moment this started (0:20, 40 s) — NEW, personal
+## 2. Disclosure (0:20, 5 s) — required by the congress
 
-One large sentence on an otherwise empty slide, in the speaker's words. Draft to personalise:
+The congress requires its conflict-of-interest slide as slide 2. In the .pptx it is the template's own slide with
+"No, nothing to disclose" ticked; the HTML deck has a matching slide. The speaker confirmed no disclosures on
+2026-10-13; if the congress's published faculty list still shows otherwise, ask the congress office to correct it.
 
-> I came to stroke from imaging and neuroscience. [In 20__ I tried to build on a published
-> result: the data were "available on request", the code was not there, and the request went
-> unanswered. I could not tell whether the finding was wrong or I was.]
+## 3. Where I come from: in lesion neuroscience, the whole pipeline is open (0:25, 50 s) — NEW in version 4
 
-Four small words underneath: imaging · neuroscience · neurology · stroke.
+Replaces "The moment this started". The speaker asked for the introduction to show the open-source lesion-analysis
+pipelines of neuroscience. One line in the speaker's voice, five stages with named open tools, four open datasets.
 
-Notes: Thirty to forty seconds, first person, no slide reading. The point is not the anecdote;
-it is that the speaker has been on the receiving end of a closed literature. Alternative openings
-if the story above is not right: a model from a paper that could not be retrained because the
-training set was never released; a perfusion-threshold result that two groups reproduced with
-opposite signs because the processing code differed.
+> I came to stroke from imaging and neuroscience. There, every step of a lesion study has open-source tools and
+> shared data.
 
-## 3. Why open science: the fields next door had their crisis first (1:00, 60 s) — NEW
+- **1 Segment**: MRIcron 2007, ITK-SNAP 2006, LINDA 2016, nnU-Net 2021, DeepISLES 2025 (an ensemble of the ISLES
+  2022 winners, validated on 1,685 external scans; neuroradiologists preferred its masks to manual ones).
+- **2 Normalise**: cost-function masking 2001, enantiomorphic normalisation 2008, SPM Clinical Toolbox 2012, ANTs 2008.
+- **3 Map the symptom**: VLSM 2003, NiiStat, SVR-LSM 2014, LESYMAP 2018.
+- **4 Map disconnection**: lesion network mapping 2015, BCBtoolkit 2018, Lesion Quantification Toolkit 2021.
+- **5 Share**: BIDS 2016, NeuroVault 2015, OpenNeuro (1,913 public datasets on 13 Oct 2026).
+- **Open stroke data**: ATLAS v2.0, 1,271 MRIs with traced lesions, 955 public (Liew 2022); ISLES 2022, 250 of 400
+  cases public under CC BY; Aphasia Recovery Cohort, 230 people and 902 sessions, CC0 (Gibson 2024); SOOP, 1,715
+  admissions, CC0 (Absher 2024).
+- Footer: open data has not guaranteed open code: of 17 segmentation methods published on ATLAS v1.2, 12 reported no
+  public code (Liew 2022).
 
-Four numbers, then one line on what those fields did about it.
+Notes: Fifty seconds, first person. Most tools are BSD, GPL or Apache licensed; a few need MATLAB, and some data sit
+behind data use agreements (say so if asked). The turn: when I moved to clinical stroke, the trial data and code were
+not there. The earlier anecdote draft ("the data were available on request ...") is retired unless it is a real episode.
+
+## 4. Why open science: the fields next door had their crisis first (1:15, 45 s)
+
+Four numbers, then why it happened. What those fields did about it is the next slide.
 
 - **36%**: of 100 psychology findings replicated with a significant result; effect sizes about
   half the originals (Open Science Collaboration, Science 2015).
@@ -61,14 +81,49 @@ Four numbers, then one line on what those fields did about it.
   Nature 2012).
 - **70%**: of 1,576 researchers had failed to reproduce another group's experiment; 52% called
   it a significant crisis (Baker, Nature 2016).
-- What changed: preregistration and Registered Reports (300+ journals), open-data badges, the
-  Open Science Framework, data and code as a condition of publication. Registered Reports:
-  44% positive results against 96% in the standard literature (Scheel 2021).
+- Why it happened: small samples, flexible analyses, selective reporting. Four routine analysis
+  choices raise a 5% false-positive rate to 61% (Simmons 2011); 63% of 2,155 psychologists
+  admitted not reporting all their measures (John 2012).
 
-Notes: Psychology and neuroscience are the speaker's former fields; say so. "They measured
-themselves, it hurt, and they changed how they publish."
+Notes: Forty-five seconds. Psychology and neuroscience are the speaker's former fields; say so.
+"They measured themselves, it hurt, and they changed how they publish."
 
-## 4. Stroke is not immune (2:00, 60 s) — NEW
+## 5. Where the fields next door are now: the rules now exist, practice is catching up (2:00, 1 min) — NEW in version 4
+
+Left, "What they agreed on":
+
+- **2013** Registered Reports launch at *Cortex*, a neuroscience and neuropsychology journal; more than 300 journals
+  offer them now (Chambers 2013; Center for Open Science).
+- **2015** TOP guidelines for journals (Nosek 2015, Science), 5,000+ signatories; revised as TOP 2025, which
+  certifies transparency, not just asks for it (Grant 2026).
+- **2016** BIDS, one standard for organising and sharing neuroimaging data (Gorgolewski 2016).
+- **2017** A manifesto for reproducible science (Munafò 2017); COBIDAS, OHBM's best-practice standard for MRI
+  (Nichols 2017).
+- **2024** *Psychological Science* makes open data and materials the default and checks that results reproduce
+  (Hardwicke & Vazire 2024).
+- **2025** PECANS, a Delphi consensus checklist for cognitive and neuropsychological studies, 206 experts in round 1
+  (Costa 2025).
+
+Right, "Where they are now":
+
+- **55%** of 274 social and behavioural science claims replicated; effects fell from r = 0.25 to 0.10 (SCORE,
+  Tyner 2026, Nature). Authors made data available for 24% of 600 papers (Miske 2026, Nature).
+- **7% and 14%** of 2022 psychology articles were preregistered, or shared raw data; 3% and 2% in 2014-2017
+  (Hardwicke 2024).
+- **1 of 62** Registered Reports at *Cortex*, 2018-2022, studied patients; sensitive clinical data is the barrier
+  neuropsychologists named most (Binney 2025, Brain Communications).
+- Footer: Registered Reports, 44% positive results against 96% (Scheel 2021). The best-known evidence that rigour
+  alone restores replication (Protzko 2023) was retracted in 2024.
+
+Notes: Sixty seconds. Psychology did not fix itself: it measured itself, agreed on rules, and is still short of them.
+Neuroimaging: 70 teams, one fMRI dataset, no two pipelines alike (NARPS 2020); cluster inference up to 70% false
+positives (Eklund 2016). Closest to this room: lesion network mapping, used in more than 200 studies, was challenged
+in Nature Neuroscience in January 2026 with public data only (van den Heuvel 2026), with replies in the same journal;
+that debate exists because the data were open. Lesion mapping itself: maps shift by about 16 mm with vascular anatomy
+(Mah 2014); fewer than 40% of N = 30 resamples reach significance (Lorca-Puls 2018).
+
+
+## 6. Stroke is not immune (3:00, 50 s)
 
 Preclinical, then clinical.
 
@@ -89,7 +144,7 @@ Preclinical, then clinical.
 Notes: Keep to three examples; the audience knows these trials. Do not editorialise on any
 single trial; the point is heterogeneity that cannot be resolved from the papers alone.
 
-## 5. What open science is made of (3:00, 45 s)
+## 7. What open science is made of (3:50, 45 s)
 
 Four questions a field should be able to answer about its own literature (existing slide):
 can people read it (open access, by which route); can they check it (data and code); can they
@@ -97,7 +152,7 @@ reuse it (deposited, not promised on request); was it planned in advance (regist
 Footer: audits exist for neurology, cardiology and general medicine; none for stroke (Rauh 2020;
 Heckerman 2025; Scutt 2020).
 
-## 6. How we measured (3:45, 45 s)
+## 8. How we measured (4:35, 45 s)
 
 - Living pipeline: OpenAlex, 2015 onward, stroke plus neurology, neuroscience and cardiology;
   140,281 stroke journal articles and reviews with a DOI, 2015-2025, from 231,580 records
@@ -115,7 +170,7 @@ neuroscience 509,973, cardiology 312,703 articles. On the report card neuroscien
 GitHub, deposit and preprints, partly because its title term "neural" also catches
 machine-learning papers (about 45% of that corpus matches only "neural").
 
-## 7. Finding 1: stroke went open access (4:30, 45 s)
+## 9. Finding 1: stroke went open access (5:20, 40 s)
 
 Figure: dashboard trend, open access by year and discipline.
 
@@ -128,7 +183,7 @@ rank neuroscience: about 45% of it comes only from the title term "neural", much
 learning; without those papers it is 67% open access. It is above stroke until 2019 and below
 neurology in 2024 and 2025.
 
-## 8. Finding 2: the growth in open access was paid for (5:15, 45 s)
+## 10. Finding 2: the growth in open access was paid for (6:00, 40 s)
 
 Figure: dashboard open-access status by year, six statuses in their own colours.
 
@@ -146,7 +201,7 @@ About a quarter of Korean (27%) and Japanese (25%) first-author articles are dia
 The growth figures stop at 2024 because 2025 is still filling in; green was already down to 4% in
 2024, so its fall does not rest on the partial year.
 
-## 9. Finding 3: in abstracts, data and code did not move (6:00, 60 s)
+## 11. Finding 3: in abstracts, data and code did not move (6:40, 1 min)
 
 Figures: dashboard trends for data in a repository, GitHub or code links and preprints (three
 small charts); registration as a number tile.
@@ -166,13 +221,13 @@ articles between 6 and 12 October 2026, and much of what it links is Research Sq
 an opt-in at submission) and SSRN (Lancet and Elsevier), so the rise is partly publisher-driven.
 GitHub appears in 2.5% of the 1,500 audited 2024 full texts (1.3% pooled over the decade), against
 code links in under 0.1% of abstracts. Two code definitions are in use: the high-impact line here
-(0.08% vs 0.06%) and the 0.07% of abstracts on slide 10 also count Zenodo and OSF links; the
+(0.08% vs 0.06%) and the 0.07% of abstracts on slide 12 also count Zenodo and OSF links; the
 dashboard's code chart counts GitHub and code-repository links only, so a viewer who selects high
 impact there sees 0.026% vs 0.015%. Registration nearly doubled, from a low base. Neuroscience
 caveat: its title term "neural" pulls in machine-learning papers; without them its registration
 rate is still only about 1.5%.
 
-## 10. What data-availability statements actually say (7:00, 75 s)
+## 12. What data-availability statements actually say (7:40, 1 min 15 s)
 
 Figure: dashboard statements by year (five classes).
 
@@ -200,7 +255,7 @@ only, so optimistic. Pooled shares weigh every year the same (up to 1,500 audite
 are not corpus rates. Neuroscience caveat: its title term "neural" also catches machine-learning
 papers; without them neuroscience writes statements in 68% (stroke 69%) and deposits 13.6%.
 
-## 11. Who pays to be read, and who shares (8:15, 60 s)
+## 13. Who pays to be read, and who shares (8:55, 55 s)
 
 Figures: dashboard open-access route by income group and full-text indicators by income group.
 World Bank income group of the first author's country (known for 85% of the corpus): high 62%,
@@ -222,7 +277,7 @@ full texts vs 65% high and 78% upper-middle; deposit or public source 3.0% vs 6.
 Korea: 5,490 first-author articles, 75% open access, 0% detectable data sharing in abstracts and
 metadata; 1.3% of 1,293 audited full texts deposit or name a public source.
 
-## 12. Who is already doing it (9:15, 60 s)
+## 14. Who is already doing it (9:50, 55 s)
 
 Figure: dashboard commitment index, institutions (minimum 50 audited articles; the dashboard
 keeps the 60 institutions with the most audited articles, all 82 or more). Commitment index
@@ -251,7 +306,7 @@ index also reflects which years an entity published in. Oxford is also listed as
 OpenAlex (4.9x, 33 audited, second among funders); it is an institution, so it is left out of
 the funders. The point is not the names: the measurement exists and is cheap.
 
-## 13. Why mandates alone did not work (10:15, 60 s)
+## 15. Why mandates alone did not work (10:45, 1 min)
 
 Existing slide: 3.1% to 3.1% (Bergeat 2022); OR 0.9 for badges at BMJ Open vs under 3% to 39% at
 Psychological Science (Rowhani-Farid 2020; Kidwell 2016); 0 of 92 promotion guidelines (Rice
@@ -260,7 +315,7 @@ survey, n = 198, funding named the most essential incentive (Cobey 2024, Open He
 "Stroke researchers are not less honest than psychologists. They respond to the same incentives,
 and ours point the other way."
 
-## 14. What to do next: a task force, a prize, awareness (11:15, 2 min 15 s)
+## 16. What to do next: a task force, a prize, awareness (11:45, 2 min 15 s)
 
 Three columns, each with an owner and the items from the incentives agenda folded in.
 
@@ -272,7 +327,7 @@ Three columns, each with an owner and the items from the incentives agenda folde
    format to clinical science in June 2026); embargoed sharing as the trial default (12 months,
    as in COMPASS and ACT-GLOBAL).
 2. **A prize** for the teams, institutions and journals that share: the commitment index of
-   slide 12, verified in full text and recomputed every six months; on the Einstein
+   slide 14, verified in full text and recomputed every six months; on the Einstein
    Foundation model; presented at this congress.
 3. **Awareness**: the public dashboard and its six-monthly benchmark; open-science items in
    promotion criteria (0 of 92 today; CIHR's narrative CV and UKRI's R4RI already allow datasets
@@ -284,7 +339,7 @@ Notes: Two minutes fifteen. Invite the WSO leadership in the room to take the ta
 Say which items cost nothing (statement, retiring "on request", promotion criteria) and which need
 money (Registered Reports, the prize, infrastructure that mostly exists: VISTA, ATLAS, ENIGMA).
 
-## 15. Close: collaborate (13:30, 60 s)
+## 17. Close: collaborate (14:00, 45 s)
 
 One line: "We measured ourselves. The numbers are not flattering, but they are measurable, which
 means they are improvable."
@@ -323,7 +378,7 @@ stroke 2024 (`--openalex-search-field title_and_abstract`, `scripts/compare_corp
 99% of the title corpus is inside it) with the same open-access share (75.5% vs 75.2%; every status within 1.4
 points), the same data, code and preprint rates, and a slightly lower registration signal (3.7% vs 4.3%, and
 3.3% among the extra articles). The comparison script reads no abstracts, so these registration shares are of all
-articles, not of those with an abstract: the title corpus's 4.3% is slide 9's 5.3%. The corpus definition does not
+articles, not of those with an abstract: the title corpus's 4.3% is slide 11's 5.3%. The corpus definition does not
 move the headline numbers; say so if asked.
 
 Should we also search outside OpenAlex? We checked stroke 2024 against PubMed with the same six title terms (live

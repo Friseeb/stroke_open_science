@@ -8,8 +8,10 @@
   "title": "Open Science in Stroke Research",
   "order": [
     "cover",
+    "disclosure",
     "spark",
     "crisis",
+    "crisis-now",
     "stroke-crisis",
     "why",
     "method",
@@ -25,7 +27,7 @@
   ],
   "sections": {
     "story": {
-      "description": "How this started and why open science matters: the reproducibility crisis next door, and in stroke",
+      "description": "Where I come from (lesion neuroscience, open end to end), the reproducibility crisis next door and where those fields are now, and the same problem in stroke",
       "start": "cover"
     },
     "measure": {
