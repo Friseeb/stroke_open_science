@@ -18,7 +18,11 @@ if (!deckDir || !figDir || !outDir) {
 const CHROME = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 // uploaded asset id -> dashboard export name (talk/outputs/figures/dashboard/<name>.png)
-const BLOBS = {
+const BLOBS = {  // version 5: white, large-label exports (talk/outputs/figures/dashboard_white_large)
+  "0589d919d1dbced9c40bd9fd6ee5aa98": "trend_oa",
+  "fe5c40d680a79965d24e69517fae6799": "oa_status",
+  "9cdee74e6826e99260e7beac7d81b768": "das_year",
+  "5ed4f9d16988b6807df9a74278a7df20": "cm_inst",
   "1fb20c959926284dd1854d9c6102e55e": "matrix", "132f503925f35b32dc8876a44ed61ac2": "trend_oa",
   "96fde507943b392dd08bf6db6c11315d": "trend_data", "9f18b9e4a7d4ea6ca13fc229c654623f": "trend_code",
   "67939026af6f2060dc9d39d3844cc83b": "trend_preprint", "837a5f4520811da05dfc2266dcdc66ae": "trend_reg",

@@ -13,33 +13,36 @@
     "crisis",
     "crisis-now",
     "stroke-crisis",
-    "why",
     "method",
     "oa-trend",
     "oa-type",
+    "who-pays",
+    "countries",
     "flat",
     "das",
     "equity",
     "commitment",
     "mandates",
     "future",
-    "close"
+    "close",
+    "refs-1",
+    "refs-2"
   ],
   "sections": {
     "story": {
-      "description": "Where I come from (lesion neuroscience, open end to end), the reproducibility crisis next door and where those fields are now, and the same problem in stroke",
+      "description": "Where I come from, the crisis next door and where it stands, the same problem in stroke",
       "start": "cover"
     },
     "measure": {
-      "description": "What open science is made of and how the living pipeline measures it",
-      "start": "why"
+      "description": "What we measured and how",
+      "start": "method"
     },
     "findings": {
-      "description": "Ten years of stroke publishing: open access rose, everything else stayed flat; what statements say; who shares",
+      "description": "Open access grew and was paid for; who pays; data and code did not move; who shares",
       "start": "oa-trend"
     },
     "next": {
-      "description": "Why mandates alone failed; a task force, a prize and awareness; collaborate",
+      "description": "Why mandates alone failed; what to do next; collaborate; references",
       "start": "mandates"
     }
   },
@@ -47,10 +50,6 @@
     "instrument-sans": {
       "family": "Instrument Sans",
       "href": "https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap"
-    },
-    "instrument-serif": {
-      "family": "Instrument Serif",
-      "href": "https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap"
     }
   },
   "designSystems": []

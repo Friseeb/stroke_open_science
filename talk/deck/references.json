@@ -1,0 +1,313 @@
+{
+ "yushkevich2006": {
+  "vancouver": "Yushkevich PA, Piven J, Hazlett HC, et al. User-guided 3D active contour segmentation of anatomical structures: significantly improved efficiency and reliability. Neuroimage. 2006;31(3):1116-28. doi:10.1016/j.neuroimage.2006.01.015",
+  "doi": "10.1016/j.neuroimage.2006.01.015",
+  "url": "https://doi.org/10.1016/j.neuroimage.2006.01.015",
+  "short": "Yushkevich PA et al. Neuroimage 2006"
+ },
+ "isensee2021": {
+  "vancouver": "Isensee F, Jaeger PF, Kohl SAA, et al. nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation. Nat Methods. 2021;18(2):203-11. doi:10.1038/s41592-020-01008-z",
+  "doi": "10.1038/s41592-020-01008-z",
+  "url": "https://doi.org/10.1038/s41592-020-01008-z",
+  "short": "Isensee F et al. Nat Methods 2021"
+ },
+ "delarosa2025": {
+  "vancouver": "de la Rosa E, Reyes M, Liew SL, et al. DeepISLES: a clinically validated ischemic stroke segmentation model from the ISLES'22 challenge. Nat Commun. 2025;16(1):7357. doi:10.1038/s41467-025-62373-x",
+  "doi": "10.1038/s41467-025-62373-x",
+  "url": "https://doi.org/10.1038/s41467-025-62373-x",
+  "short": "de la Rosa E et al. Nat Commun 2025"
+ },
+ "rorden2012": {
+  "vancouver": "Rorden C, Bonilha L, Fridriksson J, et al. Age-specific CT and MRI templates for spatial normalization. Neuroimage. 2012;61(4):957-65. doi:10.1016/j.neuroimage.2012.03.020",
+  "doi": "10.1016/j.neuroimage.2012.03.020",
+  "url": "https://doi.org/10.1016/j.neuroimage.2012.03.020",
+  "short": "Rorden C et al. Age-specific CT and MRI templates for spatial normalization. Neuroimage 2012"
+ },
+ "avants2008": {
+  "vancouver": "Avants BB, Epstein CL, Grossman M, et al. Symmetric diffeomorphic image registration with cross-correlation: evaluating automated labeling of elderly and neurodegenerative brain. Med Image Anal. 2008;12(1):26-41. doi:10.1016/j.media.2007.06.004",
+  "doi": "10.1016/j.media.2007.06.004",
+  "url": "https://doi.org/10.1016/j.media.2007.06.004",
+  "short": "Avants BB et al. Med Image Anal 2008"
+ },
+ "bates2003": {
+  "vancouver": "Bates E, Wilson SM, Saygin AP, et al. Voxel-based lesion-symptom mapping. Nat Neurosci. 2003;6(5):448-50. doi:10.1038/nn1050",
+  "doi": "10.1038/nn1050",
+  "url": "https://doi.org/10.1038/nn1050",
+  "short": "Bates E et al. Voxel-based lesion-symptom mapping. Nat Neurosci 2003"
+ },
+ "pustina2018": {
+  "vancouver": "Pustina D, Avants B, Faseyitan OK, et al. Improved accuracy of lesion to symptom mapping with multivariate sparse canonical correlations. Neuropsychologia. 2018;115:154-66. doi:10.1016/j.neuropsychologia.2017.08.027",
+  "doi": "10.1016/j.neuropsychologia.2017.08.027",
+  "url": "https://doi.org/10.1016/j.neuropsychologia.2017.08.027",
+  "short": "Pustina D et al. Improved accuracy of lesion to symptom mapping with multivariate sparse canonical correlations. Neuropsychologia 2018"
+ },
+ "boes2015": {
+  "vancouver": "Boes AD, Prasad S, Liu H, et al. Network localization of neurological symptoms from focal brain lesions. Brain. 2015;138(10):3061-75. doi:10.1093/brain/awv228",
+  "doi": "10.1093/brain/awv228",
+  "url": "https://doi.org/10.1093/brain/awv228",
+  "short": "Boes AD et al. Network localization of neurological symptoms from focal brain lesions. Brain 2015"
+ },
+ "foulon2018": {
+  "vancouver": "Foulon C, Cerliani L, Kinkingnéhun S, et al. Advanced lesion symptom mapping analyses and implementation as BCBtoolkit. Gigascience. 2018;7(3):giy004. doi:10.1093/gigascience/giy004",
+  "doi": "10.1093/gigascience/giy004",
+  "url": "https://doi.org/10.1093/gigascience/giy004",
+  "short": "Foulon C et al. Advanced lesion symptom mapping analyses and implementation as BCBtoolkit. Gigascience 2018"
+ },
+ "gorgolewski2016": {
+  "vancouver": "Gorgolewski KJ, Auer T, Calhoun VD, et al. The brain imaging data structure, a format for organizing and describing outputs of neuroimaging experiments. Sci Data. 2016;3:160044. doi:10.1038/sdata.2016.44",
+  "doi": "10.1038/sdata.2016.44",
+  "url": "https://doi.org/10.1038/sdata.2016.44",
+  "short": "Gorgolewski KJ et al. Sci Data 2016"
+ },
+ "markiewicz2021": {
+  "vancouver": "Markiewicz CJ, Gorgolewski KJ, Feingold F, et al. The OpenNeuro resource for sharing of neuroscience data. Elife. 2021;10:e71774. doi:10.7554/eLife.71774",
+  "doi": "10.7554/eLife.71774",
+  "url": "https://doi.org/10.7554/eLife.71774",
+  "short": "Markiewicz CJ et al. The OpenNeuro resource for sharing of neuroscience data. Elife 2021"
+ },
+ "liew2022": {
+  "vancouver": "Liew SL, Tavenner BP, Donnelly MR, et al. A large, curated, open-source stroke neuroimaging dataset to improve lesion segmentation algorithms. Sci Data. 2022;9(1):320. doi:10.1038/s41597-022-01401-7",
+  "doi": "10.1038/s41597-022-01401-7",
+  "url": "https://doi.org/10.1038/s41597-022-01401-7",
+  "short": "Liew SL et al. Sci Data 2022"
+ },
+ "hernandez2022": {
+  "vancouver": "Hernandez Petzsche MR, de la Rosa E, Hanning U, et al. ISLES 2022: a multi-center magnetic resonance imaging stroke lesion segmentation dataset. Sci Data. 2022;9(1):762. doi:10.1038/s41597-022-01875-5",
+  "doi": "10.1038/s41597-022-01875-5",
+  "url": "https://doi.org/10.1038/s41597-022-01875-5",
+  "short": "Hernandez Petzsche MR et al. Sci Data 2022"
+ },
+ "gibson2024": {
+  "vancouver": "Gibson M, Newman-Norlund R, Bonilha L, et al. The Aphasia Recovery Cohort, an open-source chronic stroke repository. Sci Data. 2024;11(1):981. doi:10.1038/s41597-024-03819-7",
+  "doi": "10.1038/s41597-024-03819-7",
+  "url": "https://doi.org/10.1038/s41597-024-03819-7",
+  "short": "Gibson M et al. Sci Data 2024"
+ },
+ "osc2015": {
+  "vancouver": "Open Science Collaboration. Estimating the reproducibility of psychological science. Science. 2015;349(6251):aac4716. doi:10.1126/science.aac4716",
+  "doi": "10.1126/science.aac4716",
+  "url": "https://doi.org/10.1126/science.aac4716",
+  "short": "Open Science Collaboration Estimating the reproducibility of psychological science. Science 2015"
+ },
+ "button2013": {
+  "vancouver": "Button KS, Ioannidis JPA, Mokrysz C, et al. Power failure: why small sample size undermines the reliability of neuroscience. Nat Rev Neurosci. 2013;14(5):365-76. doi:10.1038/nrn3475",
+  "doi": "10.1038/nrn3475",
+  "url": "https://doi.org/10.1038/nrn3475",
+  "short": "Button KS et al. Nat Rev Neurosci 2013"
+ },
+ "shuaib2007": {
+  "vancouver": "Shuaib A, Lees KR, Lyden P, et al; SAINT II Trial Investigators. NXY-059 for the treatment of acute ischemic stroke. N Engl J Med. 2007;357(6):562-71. doi:10.1056/NEJMoa070240",
+  "doi": "10.1056/NEJMoa070240",
+  "url": "https://doi.org/10.1056/NEJMoa070240",
+  "short": "Shuaib A et al. N Engl J Med 2007"
+ },
+ "qiu2022": {
+  "vancouver": "Qiu Z, Li F, Sang H, et al; RESCUE BT Trial Investigators. Effect of intravenous tirofiban vs placebo before endovascular thrombectomy on functional outcomes in large vessel occlusion stroke: the RESCUE BT randomized clinical trial. JAMA. 2022;328(6):543-53. doi:10.1001/jama.2022.12584",
+  "doi": "10.1001/jama.2022.12584",
+  "url": "https://doi.org/10.1001/jama.2022.12584",
+  "short": "Qiu Z et al. JAMA 2022"
+ },
+ "zi2023": {
+  "vancouver": "Zi W, Song J, Kong W, et al. Tirofiban for stroke without large or medium-sized vessel occlusion. N Engl J Med. 2023;388(22):2025-36. doi:10.1056/NEJMoa2214299",
+  "doi": "10.1056/NEJMoa2214299",
+  "url": "https://doi.org/10.1056/NEJMoa2214299",
+  "short": "Zi W et al. Tirofiban for stroke without large or medium-sized vessel occlusion. N Engl J Med 2023"
+ },
+ "davies2024": {
+  "vancouver": "Davies JM, Knopman J, Mokin M, et al. Adjunctive middle meningeal artery embolization for subdural hematoma. N Engl J Med. 2024;391(20):1890-900. doi:10.1056/NEJMoa2313472",
+  "doi": "10.1056/NEJMoa2313472",
+  "url": "https://doi.org/10.1056/NEJMoa2313472",
+  "short": "Davies JM et al. Adjunctive middle meningeal artery embolization for subdural hematoma. N Engl J Med 2024"
+ },
+ "fiorella2024": {
+  "vancouver": "Fiorella D, Monteith SJ, Hanel R, et al. Embolization of the middle meningeal artery for chronic subdural hematoma. N Engl J Med. 2025;392(9):855-64. doi:10.1056/NEJMoa2409845",
+  "doi": "10.1056/NEJMoa2409845",
+  "url": "https://doi.org/10.1056/NEJMoa2409845",
+  "short": "Fiorella D et al. Embolization of the middle meningeal artery for chronic subdural hematoma. N Engl J Med 2025"
+ },
+ "liu2024": {
+  "vancouver": "Liu J, Ni W, Zuo Q, et al. Middle meningeal artery embolization for nonacute subdural hematoma. N Engl J Med. 2024;391(20):1901-12. doi:10.1056/NEJMoa2401201",
+  "doi": "10.1056/NEJMoa2401201",
+  "url": "https://doi.org/10.1056/NEJMoa2401201",
+  "short": "Liu J et al. Middle meningeal artery embolization for nonacute subdural hematoma. N Engl J Med 2024"
+ },
+ "rauh2020": {
+  "vancouver": "Rauh S, Torgerson T, Johnson AL, et al. Reproducible and transparent research practices in published neurology research. Res Integr Peer Rev. 2020;5:5. doi:10.1186/s41073-020-0091-5",
+  "doi": "10.1186/s41073-020-0091-5",
+  "url": "https://doi.org/10.1186/s41073-020-0091-5",
+  "short": "Rauh S et al. Reproducible and transparent research practices in published neurology research. Res Integr Peer Rev 2020"
+ },
+ "heckerman2025": {
+  "vancouver": "Heckerman GO, Tzng E, Campos-Melendez A, et al. Transparency of research practices in cardiovascular literature. Elife. 2025;14:e81051. doi:10.7554/eLife.81051",
+  "doi": "10.7554/eLife.81051",
+  "url": "https://doi.org/10.7554/eLife.81051",
+  "short": "Heckerman GO et al. Transparency of research practices in cardiovascular literature. Elife 2025"
+ },
+ "scutt2020": {
+  "vancouver": "Scutt P, Woodhouse LJ, Montgomery AA, et al. Data sharing: experience of accessing individual patient data from completed randomised controlled trials in vascular and cognitive medicine. BMJ Open. 2020;10(9):e038765. doi:10.1136/bmjopen-2020-038765",
+  "doi": "10.1136/bmjopen-2020-038765",
+  "url": "https://doi.org/10.1136/bmjopen-2020-038765",
+  "short": "Scutt P et al. BMJ Open 2020"
+ },
+ "priem2022": {
+  "vancouver": "Priem J, Piwowar H, Orr R. OpenAlex: a fully-open index of scholarly works, authors, venues, institutions, and concepts [preprint]. arXiv:2205.01833. 2022 [cited 2026 Oct 14]. doi:10.48550/arXiv.2205.01833",
+  "doi": "10.48550/arXiv.2205.01833",
+  "url": "https://arxiv.org/abs/2205.01833",
+  "short": "Priem J et al. OpenAlex, arXiv 2022"
+ },
+ "europepmc": {
+  "vancouver": "Rosonovski S, Levchenko M, Bhatnagar R, et al. Europe PMC in 2023. Nucleic Acids Res. 2024;52(D1):D1668-76. doi:10.1093/nar/gkad1085",
+  "doi": "10.1093/nar/gkad1085",
+  "url": "https://doi.org/10.1093/nar/gkad1085",
+  "short": "Rosonovski S et al. Nucleic Acids Res 2024"
+ },
+ "gabelica2022": {
+  "vancouver": "Gabelica M, Bojčić R, Puljak L. Many researchers were not compliant with their published data sharing statement: a mixed-methods study. J Clin Epidemiol. 2022;150:33-41. doi:10.1016/j.jclinepi.2022.05.019",
+  "doi": "10.1016/j.jclinepi.2022.05.019",
+  "url": "https://doi.org/10.1016/j.jclinepi.2022.05.019",
+  "short": "Gabelica M et al. J Clin Epidemiol 2022"
+ },
+ "danchev2021": {
+  "vancouver": "Danchev V, Min Y, Borghi J, et al. Evaluation of data sharing after implementation of the International Committee of Medical Journal Editors data sharing statement requirement. JAMA Netw Open. 2021;4(1):e2033972. doi:10.1001/jamanetworkopen.2020.33972",
+  "doi": "10.1001/jamanetworkopen.2020.33972",
+  "url": "https://doi.org/10.1001/jamanetworkopen.2020.33972",
+  "short": "Danchev V et al. Evaluation of data sharing after implementation of the International Committee of Medical Journal Editors data sharing statement requirement. JAMA Netw Open 2021"
+ },
+ "bergeat2022": {
+  "vancouver": "Bergeat D, Lombard N, Gasmi A, et al. Data sharing and reanalyses among randomized clinical trials published in surgical journals before and after adoption of a data availability and reproducibility policy. JAMA Netw Open. 2022;5(6):e2215209. doi:10.1001/jamanetworkopen.2022.15209",
+  "doi": "10.1001/jamanetworkopen.2022.15209",
+  "url": "https://doi.org/10.1001/jamanetworkopen.2022.15209",
+  "short": "Bergeat D et al. Data sharing and reanalyses among randomized clinical trials published in surgical journals before and after adoption of a data availability and reproducibility policy. JAMA Netw Open 2022"
+ },
+ "rowhanifarid2020": {
+  "vancouver": "Rowhani-Farid A, Aldcroft A, Barnett AG. Did awarding badges increase data sharing in BMJ Open? A randomized controlled trial. R Soc Open Sci. 2020;7(3):191818. doi:10.1098/rsos.191818",
+  "doi": "10.1098/rsos.191818",
+  "url": "https://doi.org/10.1098/rsos.191818",
+  "short": "Rowhani-Farid A et al. R Soc Open Sci 2020"
+ },
+ "kidwell2016": {
+  "vancouver": "Kidwell MC, Lazarević LB, Baranski E, et al. Badges to acknowledge open practices: a simple, low-cost, effective method for increasing transparency. PLoS Biol. 2016;14(5):e1002456. doi:10.1371/journal.pbio.1002456",
+  "doi": "10.1371/journal.pbio.1002456",
+  "url": "https://doi.org/10.1371/journal.pbio.1002456",
+  "short": "Kidwell MC et al. PLoS Biol 2016"
+ },
+ "rice2020": {
+  "vancouver": "Rice DB, Raffoul H, Ioannidis JPA, et al. Academic criteria for promotion and tenure in biomedical sciences faculties: cross sectional analysis of international sample of universities. BMJ. 2020;369:m2081. doi:10.1136/bmj.m2081",
+  "doi": "10.1136/bmj.m2081",
+  "url": "https://doi.org/10.1136/bmj.m2081",
+  "short": "Rice DB et al. BMJ 2020"
+ },
+ "cobey2024": {
+  "vancouver": "Cobey KD, Alayche M, Saba S, et al. Cardiology researchers' practices and perceived barriers to open science: an international survey. Open Heart. 2024;11(1):e002433. doi:10.1136/openhrt-2023-002433",
+  "doi": "10.1136/openhrt-2023-002433",
+  "url": "https://doi.org/10.1136/openhrt-2023-002433",
+  "short": "Cobey KD et al. Open Heart 2024"
+ },
+ "benchmark2026": {
+  "vancouver": "Fridman S. Stroke Open-Science Benchmark [software and data on the Internet]. 2026 [run of 2026 Oct 13; cited 2026 Oct 14]. Code available from: https://github.com/Friseeb/stroke_open_science. Dashboard available from: https://friseeb.github.io/stroke_open_science_outputs/",
+  "doi": "",
+  "url": "https://github.com/Friseeb/stroke_open_science",
+  "short": "Fridman S. Stroke Open-Science Benchmark 2026"
+ },
+ "begley2012": {
+  "vancouver": "Begley CG, Ellis LM. Raise standards for preclinical cancer research. Nature. 2012;483(7391):531-3. doi:10.1038/483531a",
+  "doi": "10.1038/483531a",
+  "url": "https://doi.org/10.1038/483531a",
+  "short": "Begley CG et al. Raise standards for preclinical cancer research. Nature 2012"
+ },
+ "baker2016": {
+  "vancouver": "Baker M. 1,500 scientists lift the lid on reproducibility. Nature. 2016;533(7604):452-4. doi:10.1038/533452a",
+  "doi": "10.1038/533452a",
+  "url": "https://doi.org/10.1038/533452a",
+  "short": "Baker M Nature 2016"
+ },
+ "simmons2011": {
+  "vancouver": "Simmons JP, Nelson LD, Simonsohn U. False-positive psychology: undisclosed flexibility in data collection and analysis allows presenting anything as significant. Psychol Sci. 2011;22(11):1359-66. doi:10.1177/0956797611417632",
+  "doi": "10.1177/0956797611417632",
+  "url": "https://doi.org/10.1177/0956797611417632",
+  "short": "Simmons JP et al. Psychol Sci 2011"
+ },
+ "john2012": {
+  "vancouver": "John LK, Loewenstein G, Prelec D. Measuring the prevalence of questionable research practices with incentives for truth telling. Psychol Sci. 2012;23(5):524-32. doi:10.1177/0956797611430953",
+  "doi": "10.1177/0956797611430953",
+  "url": "https://doi.org/10.1177/0956797611430953",
+  "short": "John LK et al. Measuring the prevalence of questionable research practices with incentives for truth telling. Psychol Sci 2012"
+ },
+ "chambers2013": {
+  "vancouver": "Chambers CD. Registered Reports: a new publishing initiative at Cortex. Cortex. 2013;49(3):609-10. doi:10.1016/j.cortex.2012.12.016",
+  "doi": "10.1016/j.cortex.2012.12.016",
+  "url": "https://doi.org/10.1016/j.cortex.2012.12.016",
+  "short": "Chambers CD Cortex 2013"
+ },
+ "nosek2015": {
+  "vancouver": "Nosek BA, Alter G, Banks GC, et al. Promoting an open research culture. Science. 2015;348(6242):1422-5. doi:10.1126/science.aab2374",
+  "doi": "10.1126/science.aab2374",
+  "url": "https://doi.org/10.1126/science.aab2374",
+  "short": "Nosek BA et al. Promoting an open research culture. Science 2015"
+ },
+ "grant2026": {
+  "vancouver": "Grant S, Corker KS, Mellor D, et al. TOP 2025: an update to the Transparency and Openness Promotion Guidelines. Res Integr Peer Rev. 2026;11(1):40. doi:10.1186/s41073-026-00223-0",
+  "doi": "10.1186/s41073-026-00223-0",
+  "url": "https://doi.org/10.1186/s41073-026-00223-0",
+  "short": "Grant S et al. Res Integr Peer Rev 2026"
+ },
+ "costa2025": {
+  "vancouver": "Costa C, Pezzetta R, Toffalini E, et al. Enhancing the quality and reproducibility of research: Preferred Evaluation of Cognitive and Neuropsychological Studies - the PECANS statement for human studies. Behav Res Methods. 2025;57(7):182. doi:10.3758/s13428-025-02705-3",
+  "doi": "10.3758/s13428-025-02705-3",
+  "url": "https://doi.org/10.3758/s13428-025-02705-3",
+  "short": "Costa C et al. Behav Res Methods 2025"
+ },
+ "tyner2026": {
+  "vancouver": "Tyner AH, Abatayo AL, Daley M, et al. Investigating the replicability of the social and behavioural sciences. Nature. 2026;652(8108):143-50. doi:10.1038/s41586-025-10078-y",
+  "doi": "10.1038/s41586-025-10078-y",
+  "url": "https://doi.org/10.1038/s41586-025-10078-y",
+  "short": "Tyner AH et al. Investigating the replicability of the social and behavioural sciences. Nature 2026"
+ },
+ "hardwicke2024": {
+  "vancouver": "Hardwicke TE, Thibault RT, Clarke B, et al. Prevalence of transparent research practices in psychology: a cross-sectional study of empirical articles published in 2022. Adv Methods Pract Psychol Sci. 2024;7(4):25152459241283477. doi:10.1177/25152459241283477",
+  "doi": "10.1177/25152459241283477",
+  "url": "https://doi.org/10.1177/25152459241283477",
+  "short": "Hardwicke TE et al. Adv Methods Pract Psychol Sci 2024"
+ },
+ "binney2025": {
+  "vancouver": "Binney RJ, Smith LJ, Rossit S, et al. Practical routes to preregistration: a guide to enhanced transparency and rigour in neuropsychological research. Brain Commun. 2025;7(3):fcaf162. doi:10.1093/braincomms/fcaf162",
+  "doi": "10.1093/braincomms/fcaf162",
+  "url": "https://doi.org/10.1093/braincomms/fcaf162",
+  "short": "Binney RJ et al. Brain Commun 2025"
+ },
+ "scheel2021": {
+  "vancouver": "Scheel AM, Schijen MRMJ, Lakens D. An excess of positive results: comparing the standard psychology literature with Registered Reports. Adv Methods Pract Psychol Sci. 2021;4(2):25152459211007467. doi:10.1177/25152459211007467",
+  "doi": "10.1177/25152459211007467",
+  "url": "https://doi.org/10.1177/25152459211007467",
+  "short": "Scheel AM et al. Adv Methods Pract Psychol Sci 2021"
+ },
+ "ocollins2006": {
+  "vancouver": "O'Collins VE, Macleod MR, Donnan GA, et al. 1,026 experimental treatments in acute stroke. Ann Neurol. 2006;59(3):467-77. doi:10.1002/ana.20741",
+  "doi": "10.1002/ana.20741",
+  "url": "https://doi.org/10.1002/ana.20741",
+  "short": "O'Collins VE et al. Ann Neurol 2006"
+ },
+ "sena2010": {
+  "vancouver": "Sena ES, van der Worp HB, Bath PM, et al. Publication bias in reports of animal stroke studies leads to major overstatement of efficacy. PLoS Biol. 2010;8(3):e1000344. doi:10.1371/journal.pbio.1000344",
+  "doi": "10.1371/journal.pbio.1000344",
+  "url": "https://doi.org/10.1371/journal.pbio.1000344",
+  "short": "Sena ES et al. Publication bias in reports of animal stroke studies leads to major overstatement of efficacy. PLoS Biol 2010"
+ },
+ "lees2006": {
+  "vancouver": "Lees KR, Zivin JA, Ashwood T, et al; SAINT I Trial Investigators. NXY-059 for acute ischemic stroke. N Engl J Med. 2006;354(6):588-600. doi:10.1056/NEJMoa052980",
+  "doi": "10.1056/NEJMoa052980",
+  "url": "https://doi.org/10.1056/NEJMoa052980",
+  "short": "Lees KR et al. N Engl J Med 2006"
+ },
+ "protzko2023": {
+  "vancouver": "Protzko J, Krosnick J, Nelson L, et al. High replicability of newly discovered social-behavioural findings is achievable. Nat Hum Behav. 2024;8(2):311-9. doi:10.1038/s41562-023-01749-9. Retraction in: Nat Hum Behav. 2024;8(10):2067. doi:10.1038/s41562-024-01997-3",
+  "doi": "10.1038/s41562-023-01749-9",
+  "url": "https://doi.org/10.1038/s41562-023-01749-9",
+  "short": "Protzko J et al. High replicability of newly discovered social-behavioural findings is achievable. Nat Hum Behav 2024"
+ },
+ "miske2026": {
+  "vancouver": "Miske O, Abatayo AL, Daley M, et al. Investigating the reproducibility of the social and behavioural sciences. Nature. 2026;652(8108):126-34. doi:10.1038/s41586-026-10203-5",
+  "doi": "10.1038/s41586-026-10203-5",
+  "url": "https://doi.org/10.1038/s41586-026-10203-5"
+ }
+}
