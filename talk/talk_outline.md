@@ -7,7 +7,7 @@ Speaker: Sebastian Fridman (Western University, London, Canada).
 Version 4 (2026-10-13, evening): the introduction now shows the open-source lesion-analysis pipelines of
 neuroscience, a new slide says where psychology and neuroscience stand today (consensus documents, the
 newest replication results, neuropsychology), a disclosure slide is slide 2 (no disclosures), and the congress
-.pptx uses the WSC template only for the title and disclosure slides (talk/deck/congress/). Sources for the new
+.pptx is the same deck in the same look, converted to editable PowerPoint (talk/deck/congress/). Sources for the new
 slides, each re-checked against its source: talk/evidence_intro.md.
 
 Version 3 (2026-10-13). The arc the speaker asked for: the moment that started the project,
@@ -42,8 +42,8 @@ found, and what I think we should do with it."
 
 ## 2. Disclosure (0:20, 5 s) — required by the congress
 
-The congress requires its conflict-of-interest slide as slide 2. In the .pptx it is the template's own slide with
-"No, nothing to disclose" ticked; the HTML deck has a matching slide. The speaker confirmed no disclosures on
+The congress requires its conflict-of-interest slide as slide 2. Both decks show the congress form in the deck's
+own look (the speaker's choice, 2026-10-14): "No, nothing to disclose" ticked, and the nine categories with "None". The speaker confirmed no disclosures on
 2026-10-13; if the congress's published faculty list still shows otherwise, ask the congress office to correct it.
 
 ## 3. Where I come from: in lesion neuroscience, the whole pipeline is open (0:25, 50 s) — NEW in version 4

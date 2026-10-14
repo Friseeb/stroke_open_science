@@ -1,21 +1,22 @@
-"""Build the World Stroke Congress 2026 talk as a .pptx: the congress template for the opening, the talk's own
-design after it.
+"""Build the World Stroke Congress 2026 talk as a .pptx in the talk's own design.
 
-Slides 1 and 2 come from the official speaker template (WSC-2026-PPT_w_disclosure_16_9.pptx): the title slide with
-name and title, and the conflict-of-interest slide the congress requires as slide 2, rebuilt as editable tables.
-Every later slide is the Slides deck (talk/deck/project) converted to native, editable PowerPoint shapes: text boxes,
+Every slide is the Slides deck (talk/deck/project) converted to native, editable PowerPoint shapes: text boxes,
 filled and bordered boxes, rules and JPG pictures, at the positions Chrome measured with the congress fonts
-(extract_slides.js). The HTML deck is the single source, so the two presentations always agree.
+(extract_slides.js). The HTML deck is the single source, so the two presentations always agree. Slide 1 (cover) carries
+the name and title and slide 2 (disclosure) the congress's conflict-of-interest form, both in the deck's look.
 
-Congress rules followed: 16:9; slide 1 = name and title; slide 2 = the template's disclosure; common fonts only
+With --template WSC-2026-PPT_w_disclosure_16_9.pptx the first two slides come from the official speaker template
+instead (its title slide, and its disclosure rebuilt as editable tables with "No" ticked); the speaker chose the deck's
+own look for all slides on 2026-10-14, so this is off by default.
+
+Congress rules followed: 16:9; slide 1 = name and title; slide 2 = conflict-of-interest disclosure; common fonts only
 (Arial, and Times New Roman for the big figures); pictures as JPG; no logos.
 
 Usage:
   NODE_PATH=<dir>/node_modules node talk/deck/congress/extract_slides.js talk/deck/project \
       talk/outputs/figures/dashboard /tmp/wsc_extract
-  python talk/deck/congress/build_wsc_pptx.py --template WSC-2026-PPT_w_disclosure_16_9.pptx \
-      --extract /tmp/wsc_extract --out talk/deck/congress/Fridman_WSC2026_open_science.pptx \
-      --preview-dir /tmp/wsc_preview --bg-title title_bg.png
+  python talk/deck/congress/build_wsc_pptx.py --extract /tmp/wsc_extract \
+      --out talk/deck/congress/Fridman_WSC2026_open_science.pptx --preview-dir /tmp/wsc_preview
 """
 from __future__ import annotations
 
@@ -47,7 +48,7 @@ FONT_FILES = {
 EMU_PX = 914400 * 10 / 1920      # the 1920 x 1080 canvas onto a 10 x 5.625 in slide
 PT_PX = 72 * 10 / 1920           # 0.375 pt per canvas pixel
 WIDTH_SLACK = 0.03               # text boxes 3% wider than Chrome's, so PowerPoint never wraps a line earlier
-SKIP_IDS = {"cover", "disclosure"}  # the template's title and disclosure slides stand in for these
+TEMPLATE_IDS = {"cover", "disclosure"}  # replaced by the template's own slides when --template is given
 
 WHITE, PALE = "FFFFFF", "DCE6F5"
 INDIGO, GREEN = "2E247A", "52AE32"   # disclosure colours, sampled from the template's picture
@@ -178,7 +179,7 @@ def write_item(slide, item, use_title):
     else:
         shp = slide.shapes.add_textbox(emu(x), emu(y), emu(w), emu(h))
     tf = shp.text_frame
-    prepare_frame(tf)
+    prepare_frame(tf, {"bottom": MSO_ANCHOR.BOTTOM, "middle": MSO_ANCHOR.MIDDLE}.get(item.get("valign"), MSO_ANCHOR.TOP))
     p = tf.paragraphs[0]
     p.alignment = {"center": PP_ALIGN.CENTER, "right": PP_ALIGN.RIGHT, "end": PP_ALIGN.RIGHT}.get(item.get("align"), PP_ALIGN.LEFT)
     p.line_spacing = Pt(round(item["lineHeight"] * PT_PX * 100) / 100)
@@ -337,18 +338,27 @@ def delete_slide(prs, slide):
             return
 
 
-def build_pptx(template: Path, extract: dict, out: Path, media: Path):
-    prs = Presentation(str(template))
-    title_slide, disc_slide = prs.slides[0], prs.slides[1]
-    protos = [prs.slides[i] for i in range(2, len(prs.slides))]
-    layout = protos[0].slide_layout if protos else title_slide.slide_layout
-
+def build_pptx(template: Path | None, extract: dict, out: Path, media: Path):
     by_id = {s["id"]: s for s in extract["slides"]}
-    build_title(title_slide, by_id.get("cover", {}).get("notes", ""))
-    build_disclosure(disc_slide)
+    skip, protos = set(), []
+    if template:
+        prs = Presentation(str(template))
+        title_slide, disc_slide = prs.slides[0], prs.slides[1]
+        protos = [prs.slides[i] for i in range(2, len(prs.slides))]
+        layout = protos[0].slide_layout if protos else title_slide.slide_layout
+        build_title(title_slide, by_id.get("cover", {}).get("notes", ""))
+        build_disclosure(disc_slide)
+        skip = TEMPLATE_IDS
+    else:
+        prs = Presentation()                         # python-pptx's blank template, set to 16:9
+        prs.slide_width, prs.slide_height = Emu(9144000), Emu(5143500)
+        layout = next(l for l in prs.slide_layouts if l.name == "Title Only")
+    core = prs.core_properties
+    core.title, core.author = "Open science in stroke research", "Sebastian Fridman"
+    core.subject = "World Stroke Congress 2026, Seoul: The latest in stroke implementation science"
 
     for sid in extract["order"]:
-        if sid in SKIP_IDS:
+        if sid in skip:
             continue
         s = by_id[sid]
         slide = prs.slides.add_slide(layout)
@@ -385,11 +395,11 @@ def build_pptx(template: Path, extract: dict, out: Path, media: Path):
 # =============================================================================================
 # checks and preview
 # =============================================================================================
-def fit_report(extract):
+def fit_report(extract, skip=frozenset()):
     """Lines PowerPoint will need (Arial / Times metrics, widened box) against the lines Chrome laid out."""
     problems = []
     for s in extract["slides"]:
-        if s["id"] in SKIP_IDS:
+        if s["id"] in skip:
             continue
         for item in s["texts"]:
             x, y, w, h, indent = box_geometry(item)
@@ -407,12 +417,12 @@ def fit_report(extract):
     return problems
 
 
-def render_preview(extract, out_dir: Path, bg_title: Path | None):
+def render_preview(extract, out_dir: Path, bg_title: Path | None, skip=frozenset()):
     """Draw each converted slide from the extracted layout with PIL: what the .pptx contains, not Chrome's render."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    n = 3
+    n = 3 if skip else 1
     for s in extract["slides"]:
-        if s["id"] in SKIP_IDS:
+        if s["id"] in skip:
             continue
         im = Image.new("RGB", (1920, 1080), "#" + (css_rgb(s["bg"]) or "F1F1EF"))
         d = ImageDraw.Draw(im)
@@ -434,7 +444,9 @@ def render_preview(extract, out_dir: Path, bg_title: Path | None):
         for item in s["texts"]:
             x, y, w, h, indent = box_geometry(item)
             lh = item["lineHeight"]
-            for li, line in enumerate(wrap(item, w - indent)):
+            lines = wrap(item, w - indent)
+            y += {"bottom": h - lh * len(lines), "middle": (h - lh * len(lines)) / 2}.get(item.get("valign"), 0)
+            for li, line in enumerate(lines):
                 lw = sum(text_w(p_, r) for p_, r in line)
                 align = item.get("align", "left")
                 cx = x + indent + {"center": (w - indent - lw) / 2, "right": w - indent - lw,
@@ -450,7 +462,7 @@ def render_preview(extract, out_dir: Path, bg_title: Path | None):
                 y += lh
         im.save(out_dir / f"{n:02d}-{s['id']}.png")
         n += 1
-    if bg_title:
+    if bg_title and skip:
         t = Image.open(bg_title).convert("RGB").resize((1920, 1080))
         d = ImageDraw.Draw(t)
         for (x, y, w, h), text, size, bold, color in TITLE_LINES:
@@ -460,7 +472,7 @@ def render_preview(extract, out_dir: Path, bg_title: Path | None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--template", type=Path, required=True)
+    ap.add_argument("--template", type=Path, help="optional: open with the official WSC title and disclosure slides")
     ap.add_argument("--extract", type=Path, required=True, help="output folder of extract_slides.js (slides.json)")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--media", type=Path, help="JPG cache (default: <out dir>/media)")
@@ -469,12 +481,13 @@ def main():
     args = ap.parse_args()
 
     extract = json.loads((args.extract / "slides.json").read_text())
-    for p in fit_report(extract):
+    skip = TEMPLATE_IDS if args.template else frozenset()
+    for p in fit_report(extract, skip):
         print("FIT", p)
     build_pptx(args.template, extract, args.out, args.media or args.out.parent / "media")
     print("wrote", args.out)
     if args.preview_dir:
-        render_preview(extract, args.preview_dir, args.bg_title)
+        render_preview(extract, args.preview_dir, args.bg_title, skip)
         print("previews in", args.preview_dir)
 
 

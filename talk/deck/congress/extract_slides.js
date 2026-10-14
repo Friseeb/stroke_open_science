@@ -137,7 +137,8 @@ async function main() {
         const tops = new Set();
         for (const cr of range.getClientRects()) if (cr.width > 0.5) tops.add(Math.round(cr.top));
         const lh = cs.lineHeight === "normal" ? px(cs.fontSize) * 1.15 : px(cs.lineHeight);
-        const item = { tag: el.tagName, ...content, align: cs.textAlign, lineHeight: lh, lines: tops.size, runs };
+        const valign = (el.tagName === "TD" || el.tagName === "TH") ? cs.verticalAlign : "top";  // cells stretch to the row
+        const item = { tag: el.tagName, ...content, align: cs.textAlign, valign, lineHeight: lh, lines: tops.size, runs };
         if (el.tagName === "LI") {
           const ul = el.parentElement;
           item.bullet = cs.listStyleType !== "none";
