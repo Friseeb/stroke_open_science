@@ -611,7 +611,7 @@ def add_table(slide, el):
             r.font.size = Pt(st["size"])
             r.font.italic = st.get("italic", False)
             r.font.bold = st.get("bold", False)
-            r.font.color.rgb = rgb(st["color"])
+            r.font.color.rgb = rgb(st.get("col_colors", {}).get(j, st["color"]))
             cell_border(cell, el["grid"])
     return gf
 
@@ -709,10 +709,10 @@ DISCLOSURE_COLS = [342, 122, 146, 109, 110, 118, 110, 123, 224]  # pixel widths 
 def disclosure_elements():
     scale = 8.51 / sum(DISCLOSURE_COLS)
     cols = [c * scale for c in DISCLOSURE_COLS]
-    box = TABLE(0.34, 0.31, [0.48, 4.25], [0.4, 0.4], [["", "No, nothing to disclose"], ["", "Yes, please specify:"]],
+    box = TABLE(0.34, 0.31, [0.48, 4.25], [0.4, 0.4], [["x", "No, nothing to disclose"], ["", "Yes, please specify:"]],
                 header_fill=[INDIGO, GREEN], body_fill=[INDIGO, GREEN],
-                header_style={"size": 15, "color": "000000", "left_cols": (1,)},
-                body_style={"size": 15, "color": "000000", "left_cols": (1,)}, grid="000000")
+                header_style={"size": 15, "color": "000000", "left_cols": (1,), "col_colors": {0: WHITE}},
+                body_style={"size": 15, "color": "000000", "left_cols": (1,), "col_colors": {0: WHITE}}, grid="000000")
     grid = TABLE(0.30, 1.63, cols, [0.75, 0.48, 0.48, 0.48, 0.48],
                  [DISCLOSURE_HEADER] + [[""] * 9 for _ in range(4)],
                  header_fill=INDIGO, body_fill=GREEN,
@@ -735,14 +735,13 @@ def build_pptx(template: Path, spec, out: Path, slides_dir: Path):
     add_elements(title_slide, title_slide_extras())
     set_notes(title_slide, notes_from_html(slides_dir, "cover"))
 
-    # slide 2: the disclosure, rebuilt as editable tables (the template ships it as two pictures with "No" ticked)
+    # slide 2: the disclosure, rebuilt as editable tables (the template ships it as two pictures). The speaker has
+    # nothing to disclose (confirmed 2026-10-13), so "No" carries the x and the company table stays empty.
     for shp in list(disc_slide.shapes):
         if shp.shape_type == 13:
             shp._element.getparent().remove(shp._element)
     add_elements(disc_slide, disclosure_elements())
-    set_notes(disc_slide, "Required by the congress. Tick one box by typing an x in the blue cell, and list any "
-                          "company in the table. The congress's published faculty disclosure list shows Speakers "
-                          "Bureau, Regeneron/Bayer, under Other; confirm it, or ask wsc@kenes.com to correct it.")
+    set_notes(disc_slide, "Nothing to disclose. Required by the congress; leave it up for a second and move on.")
 
     # content slides: each copies the template's own white background (an SVG on the slide, not the 4:3 layout image)
     for s in spec:
@@ -812,7 +811,8 @@ def draw_table(d, el, scale_px):
             d.rectangle([x, y, x + cw * PX_IN, y + rh * PX_IN], fill="#" + fill, outline="#" + el["grid"])
             if txt:
                 sub = T(x / PX_IN + 0.03, y / PX_IN, cw - 0.06, rh,
-                        P(R(txt, st["size"], st.get("bold", False), st.get("italic", False), st["color"]),
+                        P(R(txt, st["size"], st.get("bold", False), st.get("italic", False),
+                            st.get("col_colors", {}).get(j, st["color"])),
                           align="l" if j in st.get("left_cols", ()) else "c"), anchor="m")
                 draw_text(d, sub, scale_px)
             x += cw * PX_IN
