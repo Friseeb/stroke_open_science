@@ -1,6 +1,6 @@
 """Generate the talk's slides (talk/deck/project/slides/*.html and deck.json) from one place.
 
-Version 5 (2026-10-14), the speaker's brief: white background, black text, less text and clutter, one idea per
+Version 6 (2026-10-14), the speaker's brief: white background, black text, less text and clutter, one idea per
 slide, stories told from the benchmark data with a pointer to where each one lives on the dashboard, numbered
 references with a QR code to the full list. Details live in the speaker notes (<aside>).
 
@@ -11,6 +11,7 @@ congress .pptx is converted from these files by talk/deck/congress/extract_slide
 """
 from __future__ import annotations
 
+import base64
 import json
 import re
 from pathlib import Path
@@ -23,7 +24,7 @@ SLIDES = ROOT / "project" / "slides"
 REFS_JSON = ROOT / "references.json"          # resolved references (key -> vancouver, doi, url, short)
 REFS_MD = ROOT.parent / "references.md"
 
-DASHBOARD = "https://friseeb.github.io/stroke_open_science_outputs/"
+DASHBOARD = "https://friseeb.github.io/stroke-open-science/"
 CODE = "https://github.com/Friseeb/stroke_open_science"
 REFS_URL = "https://github.com/Friseeb/stroke_open_science/blob/talk/wsc2026/talk/references.md"
 
@@ -33,7 +34,7 @@ PAID, FREE, BRONZE, TRACK = "#eda100", "#1baf7a", "#9a5a1f", "#d6d6d2"
 FIELD_COLORS = {"stroke": RED, "cardiology": "#eda100", "neurology": "#2a78d6", "neuroscience": "#1baf7a"}
 SANS = "'Instrument Sans', Helvetica, Arial, sans-serif"
 EYEBROW = "World Stroke Congress 2026 · Seoul"
-DASH_SHORT = "friseeb.github.io/stroke_open_science_outputs"
+DASH_SHORT = "friseeb.github.io/stroke-open-science"
 CODE_SHORT = "github.com/Friseeb/stroke_open_science"
 
 # ---- references, numbered by first appearance ---------------------------------------------------
@@ -71,6 +72,22 @@ def p(text, size=32, weight=400, color=INK, lh=None, extra=""):
 def title(text, size=68):
     return (f'<h2 style="font-size:{size}px;font-weight:600;line-height:1.08;letter-spacing:-1.5px;'
             f'color:{INK}">{text}</h2>')
+
+
+def illustration(name, alt, width=1640, height=540):
+    return (f'<img src="../../assets/{name}" alt="{alt}" '
+            f'style="width:{width}px;height:{height}px;object-fit:contain;align-self:center">')
+
+
+def evidence_rows(items, maximum=100, width=1100, height=70, gap=28, label_width=380):
+    """One comparison, directly labelled; denominator and provenance stay in the notes/footer."""
+    rows = []
+    for label, value, shown, color in items:
+        rows.append(f'<div style="display:flex;gap:28px;align-items:center">'
+                    f'{p(label, 40, 600, INK, 50, f"width:{label_width}px;")}'
+                    f'<div style="width:{width}px">{bar(width * value / maximum, color, height)}</div>'
+                    f'{p(shown, 46, 600, color, 56, "width:150px;")}</div>')
+    return f'<div style="display:flex;flex-direction:column;gap:{gap}px">{"".join(rows)}</div>'
 
 
 def slide(sid, body, notes, page=None, gap=40, footer=""):
@@ -122,19 +139,19 @@ def qr_svg(url, size=220, label=""):
             f'<path d="{d}" fill="{INK}"/></svg>')
 
 
-def line_chart_svg(series, years, width=1664, height=600, y0=40, y1=85, ticks=(40, 50, 60, 70, 80), focus="stroke"):
+def line_chart_svg(series, years, width=1664, height=600, y0=40, y1=85, ticks=(40, 60, 80), focus="stroke"):
     """Open access by year, drawn natively: one line per field, direct end labels, no legend."""
     L, R, T, B = 110, 370, 20, 70
     pw, ph = width - L - R, height - T - B
     X = lambda i: L + pw * i / (len(years) - 1)
     Y = lambda v: T + ph * (1 - (v - y0) / (y1 - y0))
-    out = [f'<svg aria-label="Open access by year, 2015 to 2024, stroke against cardiology, neurology and neuroscience" '
+    out = [f'<svg aria-label="Open access in stroke articles, 2015 to 2024" '
            f'viewBox="0 0 {width} {height}" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">']
     for t in ticks:
         out.append(f'<line x1="{L}" x2="{L + pw}" y1="{Y(t):.1f}" y2="{Y(t):.1f}" stroke="#e4e4e1" stroke-width="2"/>')
         out.append(f'<text x="{L - 18}" y="{Y(t) + 11:.1f}" font-size="32" fill="{GREY}" text-anchor="end">{t}%</text>')
     for i, y in enumerate(years):
-        if i % 1 == 0:
+        if i in (0, len(years) - 1):
             out.append(f'<text x="{X(i):.1f}" y="{height - 16}" font-size="30" fill="{GREY}" text-anchor="middle">{y}</text>')
     order = sorted(series, key=lambda k: k == focus)            # draw the focus line last
     for k in order:
@@ -164,21 +181,21 @@ def line_chart_svg(series, years, width=1664, height=600, y0=40, y1=85, ticks=(4
 # ---- the deck -----------------------------------------------------------------------------------
 def build():
     S = []
+    NOTES = json.loads((ROOT / "speaker_notes.json").read_text())
 
     S.append(("cover", slide("cover", [
-        p("World Stroke Congress 2026 · Seoul · The latest in stroke implementation science", 26, 400, GREY, 32,
-          "letter-spacing:2px;text-transform:uppercase;"),
-        '<div style="flex:1"></div>',
-        f'<div style="width:120px;height:8px;background:{RED}"></div>',
+        '<img src="../../assets/wsc2026-banner.jpg" alt="Official WSC 2026 Seoul congress banner" '
+        'style="position:absolute;left:0;top:0;width:1920px;height:192px;object-fit:contain">',
+        '<div style="height:96px"></div>',
         f'<h1 style="font-size:132px;font-weight:600;line-height:0.98;letter-spacing:-5px;color:{INK}">Open science<br>in stroke research</h1>',
-        p("Measuring reproducibility and transparency, and what to do with the numbers", 44, 400, MID, 56,
-          "width:1640px;"),
+        p("What stroke research makes available", 48, 400, MID, 60),
         '<div style="flex:1"></div>',
-        '<div style="display:flex;flex-direction:column;gap:8px">'
-        + p("Sebastian Fridman, MD", 38, 600) + p("Western University · London Health Sciences Centre · Canada", 30, 400, MID)
-        + "</div>",
-    ], "Ten seconds. One sentence, no agenda: how this project started, what it found, and what I think we should "
-       "do with it.", gap=36)))
+        p("Sebastian Fridman, MD", 40, 600),
+        p("Western University · London Health Sciences Centre", 30, 400, MID),
+    ], "Ten seconds. This benchmark measures transparency and the availability of research materials; it does not "
+       "test whether reported findings reproduce or replicate. Official WSC banner, used at the speaker's request: "
+       "https://worldstrokecongress.org/promotional-toolkit/ ; asset: "
+       "https://wsc2026.kenes.com/wp-content/uploads/sites/32/2025/11/WSC-2026-banner-900x90px_v3.jpg", gap=28)))
 
     box = lambda mark: (f'<div style="width:52px;height:52px;border:3px solid {INK};display:flex;align-items:center;'
                         f'justify-content:center">' + (p("×", 38, 600, INK, 38) if mark else "") + "</div>")
@@ -197,344 +214,104 @@ def build():
         f'<table style="width:1664px;table-layout:fixed"><tr>{th}</tr><tr>{td}</tr></table>',
     ], "Required by the congress as the second slide: nothing to disclose. Two seconds, then move on.", page=2)))
 
-    stages = [("Segment", ["ITK-SNAP", "DeepISLES"]), ("Normalise", ["SPM Clinical Toolbox", "ANTs"]),
-              ("Map symptoms", ["VLSM", "LESYMAP"]), ("Map networks", ["BCBtoolkit", "Lesion network mapping"]),
-              ("Share", ["BIDS", "OpenNeuro"])]
-    cols = "".join(
-        f'<div style="flex:1;display:flex;flex-direction:column;gap:10px;padding:20px 28px 0 0;border-top:2px solid {INK}">'
-        + p(f"{i + 1}&nbsp;&nbsp;{lab}", 32, 600, RED, 40) + "".join(p(t, 36, 400, INK, 46) for t in tools) + "</div>"
-        for i, (lab, tools) in enumerate(stages))
-    refs = cite("yushkevich2006", "delarosa2025", "rorden2012", "avants2008", "bates2003", "pustina2018",
-                "foulon2018", "boes2015", "gorgolewski2016", "markiewicz2021", "liew2022", "hernandez2022", "gibson2024")
-    S.append(("spark", slide("spark", [
-        title("In lesion neuroscience, the whole pipeline is open"),
-        f'<div style="display:flex">{cols}</div>',
-        tiles([("955", "public stroke MRIs with traced lesions (ATLAS)", INK),
-               ("250", "public acute stroke MRIs (ISLES 2022)", INK),
-               ("230", "people with aphasia: MRI and language scores", INK)], num_size=88, cap_size=32),
-        p("Yet 12 of 17 methods built on ATLAS reported no public code.", 44, 600, RED),
-    ], "Fifty seconds, first person. I came to stroke from imaging and neuroscience. There, a lesion study is built "
-       "from open parts at every step: segmentation (ITK-SNAP; DeepISLES, from the ISLES 2022 winners), normalisation "
-       "that respects the lesion (SPM Clinical Toolbox, ANTs), lesion-symptom mapping (VLSM since 2003, LESYMAP), "
-       "network and disconnection mapping (BCBtoolkit, lesion network mapping) and sharing (BIDS, OpenNeuro). The data "
-       "are real: ATLAS v2.0 has 1,271 traced MRIs, 955 public; ISLES 2022 released 250 of 400 cases; the Aphasia "
-       "Recovery Cohort is CC0 on OpenNeuro. The red line is the bridge: open data alone did not bring open code (Liew "
-       "2022). Then the turn: when I moved to clinical stroke, the trial data and code were not there.",
-       page=3, footer=refs, gap=40)))
+    refs = cite("yushkevich2006", "delarosa2025", "rorden2012", "avants2008", "bates2003", "pustina2018", "boes2015", "foulon2018", "gorgolewski2016", "markiewicz2021", "liew2022", "hernandez2022", "gibson2024")
+    S.append(("spark", slide("spark", [title("Open tools shaped my stroke research"),
+        illustration("open-lesion-science.png", "Conceptual stroke imaging, lesion analysis, network mapping and shared materials", height=570),
+        p("Open imaging tools. Reusable lesion datasets.", 44, 600), p("Sharing enables independent checks.", 40, 400, MID),
+    ], NOTES["spark"], page=3, footer=refs, gap=22)))
 
-    refs = cite("osc2015", "button2013", "begley2012", "baker2016", "simmons2011", "john2012")
-    S.append(("crisis", slide("crisis", [
-        title("The fields next door had their crisis first"),
-        tiles([("36%", "of psychology findings replicated", RED),
-               ("21%", "median statistical power in neuroscience", INK),
-               ("6 of 53", "landmark cancer studies reproduced", INK),
-               ("70%", "of 1,576 scientists had failed to reproduce another lab's experiment", INK)], num_size=100, cap_size=34),
-        p("Why: small samples, flexible analyses, selective reporting.", 44, 600),
-    ], "Forty-five seconds. These are my former fields; say so. Psychology: 35 of 97 replications significant (36%), "
-       "effects half the size (Open Science Collaboration 2015). Neuroscience: median power 21% (Button 2013). "
-       "Preclinical cancer: Amgen reproduced 6 of 53 landmark findings (Begley 2012). More than 70% of 1,576 researchers "
-       "had failed to reproduce another scientist's experiment (Baker 2016). Why: four routine analysis choices raise "
-       "a 5% false-positive rate to 61% (Simmons 2011); 63% of 2,155 psychologists admitted not reporting all their "
-       "measures (John 2012).", page=4, footer=refs, gap=56)))
+    refs = cite("nas2019")
+    S.append(("crisis", slide("crisis", [title("Reproducibility and replication"),
+        illustration("reproducibility-replication.png", "Same data and code reanalysed; independent participants assessed for the same question", height=540),
+        '<div style="display:flex;gap:100px"><div style="flex:1;text-align:center">' + p("Reproducibility",46,600) + p("Same data, same analysis.",40,400,MID)
+        + '</div><div style="flex:1;text-align:center">' + p("Replication",46,600) + p("New data, same question.",40,400,MID) + '</div></div>',
+    ], NOTES["crisis"], page=4, footer=refs, gap=20)))
 
-    agreed = [("2013", "Registered Reports: peer review before results, now in 300+ journals"),
-              ("2015", "Transparency and Openness Promotion (TOP) guidelines for journals"),
-              ("2025", "PECANS: a consensus checklist for neuropsychology studies")]
-    rows = "".join(f'<div style="display:flex;gap:32px;align-items:baseline;padding:20px 0;border-top:1px solid {HAIR}">'
-                   f'{p(y, 44, 600, INK, 52, "width:130px;")}{p(t, 36, 400, INK, 46, "flex:1;")}</div>' for y, t in agreed)
-    now = [("55%", "of 274 published claims replicated (2026)", RED),
-           ("14%", "of psychology papers share raw data (2022)", INK),
-           ("1 of 62", "Cortex Registered Reports studied patients", INK)]
-    stats = "".join(f'<div style="display:flex;flex-direction:column;gap:6px;padding:18px 0;border-top:1px solid {HAIR}">'
-                    f'{p(n, 88, 600, c, 88, "letter-spacing:-2px;")}{p(t, 32, 400, MID)}</div>' for n, t, c in now)
-    refs = cite("chambers2013", "nosek2015", "grant2026", "costa2025", "tyner2026", "miske2026",
-                "hardwicke2024", "binney2025", "scheel2021", "protzko2023")
-    S.append(("crisis-now", slide("crisis-now", [
-        title("Ten years on, the rules exist. Practice lags."),
-        f'<div style="display:flex;gap:80px;align-items:start">'
-        f'<div style="flex:1;display:flex;flex-direction:column">{p("What they agreed on", 30, 600, GREY, 40, "padding:0 0 8px 0;")}{rows}</div>'
-        f'<div style="width:600px;display:flex;flex-direction:column">{p("Where they are now", 30, 600, GREY, 40, "padding:0 0 8px 0;")}{stats}</div></div>',
-    ], "Sixty seconds. Psychology did not fix itself: it measured itself, agreed on rules, and is still short of them. "
-       "Agreed: Registered Reports (launched at Cortex in 2013, now more than 300 journals); the TOP guidelines (2015, "
-       "5,000+ signatories, revised as TOP 2025, which adds independent verification to disclosing and sharing); PECANS "
-       "(2025), a Delphi consensus checklist for cognitive and neuropsychological studies, 206 experts. Now: the SCORE "
-       "project (Nature, April 2026) replicated 151 of 274 claims from social and behavioural science papers published "
-       "2009-2018 (55%), effects fell from r = 0.25 to 0.10, and authors made data available for only 24% of 600 papers "
-       "(Miske 2026). In 2022, 7% of psychology papers were preregistered and 14% shared raw data (Hardwicke 2024). Only "
-       "1 of 62 Registered Reports in Cortex studied patients; the most common barrier neuropsychologists name is "
-       "sharing sensitive clinical data (12 of 23; Binney 2025). Registered Reports report 44% positive results against "
-       "96% (Scheel 2021). The best-known claim that rigour alone restores replication (Protzko 2023) was retracted in "
-       "2024. Closest to this room: lesion network mapping, used in 200+ studies, was challenged in Nature Neuroscience "
-       "in January 2026 using only public data; that debate exists because the data were open.",
-       page=5, footer=refs)))
+    refs = cite("osc2015", "tyner2026")
+    dots = ''.join(f'<div style="width:24px;height:24px;border-radius:50%;background:{RED if i<151 else TRACK}"></div>' for i in range(274))
+    S.append(("crisis-now", slide("crisis-now", [title("SCORE: 55% of claims replicated"),
+        p("Social and behavioural science",40,400,MID),
+        f'<div style="display:grid;grid-template-columns:repeat(22,24px);gap:12px;align-self:center;margin-top:24px">{dots}</div>',
+        legend([("Replicated",RED),("Not replicated",TRACK)],36),
+    ], NOTES["crisis-now"], page=5, footer=refs + " · One mark per tested claim", gap=24)))
 
-    stroke_rows = [("Neuroprotection", "1,026 candidates tested in animals; none helped patients"),
-                   ("Tirofiban", "RESCUE BT (with thrombectomy): no benefit.<br>RESCUE BT2 (no large-vessel occlusion): benefit."),
-                   ("MMA embolisation", "Subdural haematoma: three NEJM trials in one week, two positive, one neutral")]
-    rows = "".join(f'<div style="display:flex;gap:40px;align-items:baseline;padding:32px 0;border-top:1px solid {HAIR}">'
-                   f'{p(a, 40, 600, INK, 50, "width:420px;")}{p(b, 40, 400, INK, 50, "flex:1;")}</div>' for a, b in stroke_rows)
-    refs = cite("ocollins2006", "sena2010", "lees2006", "shuaib2007", "qiu2022", "zi2023", "davies2024", "fiorella2024", "liu2024")
-    S.append(("stroke-crisis", slide("stroke-crisis", [
-        title("Stroke has the same problem"),
-        f'<div style="display:flex;flex-direction:column;border-bottom:1px solid {HAIR}">{rows}</div>',
-        p("Without protocols, data and code, we cannot tell why results differ.", 44, 600),
-    ], "Fifty seconds, three examples the room knows; do not editorialise on any trial. O'Collins catalogued 1,026 "
-       "experimental treatments in animal stroke, 114 taken to patients; no neuroprotectant translated (thrombolysis is "
-       "the exception), and publication bias overstated animal efficacy by about a third (Sena 2010); NXY-059: SAINT I "
-       "positive, SAINT II negative. Tirofiban: no benefit before thrombectomy in RESCUE BT (JAMA 2022), benefit over "
-       "aspirin without large or medium vessel occlusion in RESCUE BT2 (NEJM 2023): a different question or a different "
-       "answer? Middle meningeal artery embolisation for subdural haematoma: EMBOLISE positive (repeat surgery 4.1% vs "
-       "11.3%), STEM positive (16% vs 36%), MAGIC-MT neutral (6.7% vs 9.9%, P = 0.10), all in the NEJM in the week of "
-       "20 November 2024 (STEM online, print 2025).", page=6, footer=refs, gap=48)))
+    refs = cite("nas2019", "rauh2020")
+    S.append(("stroke-crisis", slide("stroke-crisis", [title("Stroke research needs inspectable evidence"),
+        illustration("stroke-transparency.png", "Stroke protocol, data and code available for independent inspection", height=530),
+        p("Protocols explain what was planned.",40,600), p("Data and code enable independent checks.",40),
+        p("Different patients can produce different results.",40,400,MID),
+    ], NOTES["stroke-crisis"], page=6, footer=refs, gap=16)))
 
-    four = [("Read it", "Open access?"), ("Check it", "Data or code linked?"),
-            ("Reuse it", "Data deposited, not &ldquo;on request&rdquo;?"), ("Plan it", "Registered?")]
-    cols = "".join(f'<div style="flex:1;display:flex;flex-direction:column;gap:10px;padding:20px 32px 0 0;border-top:2px solid {INK}">'
-                   f'{p(a, 32, 600, RED, 40)}{p(b, 44, 600, INK, 52)}</div>' for a, b in four)
     refs = cite("rauh2020", "heckerman2025", "scutt2020", "priem2022", "europepmc", "benchmark2026")
-    stats = tiles([("140,281", "stroke articles, 2015–2025 (OpenAlex)", INK),
-                   ("16,362", "open-access full texts read (Europe PMC)", INK),
-                   ("6", "months between open re-runs", INK)], num_size=96, cap_size=32)
-    S.append(("method", slide("method", [
-        title("Four measures, every stroke paper since 2015"),
-        f'<div style="display:flex">{cols}</div>',
-        '<div style="flex:1"></div>',
-        f'<div style="display:flex;gap:56px;align-items:end"><div style="flex:1">{stats}</div>'
-        f'<div style="display:flex;flex-direction:column;gap:10px;align-items:start">{qr_svg(DASHBOARD, 230, "QR code: benchmark dashboard")}'
-        f'{p("Every number, live", 28, 600, INK, 34)}</div></div>',
-    ], "Forty-five seconds. Audits like this exist for neurology (Rauh 2020) and cardiology (Heckerman 2025), and data "
-       "requests have been tested in vascular and cognitive trials (Scutt 2020); we found none of stroke publications. "
-       "The benchmark reads OpenAlex for every stroke journal article and review with a DOI since 2015 (140,281 for "
-       "2015-2025, title search), then reads up to 1,500 open-access full texts a year through Europe PMC (16,362 for "
-       "stroke), with neurology, neuroscience and cardiology measured the same way. It re-runs every six months; code "
-       "and data are open, and every number on the next slides is on the public dashboard: the QR code. Open-access full "
-       "text only, so full-text rates run high.", page=7, footer=refs)))
+    S.append(("method", slide("method", [title("Four transparency checks"),
+        p("Can we read the paper?",58,600), p("Can we inspect and reuse materials?",58,600), p("Was the study registered?",58,600),
+        '<div style="flex:1"></div>', f'<div style="display:flex;gap:48px;align-items:center">{qr_svg(DASHBOARD,220,"Live stroke benchmark")}'
+        + p("Stroke publications since 2015",38,400,MID) + '</div>',
+    ], NOTES["method"] + " The four indicators are access, data, code and registration. Data and code are grouped in one spoken question. These measure transparency, not successful reproducibility.", page=7, footer=refs, gap=34)))
 
-    years = list(range(2015, 2025))
-    series = {"stroke": [52.8, 53.9, 53.8, 58.2, 57.3, 64.9, 69.9, 73.8, 76.9, 75.2],
-              "cardiology": [59.6, 60.9, 60.7, 61.0, 60.4, 68.6, 72.7, 75.4, 79.9, 77.5],
-              "neurology": [50.8, 49.6, 48.3, 54.3, 54.5, 62.1, 64.9, 68.8, 72.0, 71.9],
-              "neuroscience": [55.9, 56.2, 57.0, 58.9, 60.6, 63.9, 66.4, 68.9, 72.3, 70.1]}
     bench = cite("benchmark2026")
-    S.append(("oa-trend", slide("oa-trend", [
-        title("Stroke went open access: 53% in 2015, 75% in 2024"),
-        line_chart_svg(series, years),
-    ], "Thirty-five seconds. The good-news slide. Open access = any OpenAlex status other than closed. Stroke sits "
-       "between cardiology and neurology in every complete year (2015-2024); in the incomplete 2025 it edges past "
-       "cardiology. Do not rank neuroscience: about 45% of it comes from the title term 'neural', much of it machine "
-       "learning.", page=8, footer=f"{bench} · Open access: any status except closed · Dashboard: 02 Trends", gap=32)))
+    years = list(range(2015,2025))
+    series = {"stroke":[52.8,53.9,53.8,58.2,57.3,64.9,69.9,73.8,76.9,75.2]}
+    S.append(("oa-trend",slide("oa-trend",[title("Stroke papers became easier to read"),line_chart_svg(series,years)],
+        NOTES["oa-trend"] + " Figure shows stroke only; comparators remain on the live dashboard.",page=8,footer=f"{bench} · Stroke articles · 2015–2024",gap=32)))
 
-    yrs = [(2015, 18.6, 18.9, 15.3), (2016, 20.2, 21.0, 12.7), (2017, 20.7, 21.7, 11.4), (2018, 23.5, 21.6, 13.1),
-           (2019, 24.9, 22.1, 10.4), (2020, 30.8, 24.5, 9.7), (2021, 37.2, 23.7, 9.0), (2022, 43.6, 22.1, 8.0),
-           (2023, 42.5, 23.5, 10.9), (2024, 44.1, 23.9, 7.2)]
-    H = 5.0   # px per percentage point: 100% = 500 px
-    def column(y_, a_, b_, c_):
-        lab = f'{p(f"{a_:.0f}%", 30, 600, INK, 34)}' if y_ in (2015, 2024) else p("&nbsp;", 30, 400, INK, 34)
-        return (f'<div style="display:flex;flex-direction:column;align-items:center;gap:8px">{lab}'
-                f'<div style="width:72px;height:{round((100 - a_ - b_ - c_) * H)}px;background:{TRACK}"></div>'
-                f'<div style="display:flex;flex-direction:column;gap:0">{bar(72, BRONZE, round(c_ * H))}{bar(72, FREE, round(b_ * H))}{bar(72, PAID, round(a_ * H))}</div>'
-                f'{p(str(y_), 28, 400, GREY, 34)}</div>')
-    colsv = "".join(column(*r_) for r_ in yrs)
-    S.append(("oa-type", slide("oa-type", [
-        title("The growth was paid for"),
-        legend([("Paid fee", PAID), ("Free to author", FREE), ("Bronze", BRONZE), ("Closed", TRACK)], 30),
-        '<div style="display:flex;gap:72px;align-items:end">'
-        f'<div style="display:flex;gap:14px;align-items:end">{colsv}</div>'
-        '<div style="flex:1;display:flex;flex-direction:column;gap:44px">'
-        + '<div style="display:flex;flex-direction:column;gap:10px">' + p("44%", 128, 600, RED, 128, "letter-spacing:-3px;")
-        + p("of stroke articles paid a fee in 2024 (19% in 2015)", 36, 400, MID) + "</div>"
-        + '<div style="display:flex;flex-direction:column;gap:10px">' + p("24%", 128, 600, INK, 128, "letter-spacing:-3px;")
-        + p("were free to authors in 2024 (19% in 2015)", 36, 400, MID) + "</div></div></div>",
-    ], "Forty seconds. Open access grew because someone paid. Paid routes (gold and hybrid) went from 19% of all stroke "
-       "articles in 2015 to 44% in 2024; free routes (diamond and green) from 19% to 24%; bronze, free to read without a "
-       "licence, fell from 15% to 7%. Of the open articles, 59% paid a fee in 2024 (35% in 2015). Next: who pays.",
-       page=9, footer=f"{bench} · Share of all stroke articles by route, 2015–2024 · Dashboard: 02 Trends", gap=32)))
+    strips = []
+    for year,gold,free,bronze in [("2015",18.6,18.9,15.3),("2024",44.1,23.9,7.2)]:
+        segments = ''.join(bar(v*11.8,c,120) for v,c in [(gold,PAID),(free,FREE),(bronze,BRONZE),(100-gold-free-bronze,TRACK)])
+        strips.append(f'<div style="display:flex;gap:32px;align-items:center">{p(year,44,600,INK,54,"width:130px;")}<div style="display:flex">{segments}</div>{p(f"{gold:.0f}%",48,600,PAID)}</div>')
+    S.append(("oa-type",slide("oa-type",[title("Gold and hybrid drove access growth"),
+        legend([("Gold / hybrid",PAID),("Diamond / green",FREE),("Bronze",BRONZE),("Closed",TRACK)],34),
+        '<div style="height:50px"></div>','<div style="display:flex;flex-direction:column;gap:80px">'+''.join(strips)+'</div>',
+    ],NOTES["oa-type"],page=9,footer=f"{bench} · All stroke articles · Publication routes",gap=36)))
 
-    groups = [("High income", 83, 56, 67), ("Upper-middle income", 72, 68, 70), ("Lower-middle income", 74, 75, 75)]
-    scale = 9.0
-    def grow(g, a, b, overall):
-        lowest = g == "High income"
-        return (f'<div style="display:flex;gap:32px;align-items:center;padding:18px 0;border-top:1px solid {HAIR}">'
-                f'<div style="width:380px;display:flex;flex-direction:column;gap:4px">{p(g, 36, 600, INK, 44)}{p(f"{overall}% open overall", 28, 400, GREY, 34)}</div>'
-                f'<div style="flex:1;display:flex;flex-direction:column;gap:10px">'
-                f'<div style="display:flex;gap:16px;align-items:center">{bar(a * scale, INK, 44)}{p(f"{a}%", 36, 600)}</div>'
-                f'<div style="display:flex;gap:16px;align-items:center">{bar(b * scale, RED if lowest else "#9a9a95", 44)}'
-                f'{p(f"{b}%" + (" &nbsp;least open" if lowest else ""), 36, 600 if lowest else 400, RED if lowest else MID)}</div>'
-                f'</div></div>')
-    rows = "".join(grow(*g_) for g_ in groups)
-    S.append(("who-pays", slide("who-pays", [
-        title("In rich countries, open access depends on a funder"),
-        legend([("A funder is listed", INK), ("No funder listed", "#9a9a95")], 30),
-        f'<div style="display:flex;flex-direction:column;border-bottom:1px solid {HAIR}">{rows}</div>',
-    ], "Forty-five seconds. This is the story behind 'paid for'. Funded papers are 79% open against 60% without a "
-       "funder, and 54% of funded papers paid an article fee against 25%. In high-income countries the funder is the "
-       "switch: 83% open with a funder, 56% without, the least open group of all (29,055 and 44,147 articles); overall, "
-       "high-income first authors are the least open (67%). In lower-middle-income countries open access does not depend "
-       "on a funder (74% vs 75%): it comes through free routes. Low-income countries: 400 articles, too few to show. "
-       "Caveat: 'funder' means a funder listed in OpenAlex, which misses some acknowledgements.",
-       page=10, footer=f"{bench} · Open access 2015–2025 by first author's World Bank income group · Dashboard: 04 Income groups")))
+    S.append(("who-pays",slide("who-pays",[title("Funding is associated with open access"),p("Stroke · High-income first authors",40,400,MID),
+        '<div style="height:55px"></div>',evidence_rows([("Funder listed",83,"83%",RED),("No funder listed",56,"56%",INK)],width=1000,height=120,gap=90),
+    ],NOTES["who-pays"],page=10,footer=f"{bench} · OpenAlex funding metadata · 2015–2025",gap=30)))
 
-    countries = [("Indonesia", "upper-middle", 26.2, 63.8, 5.4), ("Netherlands", "high", 61.0, 17.9, 11.5),
-                 ("United Kingdom", "high", 47.6, 19.5, 10.7), ("Korea", "high", 36.9, 31.1, 7.2),
-                 ("India", "lower-middle", 21.0, 40.9, 8.3), ("Germany", "high", 51.5, 8.2, 9.2),
-                 ("Japan", "high", 28.0, 28.9, 11.2), ("Australia", "high", 37.0, 15.7, 13.4),
-                 ("China", "upper-middle", 51.3, 8.2, 4.8), ("Canada", "high", 31.4, 11.8, 15.5),
-                 ("United States", "high", 23.5, 19.9, 14.4)]
-    sc = 9.0
-    rows = "".join(
-        f'<div style="display:flex;gap:24px;align-items:center">'
-        f'<div style="width:470px;display:flex;gap:14px;align-items:baseline">{p(c, 32, 600 if c in ("United States", "Indonesia") else 400, INK, 38)}{p(inc_, 24, 400, GREY, 30)}</div>'
-        f'<div style="display:flex;gap:0;align-items:center">{bar(a * sc, PAID, 32)}{bar(b * sc, FREE, 32)}{bar(z * sc, BRONZE, 32)}</div>'
-        f'{p(f"{a + b + z:.0f}%", 32, 600, INK, 38)}</div>' for c, inc_, a, b, z in countries)
-    S.append(("countries", slide("countries", [
-        title("Open access follows policy, not wealth"),
-        legend([("Paid fee", PAID), ("Free to author", FREE), ("Bronze", BRONZE)], 30),
-        f'<div style="display:flex;flex-direction:column;gap:8px">{rows}</div>',
-    ], "Forty seconds. The ten largest producers plus the Netherlands, first-author country, 2015-2025. The United "
-       "States, the largest high-income producer, is the least open (58%; 42% closed). The United Kingdom (78%) and the "
-       "Netherlands (90%) are open mostly by paying: national funders there require and fund open access. Indonesia "
-       "(95%, upper-middle income) and India (70%, lower-middle) are open mostly through free routes, national free "
-       "journals. The Netherlands (61%), Germany and China (about half) pay most often. Wealth does not predict it; "
-       "policy and the journals a community publishes in do.", page=11,
-       footer=f"{bench} · Ten largest producers plus the Netherlands, 2015–2025 · Dashboard: 05 Rankings", gap=32)))
+    rows = []
+    for country,gold,free,bronze in [("Indonesia",26.2,63.8,5.4),("Netherlands",61.0,17.9,11.5),("Korea",36.9,31.1,7.2),("United States",23.5,19.9,14.4)]:
+        segments = ''.join(bar(v*9.5,c,85) for v,c in [(gold,PAID),(free,FREE),(bronze,BRONZE),(100-gold-free-bronze,TRACK)])
+        rows.append(f'<div style="display:flex;gap:30px;align-items:center">{p(country,42,600,INK,54,"width:370px;")}<div style="display:flex">{segments}</div>{p(f"{gold+free+bronze:.0f}%",42,600)}</div>')
+    S.append(("countries",slide("countries",[title("Access differs across stroke research communities"),
+        legend([("Gold / hybrid",PAID),("Diamond / green",FREE),("Bronze",BRONZE),("Closed",TRACK)],30),
+        '<div style="display:flex;flex-direction:column;gap:38px">'+''.join(rows)+'</div>',
+    ],NOTES["countries"],page=11,footer=f"{bench} · Selected first-author countries · 2015–2025",gap=32)))
 
-    S.append(("flat", slide("flat", [
-        title("Data and code did not move in ten years"),
-        p("Stroke articles, abstracts and metadata, 2024", 34, 400, GREY),
-        tiles([("0.2%", "link data in a repository (0.2% in 2015)", RED),
-               ("&lt;0.1%", "link code (below 0.1% every year since 2015)", INK)], num_size=144, cap_size=36),
-        '<div style="flex:1"></div>',
-        p("So we read the full text.", 44, 600),
-    ], "Thirty-five seconds. Lower bounds from abstracts and metadata, 2024: data in a repository 0.2% (0.2% in 2015, "
-       "never above 0.6%); code links below 0.1% in every complete year. What did move: registration IDs, 2.8% to 5.3% "
-       "of articles with an abstract, and preprints, 2.7% in 2024, partly publisher-driven (Research Square, SSRN). "
-       "Pooled over 2015-2025, high-impact articles are barely better at sharing (data 0.45% vs 0.34%). Then the pivot: "
-       "so we read the full text.", page=12, footer=f"{bench} · Dashboard: 01 Indicators")))
+    # Reuse the pipeline's exact metadata rates, rather than inventing tiny bar lengths.
+    import csv
+    with (ROOT.parent / "outputs/tables/rates_by_discipline_year.csv").open() as fh:
+        rates = next(r for r in csv.DictReader(fh) if r["discipline"]=="stroke" and r["year"]=="2024")
+    metadata = [("Open access",float(rates["oa_rate"])*100,"75%",INK),("Data links",float(rates["data_rate"])*100,"0.2%",RED),("Code links",float(rates["code_rate"])*100,"&lt;0.1%",RED)]
+    S.append(("flat",slide("flat",[title("Access grew; sharing links remained scarce"),p("From abstracts and metadata",40,400,MID),
+        '<div style="height:24px"></div>',evidence_rows(metadata,width=970,height=75,gap=62),
+    ],NOTES["flat"],page=12,footer=f"{bench} · Stroke articles · 2024",gap=30)))
 
-    refs = cite("benchmark2026", "gabelica2022", "scutt2020")
-    S.append(("das", slide("das", [
-        title("Full texts promise data. Few deposit it."),
-        p("Open-access stroke full texts published in 2025 (1,500 read)", 34, 400, GREY),
-        tiles([("74%", "write a data statement<br>(14% in 2015)", INK), ("29%", "say &ldquo;available on request&rdquo;<br>(0.6% in 2015)", RED),
-               ("9.8%", "deposit or cite public data<br>(0.7% in 2015)", INK)], num_size=144, cap_size=36),
-        '<div style="flex:1"></div>',
-        p("The statements arrived with journal mandates. The data did not.", 44, 600),
-    ], "Sixty seconds; the slide people photograph. Open-access stroke full texts published in 2025 (the audit reads "
-       "1,500 a year, so the year is complete for the audit): 74% write a data statement (14% in 2015), 29% say "
-       "'available on request', now the most common answer, and 9.8% deposit data or name a public source (own "
-       "repository deposit 5.9%). In 2024: 69%, 30% and 7.3%. 'On request' delivers little: 6.8% of authors shared when "
-       "asked (Gabelica 2022); 20% of 391 vascular and cognitive trials, median 241 days (Scutt 2020). Against the other "
-       "fields, 2022-2025, stroke says 'on request' most often (30%; neurology 27%, neuroscience 26%, cardiology 24%). "
-       "Open-access full texts only, so these rates are optimistic for stroke overall.",
-       page=13, footer=f"{refs} · Dashboard: 03 Data statements")))
+    refs = cite("benchmark2026","gabelica2022","scutt2020")
+    S.append(("das",slide("das",[title("Statements outnumber deposits and public sources"),
+        evidence_rows([("Statement",74,"74%",INK),("On request",29,"29%",MID),("Deposit / public source",9.8,"9.8%",RED)],width=940,height=85,gap=75,label_width=450),
+    ],NOTES["das"] + " Statement presence overlaps the other indicators; these rows do not partition all statements.",page=13,footer=f"{refs} · OA stroke full texts · 2025",gap=65)))
 
-    inc = [("High income", 43, 4.0), ("Upper-middle income", 57, 5.2), ("Lower-middle income", 23, 1.8)]
-    u = 16.0   # one scale for both panels: px per percentage point
-    def panel(head, idx, fmt):
-        rows_ = "".join(
-            f'<div style="display:flex;gap:24px;align-items:center">{p(g, 32, 400, INK, 40, "width:380px;")}'
-            f'{bar(row[idx] * u, RED if g.startswith("Lower") else INK, 40)}{p(fmt(row[idx]), 32, 600, RED if g.startswith("Lower") else INK)}</div>'
-            for row in inc for g in [row[0]])
-        return f'<div style="display:flex;flex-direction:column;gap:14px">{p(head, 34, 600)}{rows_}</div>'
-    S.append(("equity", slide("equity", [
-        title("Free to read is not free to reuse"),
-        p("Lower-middle-income authors: most open to read (75%), least likely to share data", 36, 400, MID),
-        f'<div style="display:flex;flex-direction:column;gap:36px;padding:28px 0 0 0;border-top:2px solid {INK}">'
-        f'{panel("Write a data statement", 1, lambda v: f"{v:.0f}%")}{panel("Deposit or cite public data", 2, lambda v: f"{v:.1f}%")}</div>',
-    ], "Forty seconds. Among the three larger income groups, lower-middle-income first authors are the most open to "
-       "read (75%, 42% through diamond or green), yet in open-access full texts, 2015-2025, they write a data statement "
-       "in 23% (high 43%, upper-middle 57%) and deposit or name a public source in 1.8% (4.0%, 5.2%), from 609 audited "
-       "articles; the gap holds in 2022-2025. Both panels use the same scale, which is the point: deposit is tiny "
-       "everywhere. Low-income countries (400 articles, 77 audited) are too few to show. Korea: 5,490 first-author "
-       "articles, 75% open.", page=14,
-       footer=f"{bench} · Open-access full texts, 2015–2025; lower-middle n = 609 · Dashboard: 04 Income groups")))
+    S.append(("equity",slide("equity",[title("Stroke data access differs by income"),p("Deposited or public source",40,400,MID),
+        evidence_rows([("High income",4.0,"4.0%",INK),("Upper-middle",5.2,"5.2%",INK),("Lower-middle",1.8,"1.8%",RED)],maximum=6,width=960,height=80,gap=60),
+    ],NOTES["equity"] + " This figure shows only deposit/public-source rates, with a 0-6% scale.",page=14,footer=f"{bench} · OA stroke audit · 2015–2025",gap=45)))
 
-    # Charité counted once: its Center for Stroke Research Berlin and Berlin Institute of Health are merged into it
-    # (configs/institution_aliases.csv); recomputed from the 2026-10-13 run, dashboard selection (top 60, 82+ audited)
-    inst = [("Charité – Universitätsmedizin Berlin", 4.4), ("University of Oxford", 2.9), ("UKE Hamburg-Eppendorf", 2.6),
-            ("University of Edinburgh", 2.5), ("Stanford University", 2.3), ("University of Nottingham", 2.2),
-            ("Massachusetts General Hospital", 2.2), ("University of Glasgow", 2.1)]
-    unit = 150
-    rows = "".join(f'<div style="display:flex;gap:28px;align-items:center">{p(n, 32, 400, INK, 38, "width:680px;")}'
-                   f'<div style="display:flex;gap:0">{bar(unit, "#c8c8c4", 34)}{bar((v - 1) * unit, RED, 34)}</div>'
-                   f'{p(f"{v:.1f}&times;", 32, 600)}</div>' for n, v in inst)
-    S.append(("commitment", slide("commitment", [
-        title("Some teams already share, and we can measure them"),
-        legend([("Stroke average (1&times;)", "#c8c8c4"), ("Above the average", RED)], 30),
-        f'<div style="display:flex;flex-direction:column;gap:12px">{rows}</div>',
-        p("Commitment index: data deposit, GitHub and trial registration in the full text, against the stroke average.", 30, 400, MID),
-    ], "Forty-five seconds. The index is the mean, over three full-text signals (data deposited or public source, GitHub, "
-       "trial registration), of an institution's rate divided by the stroke rate; 1 = stroke average. Shown: the top of "
-       "the 60 institutions with the most audited articles (82 or more each), as on the dashboard. Charité is counted "
-       "once: OpenAlex lists its Center for Stroke Research Berlin and the Berlin Institute of Health separately, and "
-       "those are merged into it (133 audited articles; deposit or public source 9.8%, GitHub 10.5%, trial registration "
-       "37%). Small counts are a hint, not a ranking. Journals: among the 40 largest on the dashboard, the Journal of Cerebral Blood Flow and "
-       "Metabolism leads (2.7x) and Stroke is fourth (1.5x); among smaller journals with at least 30 audited articles, "
-       "Nature Communications, Brain Communications and PeerJ lead. The point: the measurement exists, is cheap, and is "
-       "what a prize would recognise.", page=15,
-       footer=f"{bench} · 60 institutions with 82+ audited full texts, 2015–2025 · Dashboard: 05 Rankings", gap=32)))
+    S.append(("commitment",slide("commitment",[title("Sharing practices can be measured"),p("Deposit · Code · Registration",38,400,MID),
+        evidence_rows([("Charité",4.4,"4.4×",RED),("Oxford",2.9,"2.9×",INK),("UKE Hamburg",2.6,"2.6×",INK),("Edinburgh",2.5,"2.5×",INK)],maximum=5,width=960,height=64,gap=35),
+        p("Relative to the stroke average",36,400,MID),
+    ],NOTES["commitment"] + " Four descriptive examples; sample sizes and full comparison remain on the dashboard.",page=15,footer=f"{bench} · Descriptive index · Sample sizes differ",gap=28)))
 
-    rows_m = [("3.1% → 3.1%", "Data obtainable from surgical trials, before and after the ICMJE rule", RED),
-              ("No effect", "Open-data badges in a medical-journal randomised trial (OR 0.9)", INK),
-              ("1 of 92", "Promotion guidelines that mention data sharing", INK),
-              ("44% vs 96%", "Positive results: Registered Reports vs standard papers", INK)]
-    rows = "".join(f'<div style="display:flex;gap:40px;align-items:center;padding:20px 0;border-top:1px solid {HAIR}">'
-                   f'{p(a, 56, 600, c, 60, "width:440px;letter-spacing:-1.5px;")}{p(b, 36, 400, INK, 46, "flex:1;")}</div>'
-                   for a, b, c in rows_m)
-    refs = cite("bergeat2022", "rowhanifarid2020", "kidwell2016", "rice2020", "scheel2021", "cobey2024")
-    S.append(("mandates", slide("mandates", [
-        title("Rules produced statements, not data"),
-        f'<div style="display:flex;flex-direction:column;border-bottom:1px solid {HAIR}">{rows}</div>',
-        '<div style="flex:1"></div>',
-        p("We respond to incentives, and ours point the other way.", 44, 600),
-    ], "Fifty seconds, the pivot. The ICMJE data-statement rule left obtainable data at 3.1% in surgical trials (Bergeat "
-       "2022). Open-data badges: OR 0.9 in the first randomised trial in medicine, at BMJ Open (Rowhani-Farid 2020), "
-       "though they took Psychological Science from under 3% to 23% open data, 39% by early 2015 (Kidwell 2016). In 2020, "
-       "1 of 92 biomedical promotion guidelines mentioned data sharing, and none open access or registration (Rice 2020). "
-       "Registered Reports: 44% positive results against 96% (Scheel 2021): changing when review happens changes what is "
-       "published. Cardiology researchers name funding as the most essential incentive; 'policy alone will not lead to "
-       "the effective implementation of open science' (Cobey 2024). Stroke researchers are not less honest than "
-       "psychologists; they respond to the same incentives.", page=16, footer=refs)))
+    refs = cite("bergeat2022")
+    S.append(("mandates",slide("mandates",[title("A rule does not ensure access"),p("Obtainable data from surgical trials",40,400,MID),
+        evidence_rows([("Before ICMJE rule",3.1,"3.1%",INK),("After ICMJE rule",3.1,"3.1%",RED)],maximum=5,width=900,height=120,gap=100,label_width=480),
+    ],NOTES["mandates"],page=16,footer=refs + " · Bergeat et al. · JAMA Network Open",gap=48)))
 
-    asks = [("1", "A WSO task force", ["Open-science position statement", "Retire &ldquo;on request&rdquo; in stroke journals"]),
-            ("2", "A prize", ["For the teams that share", "Scored by the commitment index"]),
-            ("3", "Awareness", ["Benchmark every six months", "Open science in promotion criteria"])]
-    cols = "".join(f'<div style="flex:1;display:flex;flex-direction:column;gap:16px;padding:24px 40px 0 0;border-top:2px solid {INK}">'
-                   f'{p(n, 104, 600, RED if n == "1" else INK, 104)}{p(h, 44, 600, INK, 52)}'
-                   + "".join(p(b, 36, 400, MID, 46) for b in bs) + "</div>" for n, h, bs in asks)
-    S.append(("future", slide("future", [
-        title("What to do next"),
-        f'<div style="display:flex">{cols}</div>',
-        '<div style="flex:1"></div>',
-        p("A target to discuss: data deposited for 25% of stroke articles by 2030 (about 6% today).", 40, 600),
-    ], "One minute forty-five. Task force: a WSO position statement (neither WSO nor ESO has one); retire 'available on "
-       "request' in Stroke, IJS, ESJ and JSCVD in favour of a repository, VISTA or Vivli, or a stated reason; Registered "
-       "Reports for stroke trials with in-principle acceptance tied to WSO and ESO grants; embargoed sharing as the trial "
-       "default, twelve months after publication. Prize: the commitment index, verified in full text and recomputed every "
-       "six months, for institutions, journals, funders and countries. Awareness: the public benchmark; open-science items "
-       "in promotion criteria (in 2020, 1 of 92 guidelines mentioned data sharing, and none open access or registration). "
-       "Targets to discuss: data in a repository or controlled-access platform for 25% of stroke articles by 2030 (own "
-       "repository deposit was 5.9% of 2025 open-access full texts); 'on request' under 10%; one Registered Report track "
-       "in a stroke journal by 2028. The statement, retiring 'on request' and promotion criteria cost nothing; Registered "
-       "Reports, the prize and the infrastructure need money, and the infrastructure mostly exists: VISTA and Vivli for "
-       "trial data, ATLAS and OpenNeuro for imaging, ENIGMA for pooled analysis. Invite the WSO leadership in the room "
-       "to take the task force home.", page=17)))
+    S.append(("future",slide("future",[title("A proposal for the WSO"),p("Create a WSO task force.",62,600),p("Reward verified sharing.",62,600),p("Track progress through this benchmark.",62,600)],NOTES["future"],page=17,gap=90)))
 
-    qr = lambda url, head, sub, short: (
-        f'<div style="flex:1;display:flex;flex-direction:column;gap:12px;align-items:start">{qr_svg(url, 300, head)}'
-        f'{p(head, 38, 600, INK, 46)}{p(sub, 30, 400, MID, 38)}{p(short, 24, 400, GREY, 30)}</div>')
-    S.append(("close", slide("close", [
-        p("The numbers are not flattering, but they are measurable, which means they are improvable.", 50, 600, INK, 60,
-          "width:1640px;letter-spacing:-1px;"),
-        '<div style="display:flex;gap:48px">'
-        + qr(DASHBOARD, "Benchmark", "Explore every number; next update January 2027", DASH_SHORT)
-        + qr(CODE, "Code and data", "Open source: run it on your field", CODE_SHORT)
-        + qr(REFS_URL, "References", "Full list with DOIs", CODE_SHORT + " › talk/references.md")
-        + "</div>",
-        p("Sebastian Fridman · sfridma@uwo.ca · Join the task force, or audit your own field", 34, 600, INK),
-    ], "Thirty seconds. One line, then stop. Leave the QR codes up during questions: the benchmark dashboard, the code "
-       "and data, and the references. Thank the session chairs.", page=18, gap=48)))
-
+    qr = lambda url,label: (f'<div style="flex:1;display:flex;flex-direction:column;gap:24px;align-items:start">{qr_svg(url,320,label)}{p(label,40,600)}</div>')
+    S.append(("close",slide("close",[title("Measure, share, and improve stroke research"),'<div style="height:35px"></div>',
+        '<div style="display:flex;gap:70px">'+qr(DASHBOARD,"Benchmark")+qr(CODE,"Code and data")+qr(REFS_URL,"References")+'</div>',
+        '<div style="flex:1"></div>',p("Sebastian Fridman · sfridma@uwo.ca",38,600),
+    ],NOTES["close"],page=18,gap=35)))
     return S
 
 
@@ -622,7 +399,7 @@ World Stroke Congress 2026, Seoul. Thu 22 Oct 2026, 15:45-16:00 (15 min), sessio
 "The latest in stroke implementation science" (ID 340), Conference Room 202-203.
 Speaker: Sebastian Fridman (Western University, London, Canada).
 
-Version 5 (2026-10-14). The speaker's brief: white background and black text; less clutter and less text, one idea
+Version 6 (2026-10-14). The speaker's brief: white background and black text; less clutter and less text, one idea
 per slide with the details in the speaker notes; stories told from the benchmark data, each pointing to the dashboard
 section where it can be seen (e.g. who pays for open access, and which countries are open); numbered references with a
 QR code to the full list (talk/references.md). Slides and this outline are generated by talk/deck/make_slides.py; edit
@@ -680,6 +457,22 @@ def write_outline(slides):
     OUTLINE.write_text("\n".join(out) + ("\n---\n\n" + tail if tail else ""))
 
 
+def write_preview(slides):
+    """Portable browser preview: generated from the same slide sources, with assets embedded."""
+    def embed(match):
+        path = ROOT / "assets" / match.group(1)
+        mime = "image/jpeg" if path.suffix == ".jpg" else "image/png"
+        return 'src="data:' + mime + ';base64,' + base64.b64encode(path.read_bytes()).decode() + '"'
+    frames = []
+    for sid, html in slides:
+        html = re.sub(r'src="\.\./\.\./assets/([^\"]+)"', embed, html)
+        frames.append('<div class="frame">' + html + '</div>')
+    head = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WSC 2026 · Open science in stroke research</title><style>'
+    css = '*{box-sizing:border-box;margin:0}body{background:#dedede;font-family:Arial,sans-serif}.frame{width:min(100vw,1920px);aspect-ratio:16/9;margin:24px auto;overflow:hidden;box-shadow:0 2px 10px #aaa}section{position:relative;width:1920px;height:1080px;overflow:hidden;transform:scale(var(--scale));transform-origin:top left;font-family:Arial,sans-serif!important}section *{font-family:Arial,sans-serif!important}aside{display:none}table{border-collapse:collapse}'
+    script = '<script>function scale(){document.documentElement.style.setProperty("--scale",Math.min(innerWidth/1920,1))}scale();addEventListener("resize",scale)</script>'
+    (ROOT / "preview.html").write_text(head + css + '</style></head><body>' + ''.join(frames) + script + '</body></html>')
+
+
 def main():
     slides = build()
     slides += ref_slides(len(slides) + 1)
@@ -691,15 +484,16 @@ def main():
     deck = json.loads(deck_path.read_text())
     deck["order"] = [sid for sid, _ in slides]
     deck["sections"] = {
-        "story": {"description": "Where I come from, the crisis next door and where it stands, the same problem in stroke", "start": "cover"},
+        "story": {"description": "Open imaging, definitions, replication evidence and transparency in stroke", "start": "cover"},
         "measure": {"description": "What we measured and how", "start": "method"},
-        "findings": {"description": "Open access grew and was paid for; who pays; data and code did not move; who shares", "start": "oa-trend"},
-        "next": {"description": "Why mandates alone failed; what to do next; collaborate; references", "start": "mandates"},
+        "findings": {"description": "Stroke access routes, funding associations, detected sharing and inspectable data", "start": "oa-trend"},
+        "next": {"description": "Access after a journal rule; proposed WSO action; collaborate; references", "start": "mandates"},
     }
     deck["faces"] = {k: v for k, v in deck.get("faces", {}).items() if k == "instrument-sans"}
     deck_path.write_text(json.dumps(deck, indent=2, ensure_ascii=False) + "\n")
     stale = sorted(f.stem for f in SLIDES.glob("*.html") if f.stem not in keep)
     write_outline(slides)
+    write_preview(slides)
     print("slides:", len(slides), "| references:", len(REF_ORDER), "| stale slide files:", stale,
           "| references.md:", write_references_md(), "| outline: written")
 

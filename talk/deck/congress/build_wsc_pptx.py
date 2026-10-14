@@ -10,7 +10,8 @@ instead (its title slide, and its disclosure rebuilt as editable tables with "No
 own look for all slides on 2026-10-14, so this is off by default.
 
 Congress rules followed: 16:9; slide 1 = name and title; slide 2 = conflict-of-interest disclosure; common fonts only
-(Arial, and Times New Roman for the big figures); pictures as JPG; no logos.
+(Arial, and Times New Roman for the big figures); pictures as JPG. The official WSC cover banner is included
+at the speaker's request. Conceptual illustrations are separate from empirical evidence graphics.
 
 Usage:
   NODE_PATH=<dir>/node_modules node talk/deck/congress/extract_slides.js talk/deck/project \
@@ -201,7 +202,8 @@ def write_item(slide, item, use_title):
 def add_box(slide, b):
     fill = css_rgb(b["fill"]) if b.get("fill") else None
     if fill:
-        shp = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, emu(b["x"]), emu(b["y"]), emu(b["w"]), emu(b["h"]))
+        shp = slide.shapes.add_shape(MSO_SHAPE.OVAL if b.get("round") else MSO_SHAPE.RECTANGLE,
+                                     emu(b["x"]), emu(b["y"]), emu(b["w"]), emu(b["h"]))
         shp.fill.solid()
         shp.fill.fore_color.rgb = rgb(fill)
         shp.line.fill.background()
@@ -338,6 +340,40 @@ def delete_slide(prs, slide):
             return
 
 
+def add_native_evidence_svg(slide, sv):
+    """Keep the OA time series editable; QR paths still export as pictures."""
+    if not sv.get("markup") or "<polyline" not in sv["markup"]:
+        return False
+    root = etree.fromstring(sv["markup"].encode())
+    view = list(map(float, root.get("viewBox").split()))
+    sx, sy = sv["w"] / view[2], sv["h"] / view[3]
+    X = lambda value: sv["x"] + float(value) * sx
+    Y = lambda value: sv["y"] + float(value) * sy
+    def segment(x1, y1, x2, y2, node):
+        shp = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, emu(X(x1)), emu(Y(y1)), emu(X(x2)), emu(Y(y2)))
+        shp.line.color.rgb = rgb(css_rgb(node.get("stroke")) or "000000")
+        shp.line.width = Pt(float(node.get("stroke-width", 1)) * sx * PT_PX)
+    for node in root:
+        kind = etree.QName(node).localname
+        if kind == "line":
+            segment(node.get("x1"), node.get("y1"), node.get("x2"), node.get("y2"), node)
+        elif kind == "polyline":
+            points = [list(map(float, pair.split(","))) for pair in node.get("points").split()]
+            for first, second in zip(points, points[1:]):
+                segment(*first, *second, node)
+        elif kind == "text":
+            size = float(node.get("font-size", 32)) * sx
+            anchor, width = node.get("text-anchor", "start"), 380
+            x = X(node.get("x")) - (width if anchor == "end" else width / 2 if anchor == "middle" else 0)
+            item = {"tag": "SVG", "x": x, "y": Y(node.get("y")) - size, "w": width, "h": size * 1.3,
+                    "lineHeight": size * 1.3, "align": {"end": "right", "middle": "center"}.get(anchor, "left"),
+                    "runs": [{"text": "".join(node.itertext()), "size": size,
+                              "bold": int(node.get("font-weight", "400")) >= 600, "italic": False,
+                              "color": node.get("fill", "#000000"), "serif": False, "spacing": 0}]}
+            write_item(slide, item, False)
+    return True
+
+
 def build_pptx(template: Path | None, extract: dict, out: Path, media: Path):
     by_id = {s["id"]: s for s in extract["slides"]}
     skip, protos = set(), []
@@ -374,6 +410,8 @@ def build_pptx(template: Path | None, extract: dict, out: Path, media: Path):
             jpg = to_jpg(Path(im["src"]), media)
             slide.shapes.add_picture(str(jpg), emu(im["x"]), emu(im["y"]), emu(im["w"]), emu(im["h"]))
         for sv in s["svgs"]:
+            if add_native_evidence_svg(slide, sv):
+                continue
             jpg = to_jpg(Path(sv["file"]), media)
             slide.shapes.add_picture(str(jpg), emu(sv["x"]), emu(sv["y"]), emu(sv["w"]), emu(sv["h"]))
         title_done = False
@@ -428,7 +466,8 @@ def render_preview(extract, out_dir: Path, bg_title: Path | None, skip=frozenset
         d = ImageDraw.Draw(im)
         for b in s["boxes"]:
             if b.get("fill") and css_rgb(b["fill"]):
-                d.rectangle([b["x"], b["y"], b["x"] + b["w"], b["y"] + b["h"]], fill="#" + css_rgb(b["fill"]))
+                draw_mark = d.ellipse if b.get("round") else d.rectangle
+                draw_mark([b["x"], b["y"], b["x"] + b["w"], b["y"] + b["h"]], fill="#" + css_rgb(b["fill"]))
             for side, spec in (b.get("borders") or {}).items():
                 c = css_rgb(spec["color"])
                 if not c:

@@ -30,7 +30,7 @@
   ],
   "sections": {
     "story": {
-      "description": "Where I come from, the crisis next door and where it stands, the same problem in stroke",
+      "description": "Open imaging, definitions, replication evidence and transparency in stroke",
       "start": "cover"
     },
     "measure": {
@@ -38,11 +38,11 @@
       "start": "method"
     },
     "findings": {
-      "description": "Open access grew and was paid for; who pays; data and code did not move; who shares",
+      "description": "Stroke access routes, funding associations, detected sharing and inspectable data",
       "start": "oa-trend"
     },
     "next": {
-      "description": "Why mandates alone failed; what to do next; collaborate; references",
+      "description": "Access after a journal rule; proposed WSO action; collaborate; references",
       "start": "mandates"
     }
   },

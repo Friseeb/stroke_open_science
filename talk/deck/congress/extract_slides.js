@@ -54,6 +54,8 @@ async function main() {
       return "file://" + path.resolve(figDir, BLOBS[k] + ".png");
     });
     if (missing.length) throw new Error(`${id}: unknown asset ids ${missing.join(", ")}`);
+    html = html.replace(/src="(\.\.\/\.\.\/assets\/[^\"]+)"/g,
+      (_, src) => 'src="file://' + path.resolve(deckDir, "slides", src) + '"');
     const file = path.resolve(outDir, `${id}.page.html`);
     fs.writeFileSync(file, pageHtml(html));
     await page.goto("file://" + file, { waitUntil: "load" });
@@ -91,7 +93,7 @@ async function main() {
           if (w > 0 && st !== "none") borders[side] = { w, color: cs.getPropertyValue(`border-${side}-color`) };
         }
         const fill = visibleColor(cs.backgroundColor) ? cs.backgroundColor : null;
-        if ((fill || Object.keys(borders).length) && el.tagName !== "svg") out.boxes.push({ ...rel(r), fill, borders, tag: el.tagName });
+        if ((fill || Object.keys(borders).length) && el.tagName !== "svg") out.boxes.push({ ...rel(r), fill, borders, tag: el.tagName, round: cs.borderRadius === "50%" });
         if (el.tagName === "IMG") {
           const pl = px(cs.paddingLeft), pt = px(cs.paddingTop);
           const cw = r.width - pl - px(cs.paddingRight), ch = r.height - pt - px(cs.paddingBottom);
@@ -104,7 +106,7 @@ async function main() {
         }
         if (el.tagName.toLowerCase() === "svg") {
           el.setAttribute("data-svg-index", String(svgIndex));
-          out.svgs.push({ index: svgIndex++, ...rel(r), label: el.getAttribute("aria-label") || "" });
+          out.svgs.push({ index: svgIndex++, ...rel(r), label: el.getAttribute("aria-label") || "", markup: el.outerHTML });
           continue;
         }
         if (!TEXT.has(el.tagName)) continue;

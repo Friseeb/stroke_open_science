@@ -1,0 +1,27 @@
+{
+  "mode": "built-in image_gen",
+  "date": "2026-10-14",
+  "illustrations": [
+    {
+      "key": "reproducibility-replication",
+      "prompt": "Use case: scientific-educational. Create a crisp editorial illustration for a professional medical conference slide. Pure white background, landscape 16:9 composition. Two clearly separated scenes placed left and right, no borders, no boxes, no written words, no labels, no numbers. LEFT: a teal dataset folder and a code page passed from one researcher to another researcher's laptop; two identical modest plotted line traces indicate checking the same computation with the same data. RIGHT: two different groups of volunteer participants, original group in charcoal and new group with teal clothing, both connected to identical assessment sheets and a magnifying glass; communicate testing the same question with newly collected data, without showing a guaranteed identical result or a success checkmark. Clean sophisticated hand-drawn ink outlines and sparse muted teal and red accents, white space, friendly adults diverse in age and appearance, readable from the back of a room. All important objects inside central 80% of the canvas. Avoid text, logos, equations, decorative floating shapes, 3D effects, and medical diagnostic details. Two scenes horizontally aligned at identical visual scale. This is conceptual artwork, not a data visualization.",
+      "path": "talk/deck/assets/reproducibility-replication.png"
+    },
+    {
+      "key": "stroke-transparency",
+      "prompt": "Use case: scientific-educational. Create a professional editorial illustration for a white stroke research conference slide, landscape 16:9. A researcher shares an open project folder with an independent reviewer. Inside and beside the folder are a study plan clipboard, a data table sheet with abstract grid marks, a code sheet with a few symbolic brackets, and a small stylized brain with a subtle red lesion (conceptual brain artwork, not a diagnostic scan). Reviewer uses a magnifying glass to inspect the research materials. An open padlock is nearby, clearly indicating inspectable access. Clean delicate black ink drawing, restrained teal and red accents, white background, sparse composition, objects large, central 80% of canvas. The folder, research materials and brain dominate; people are subtle secondary elements. No text, no labels, no letters, no digits, no logos, no badges, no decorative UI panels, no chart data. Do not imply that sharing alone guarantees successful replication.",
+      "path": "talk/deck/assets/stroke-transparency.png"
+    },
+    {
+      "key": "open-lesion-science",
+      "prompt": "Use case: scientific-educational. Large beautiful editorial scientific illustration on pure white background for a professional neurology talk. Landscape 16:9. A coherent composition following stroke imaging research: a stylized gray anatomical brain with a small red lesion, an outlined laptop analyzing the lesion, a delicate network of brain connections, and an open folder with a sharing hand. Organize these four main objects left-to-right with subtle continuous visual flow, no boxes or panels. Black ink line drawing, soft gray shading and very sparse muted teal and red accents, restrained sophisticated style, no cartoon faces, no decorative confetti. Only conceptual artwork: no patient-identifiable scans or realistic medical claims. No words, letters, digits, logos, equations or graph scales. Large readable objects in central 80% of canvas, whitespace along all edges.",
+      "path": "talk/deck/assets/open-lesion-science.png"
+    }
+  ],
+  "banner": {
+    "url": "https://wsc2026.kenes.com/wp-content/uploads/sites/32/2025/11/WSC-2026-banner-900x90px_v3.jpg",
+    "toolkit": "https://worldstrokecongress.org/promotional-toolkit/",
+    "path": "talk/deck/assets/wsc2026-banner.jpg",
+    "note": "Official artwork, preserved without cropping or modification."
+  }
+}
