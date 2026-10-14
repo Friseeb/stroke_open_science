@@ -449,21 +449,26 @@ def build():
        "articles, 75% open.", page=14,
        footer=f"{bench} · Open-access full texts, 2015–2025; lower-middle n = 609 · Dashboard: 04 Income groups")))
 
-    inst = [("Center for Stroke Research Berlin (Charité)", 5.2), ("Charité, Berlin", 4.4), ("University of Oxford", 2.9),
-            ("UKE Hamburg-Eppendorf", 2.6), ("University of Edinburgh", 2.5), ("Stanford University", 2.3)]
+    # Charité counted once: its Center for Stroke Research Berlin and Berlin Institute of Health are merged into it
+    # (configs/institution_aliases.csv); recomputed from the 2026-10-13 run, dashboard selection (top 60, 82+ audited)
+    inst = [("Charité – Universitätsmedizin Berlin", 4.4), ("University of Oxford", 2.9), ("UKE Hamburg-Eppendorf", 2.6),
+            ("University of Edinburgh", 2.5), ("Stanford University", 2.3), ("University of Nottingham", 2.2),
+            ("Massachusetts General Hospital", 2.2), ("University of Glasgow", 2.1)]
     unit = 150
-    rows = "".join(f'<div style="display:flex;gap:28px;align-items:center">{p(n, 34, 400, INK, 42, "width:680px;")}'
-                   f'<div style="display:flex;gap:0">{bar(unit, "#c8c8c4", 40)}{bar((v - 1) * unit, RED, 40)}</div>'
-                   f'{p(f"{v:.1f}&times;", 34, 600)}</div>' for n, v in inst)
+    rows = "".join(f'<div style="display:flex;gap:28px;align-items:center">{p(n, 32, 400, INK, 38, "width:680px;")}'
+                   f'<div style="display:flex;gap:0">{bar(unit, "#c8c8c4", 34)}{bar((v - 1) * unit, RED, 34)}</div>'
+                   f'{p(f"{v:.1f}&times;", 32, 600)}</div>' for n, v in inst)
     S.append(("commitment", slide("commitment", [
         title("Some teams already share, and we can measure them"),
         legend([("Stroke average (1&times;)", "#c8c8c4"), ("Above the average", RED)], 30),
-        f'<div style="display:flex;flex-direction:column;gap:18px">{rows}</div>',
+        f'<div style="display:flex;flex-direction:column;gap:12px">{rows}</div>',
         p("Commitment index: data deposit, GitHub and trial registration in the full text, against the stroke average.", 30, 400, MID),
     ], "Forty-five seconds. The index is the mean, over three full-text signals (data deposited or public source, GitHub, "
        "trial registration), of an institution's rate divided by the stroke rate; 1 = stroke average. Shown: the top of "
-       "the 60 institutions with the most audited articles (82 or more each), as on the dashboard. Small counts are a "
-       "hint, not a ranking. Journals: among the 40 largest on the dashboard, the Journal of Cerebral Blood Flow and "
+       "the 60 institutions with the most audited articles (82 or more each), as on the dashboard. Charité is counted "
+       "once: OpenAlex lists its Center for Stroke Research Berlin and the Berlin Institute of Health separately, and "
+       "those are merged into it (133 audited articles; deposit or public source 9.8%, GitHub 10.5%, trial registration "
+       "37%). Small counts are a hint, not a ranking. Journals: among the 40 largest on the dashboard, the Journal of Cerebral Blood Flow and "
        "Metabolism leads (2.7x) and Stroke is fourth (1.5x); among smaller journals with at least 30 audited articles, "
        "Nature Communications, Brain Communications and PeerJ lead. The point: the measurement exists, is cheap, and is "
        "what a prize would recognise.", page=15,

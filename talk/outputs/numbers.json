@@ -462,28 +462,6 @@
         "oa_free_route_rate": 0.0,
         "commitment_index": 5.62
       },
-      "Center for Stroke Research Berlin": {
-        "n_audited": 96,
-        "das_statement_rate": 0.5208,
-        "das_deposit_rate": 0.1146,
-        "das_repository_rate": 0.1146,
-        "das_on_request_rate": 0.1875,
-        "ft_github_rate": 0.125,
-        "ft_registration_rate": 0.4688,
-        "oa_free_route_rate": 0.0104,
-        "commitment_index": 5.24
-      },
-      "Berlin Institute of Health at Charit\u00e9 - Universit\u00e4tsmedizin Berlin": {
-        "n_audited": 64,
-        "das_statement_rate": 0.625,
-        "das_deposit_rate": 0.1094,
-        "das_repository_rate": 0.1094,
-        "das_on_request_rate": 0.2656,
-        "ft_github_rate": 0.125,
-        "ft_registration_rate": 0.4844,
-        "oa_free_route_rate": 0.0156,
-        "commitment_index": 5.24
-      },
       "Institut f\u00fcr Schlaganfall- und Demenzforschung": {
         "n_audited": 43,
         "das_statement_rate": 0.4884,
@@ -518,15 +496,15 @@
         "commitment_index": 4.65
       },
       "Charit\u00e9 - Universit\u00e4tsmedizin Berlin": {
-        "n_audited": 129,
-        "das_statement_rate": 0.5426,
-        "das_deposit_rate": 0.1008,
-        "das_repository_rate": 0.1008,
-        "das_on_request_rate": 0.2093,
-        "ft_github_rate": 0.1085,
-        "ft_registration_rate": 0.3566,
-        "oa_free_route_rate": 0.0078,
-        "commitment_index": 4.44
+        "n_audited": 133,
+        "das_statement_rate": 0.5489,
+        "das_deposit_rate": 0.0977,
+        "das_repository_rate": 0.0977,
+        "das_on_request_rate": 0.203,
+        "ft_github_rate": 0.1053,
+        "ft_registration_rate": 0.3684,
+        "oa_free_route_rate": 0.0075,
+        "commitment_index": 4.36
       },
       "ETH Zurich": {
         "n_audited": 37,
@@ -593,6 +571,28 @@
         "ft_registration_rate": 0.0938,
         "oa_free_route_rate": 0.1562,
         "commitment_index": 4.13
+      },
+      "Centre National de la Recherche Scientifique": {
+        "n_audited": 73,
+        "das_statement_rate": 0.4795,
+        "das_deposit_rate": 0.0959,
+        "das_repository_rate": 0.0822,
+        "das_on_request_rate": 0.1781,
+        "ft_github_rate": 0.0959,
+        "ft_registration_rate": 0.2055,
+        "oa_free_route_rate": 0.0274,
+        "commitment_index": 3.72
+      },
+      "University of Freiburg": {
+        "n_audited": 38,
+        "das_statement_rate": 0.5789,
+        "das_deposit_rate": 0.0789,
+        "das_repository_rate": 0.0789,
+        "das_on_request_rate": 0.2368,
+        "ft_github_rate": 0.1053,
+        "ft_registration_rate": 0.1579,
+        "oa_free_route_rate": 0.0263,
+        "commitment_index": 3.72
       }
     },
     "journals_top": {

@@ -518,6 +518,15 @@ def equity_outputs(stroke: pd.DataFrame, tables: Path, figures: Path) -> Optiona
 
 
 COMMITMENT_SIGNALS = ["das_deposit_rate", "ft_github_rate", "ft_registration_rate"]
+INSTITUTION_ALIASES = Path(__file__).resolve().parents[1] / "configs" / "institution_aliases.csv"
+
+
+def read_institution_aliases(path: Path = INSTITUTION_ALIASES) -> Dict[str, str]:
+    """alias -> canonical institution name; {} when the file is absent."""
+    if not path.exists():
+        return {}
+    t = pd.read_csv(path, dtype=str).fillna("")
+    return {a.strip(): c.strip() for a, c in zip(t["alias"], t["canonical"]) if a.strip() and c.strip()}
 
 
 def commitment_table(audited: pd.DataFrame, key: str, baseline: pd.DataFrame, min_n: int = MIN_N_AUDITED) -> pd.DataFrame:
@@ -550,6 +559,12 @@ def commitment_outputs(stroke: pd.DataFrame, tables: Path, figures: Path) -> Opt
         inst["institution"] = inst_col[inst_col.ne("")].str.split("|")
         inst = inst.explode("institution")
         inst = inst[inst["institution"].str.len() > 0]
+        # units of one institution that OpenAlex lists separately (configs/institution_aliases.csv, shared with the
+        # dashboard builder) are merged, and an article listing two units counts once
+        aliases = read_institution_aliases()
+        if aliases:
+            inst["institution"] = inst["institution"].str.strip().replace(aliases)
+            inst = inst[~pd.DataFrame({"row": inst.index.to_numpy(), "inst": inst["institution"].to_numpy()}).duplicated().to_numpy()]
         t = commitment_table(inst, "institution", audited)
         t.to_csv(tables / "stroke_commitment_institutions.csv")
         out["institutions_top"] = t.head(15).round(4).to_dict(orient="index")

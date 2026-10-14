@@ -293,9 +293,7 @@ Notes: Forty seconds. Among the three larger income groups, lower-middle-income 
 
 - Stroke average (1×)
 - Above the average
-- Center for Stroke Research Berlin (Charité)
-- 5.2×
-- Charité, Berlin
+- Charité – Universitätsmedizin Berlin
 - 4.4×
 - University of Oxford
 - 2.9×
@@ -305,10 +303,16 @@ Notes: Forty seconds. Among the three larger income groups, lower-middle-income 
 - 2.5×
 - Stanford University
 - 2.3×
+- University of Nottingham
+- 2.2×
+- Massachusetts General Hospital
+- 2.2×
+- University of Glasgow
+- 2.1×
 - Commitment index: data deposit, GitHub and trial registration in the full text, against the stroke average.
 - Footer: Reference 44 · 60 institutions with 82+ audited full texts, 2015–2025 · Dashboard: 05 Rankings
 
-Notes: Forty-five seconds. The index is the mean, over three full-text signals (data deposited or public source, GitHub, trial registration), of an institution's rate divided by the stroke rate; 1 = stroke average. Shown: the top of the 60 institutions with the most audited articles (82 or more each), as on the dashboard. Small counts are a hint, not a ranking. Journals: among the 40 largest on the dashboard, the Journal of Cerebral Blood Flow and Metabolism leads (2.7x) and Stroke is fourth (1.5x); among smaller journals with at least 30 audited articles, Nature Communications, Brain Communications and PeerJ lead. The point: the measurement exists, is cheap, and is what a prize would recognise.
+Notes: Forty-five seconds. The index is the mean, over three full-text signals (data deposited or public source, GitHub, trial registration), of an institution's rate divided by the stroke rate; 1 = stroke average. Shown: the top of the 60 institutions with the most audited articles (82 or more each), as on the dashboard. Charité is counted once: OpenAlex lists its Center for Stroke Research Berlin and the Berlin Institute of Health separately, and those are merged into it (133 audited articles; deposit or public source 9.8%, GitHub 10.5%, trial registration 37%). Small counts are a hint, not a ranking. Journals: among the 40 largest on the dashboard, the Journal of Cerebral Blood Flow and Metabolism leads (2.7x) and Stroke is fourth (1.5x); among smaller journals with at least 30 audited articles, Nature Communications, Brain Communications and PeerJ lead. The point: the measurement exists, is cheap, and is what a prize would recognise.
 
 ## 16. Rules produced statements, not data (10:05, 50 s)
 
