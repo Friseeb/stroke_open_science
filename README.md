@@ -4,6 +4,12 @@ A living meta-research pipeline that automatically tracks and analyzes open-scie
 (open access, preregistration, data/code sharing, preprints) in stroke neurology publications
 and across comparator disciplines using OpenAlex, Unpaywall, and DuckDB.
 
+**[View the online benchmark](https://friseeb.github.io/stroke-open-science/)** ·
+[Custom-domain plan](https://github.com/Friseeb/stroke-open-science/blob/main/DOMAIN_PLAN.md)
+
+The short link forwards to the latest dashboard in the outputs repository, preserving
+saved filters and section links.
+
 ## Repository layout
 
 | Repo | Contents |
