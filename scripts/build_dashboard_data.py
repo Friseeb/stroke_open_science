@@ -452,6 +452,21 @@ def row_flags(df: pd.DataFrame, discipline: str) -> Dict[str, Any]:
 # Aggregation
 # ---------------------------------------------------------------------------
 
+INSTITUTION_ALIASES_FILE = Path(__file__).resolve().parents[1] / "configs" / "institution_aliases.csv"
+
+
+def read_institution_aliases(path: Optional[Path] = None) -> Dict[str, str]:
+    """alias -> canonical institution name (configs/institution_aliases.csv); {} if the file is absent.
+
+    OpenAlex lists some units of one institution as separate institutions (e.g. the Center for Stroke Research
+    Berlin and the Berlin Institute of Health inside Charité), so rankings would show the same institution twice."""
+    path = INSTITUTION_ALIASES_FILE if path is None else Path(path)
+    if not path.exists():
+        return {}
+    table = pd.read_csv(path, dtype=str).fillna("")
+    return {a.strip(): c.strip() for a, c in zip(table["alias"], table["canonical"]) if a.strip() and c.strip()}
+
+
 def _top_categories(series: pd.Series, top_n: int, exclude: Sequence[str] = ()) -> List[str]:
     counts = series[~series.isin(set(exclude))].value_counts()
     return [str(c) for c in counts.index[:top_n]]
@@ -468,7 +483,8 @@ def _rows_from_grouped(grouped: pd.DataFrame, key_cols: List[str]) -> List[List[
 
 
 def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int = 40,
-                         top_countries: int = 25, top_funders: int = 25, top_institutions: int = 60) -> Dict[str, Any]:
+                         top_countries: int = 25, top_funders: int = 25, top_institutions: int = 60,
+                         institution_aliases: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """Aggregate one discipline's enriched frame into the compact cell/funder tables."""
     prepared = row_flags(df, discipline)
     flags: pd.DataFrame = prepared["flags"]
@@ -538,6 +554,12 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
         exploded["institution"] = exploded["institutions"].str.split("|")
         exploded = exploded.explode("institution")
         exploded["institution"] = _clean_text(exploded["institution"])
+        aliases = read_institution_aliases() if institution_aliases is None else institution_aliases
+        if aliases:
+            exploded["institution"] = exploded["institution"].replace(aliases)
+        # one row per (article, institution): an article listing two units of one institution counts once
+        dup = pd.DataFrame({"row": exploded.index.to_numpy(), "inst": exploded["institution"].to_numpy()}).duplicated()
+        exploded = exploded[~dup.to_numpy()]
         exploded["institution"] = exploded["institution"].where(exploded["institution"].ne(""), NO_INSTITUTION_LABEL)
         audited_counts = exploded[exploded["das_audited"] > 0]["institution"]
         top = _top_categories(audited_counts, top_institutions, exclude=[NO_INSTITUTION_LABEL])
