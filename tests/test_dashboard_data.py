@@ -423,6 +423,27 @@ def test_institution_cells_are_multivalued_with_other_and_none():
     assert none_n == int(ref["institutions"].fillna("").eq("").sum())
 
 
+def test_institution_aliases_merge_units_and_count_each_article_once():
+    df = make_frame()
+    # every fourth row lists Charité together with one of its units; give one row the unit alone
+    df["institutions"] = df["institutions"].replace({"Western University|Charité": "Charité|Center for Stroke Research Berlin"})
+    df.loc[df.index[1], "institutions"] = "Center for Stroke Research Berlin"
+    aliases = {"Center for Stroke Research Berlin": "Charité"}
+    agg = bdd.aggregate_discipline(df, "stroke", top_institutions=5, institution_aliases=aliases)
+    assert "Center for Stroke Research Berlin" not in agg["institutions"]
+    idx = agg["institutions"].index("Charité")
+    n = sum(r[len(bdd.INSTITUTION_KEYS)] for r in agg["institution_cells"] if r[2] == idx)
+    ref = corpus(df)["institutions"].fillna("")
+    expected = int((ref.str.contains("Charité") | ref.str.contains("Center for Stroke Research Berlin")).sum())
+    assert n == expected   # articles listing both count once
+
+
+def test_institution_aliases_file_maps_charite_units():
+    aliases = bdd.read_institution_aliases()
+    assert aliases.get("Center for Stroke Research Berlin") == "Charité - Universitätsmedizin Berlin"
+    assert aliases.get("Berlin Institute of Health at Charité - Universitätsmedizin Berlin") == "Charité - Universitätsmedizin Berlin"
+
+
 def test_legacy_frame_has_no_income_or_institutions():
     df = make_frame().drop(columns=LEGACY_DROP)
     agg = bdd.aggregate_discipline(df, "stroke")

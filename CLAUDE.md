@@ -76,7 +76,9 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   are out of corpus (`corpus_rule` = `openalex_type_doi_only`); they are never counted as closed articles.
 - Besides the journal × country cells, v2 ships three more count tables per discipline: `funder_cells`
   (year × hi × funder, multi-valued), `income_cells` (year × hi × first-author World Bank income group) and
-  `institution_cells` (year × hi × institution, multi-valued, top 60 by audited papers). The full-text flags
+  `institution_cells` (year × hi × institution, multi-valued, top 60 by audited papers; units of one institution that OpenAlex lists
+  separately are merged through `configs/institution_aliases.csv`, e.g. the Center for Stroke Research Berlin and the Berlin
+  Institute of Health into Charité, and an article listing two units counts once). The full-text flags
   (`ft_*`) and the DAS categories use `das_audited` as denominator; `METRICS[*].denominator` says which.
 - The site (`dashboard/index.html`, `app.js`, `charts.js`, `styles.css`, no build step) is an **audit report card** (form chosen
   by the user on 2026-10-12 over an annotated chart essay and a ledger): one scrolling page, a sticky top bar (wordmark,
