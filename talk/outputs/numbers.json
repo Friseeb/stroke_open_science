@@ -1107,5 +1107,87 @@
       "registration_abstract_rate": 0.076,
       "registration_fulltext_rate": 0.1415
     }
+  },
+  "stroke_citations": {
+    "years": [
+      2015,
+      2023
+    ],
+    "funded_share_open": 0.4092,
+    "funded_share_closed": 0.1991,
+    "comparisons": [
+      {
+        "comparison": "open_vs_closed",
+        "within": "same journal and year",
+        "capped_mh_ratio": 1.566,
+        "geomean_ratio": 1.741,
+        "p_exposed_cited_more": 0.603,
+        "n_exposed": 15123,
+        "n_unexposed": 24252,
+        "n_strata": 2811,
+        "median_exposed": 7.0,
+        "median_unexposed": 4.0
+      },
+      {
+        "comparison": "open_vs_closed",
+        "within": "same journal, year and funding",
+        "capped_mh_ratio": 1.279,
+        "geomean_ratio": 1.3,
+        "p_exposed_cited_more": 0.559,
+        "n_exposed": 13349,
+        "n_unexposed": 21338,
+        "n_strata": 2888,
+        "median_exposed": 7.0,
+        "median_unexposed": 4.0
+      },
+      {
+        "comparison": "hybrid_vs_closed",
+        "within": "same journal, year and funding",
+        "capped_mh_ratio": 1.397,
+        "geomean_ratio": 1.539,
+        "p_exposed_cited_more": 0.604,
+        "n_exposed": 3102,
+        "n_unexposed": 12367,
+        "n_strata": 1282,
+        "median_exposed": 9.0,
+        "median_unexposed": 4.0
+      },
+      {
+        "comparison": "preprint_vs_none",
+        "within": "same journal, year and funding",
+        "capped_mh_ratio": 1.092,
+        "geomean_ratio": 1.111,
+        "p_exposed_cited_more": 0.536,
+        "n_exposed": 956,
+        "n_unexposed": 11757,
+        "n_strata": 560,
+        "median_exposed": 15.0,
+        "median_unexposed": 6.0
+      },
+      {
+        "comparison": "deposit_vs_other_audited",
+        "within": "same journal and year",
+        "capped_mh_ratio": 0.96,
+        "geomean_ratio": 1.034,
+        "p_exposed_cited_more": 0.513,
+        "n_exposed": 340,
+        "n_unexposed": 2760,
+        "n_strata": 170,
+        "median_exposed": 18.0,
+        "median_unexposed": 16.0
+      },
+      {
+        "comparison": "on_request_vs_other_audited",
+        "within": "same journal and year",
+        "capped_mh_ratio": 0.832,
+        "geomean_ratio": 0.866,
+        "p_exposed_cited_more": 0.451,
+        "n_exposed": 1917,
+        "n_unexposed": 4026,
+        "n_strata": 530,
+        "median_exposed": 14.0,
+        "median_unexposed": 17.0
+      }
+    ]
   }
 }

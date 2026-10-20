@@ -1,6 +1,7 @@
 // Extract the Slides deck (talk/deck/project) into a layout JSON that build_wsc_pptx.py turns into native
-// PowerPoint shapes. Each slide is rendered in Chrome at 1920 x 1080 with the congress fonts swapped in
-// (Instrument Sans -> Arial, Instrument Serif -> Times New Roman, weight 500+ -> bold), so every line break
+// PowerPoint shapes. Each slide is rendered in Chrome at 1920 x 1080 preserving the source fonts.
+// The optional --congress-fonts argument substitutes common congress fonts
+// (Instrument Sans -> Arial, Instrument Serif -> Times New Roman, weight 600+ -> bold), so every line break
 // and position is measured with the fonts PowerPoint will use. Also writes one PNG per slide (what the .pptx
 // should look like) and a PNG of every inline <svg> (the QR codes), which the builder converts to JPG.
 //
@@ -10,7 +11,8 @@ const puppeteer = require("puppeteer-core");
 const fs = require("fs");
 const path = require("path");
 
-const [deckDir, figDir, outDir] = process.argv.slice(2);
+const [deckDir, figDir, outDir, fontMode] = process.argv.slice(2);
+const congressFonts = fontMode === "--congress-fonts";
 if (!deckDir || !figDir || !outDir) {
   console.error("usage: node extract_slides.js <deck project dir> <figure dir> <out dir>");
   process.exit(2);
@@ -36,6 +38,8 @@ function pageHtml(section) {
 *{margin:0;box-sizing:border-box} html,body{width:1920px;height:1080px;overflow:hidden}
 section{position:relative;width:1920px;height:1080px;overflow:hidden} aside{display:none}
 table{border-collapse:collapse}
+@font-face{font-family:'Instrument Sans';src:url('file://${path.resolve(deckDir,"../assets/fonts/InstrumentSans-variable.ttf")}');font-weight:400 700}
+@font-face{font-family:'Instrument Serif';src:url('file://${path.resolve(deckDir,"../assets/fonts/InstrumentSerif-Regular.ttf")}');font-weight:400}
 </style></head><body>${section}</body></html>`;
 }
 
@@ -54,19 +58,20 @@ async function main() {
       return "file://" + path.resolve(figDir, BLOBS[k] + ".png");
     });
     if (missing.length) throw new Error(`${id}: unknown asset ids ${missing.join(", ")}`);
-    html = html.replace(/src="(\.\.\/\.\.\/assets\/[^\"]+)"/g,
+    html = html.replace(/src="((?:\.\.\/)+[^\"]+)"/g,
       (_, src) => 'src="file://' + path.resolve(deckDir, "slides", src) + '"');
     const file = path.resolve(outDir, `${id}.page.html`);
     fs.writeFileSync(file, pageHtml(html));
     await page.goto("file://" + file, { waitUntil: "load" });
-    const data = await page.evaluate(() => {
+    await page.evaluate(() => document.fonts.ready);
+    const data = await page.evaluate((congressFonts) => {
       const S = document.querySelector("section");
       // congress fonts, measured as PowerPoint will draw them
-      for (const el of [S, ...S.querySelectorAll("*")]) {
+      if (congressFonts) for (const el of [S, ...S.querySelectorAll("*")]) {
         const cs = getComputedStyle(el);
         const serif = /Instrument Serif|Times|serif$/i.test(cs.fontFamily) && !/sans-serif/i.test(cs.fontFamily);
         el.style.fontFamily = serif ? '"Times New Roman"' : "Arial";
-        el.style.fontWeight = parseInt(cs.fontWeight, 10) >= 500 ? "700" : "400";
+        el.style.fontWeight = parseInt(cs.fontWeight, 10) >= 600 ? "700" : "400";
       }
       void S.offsetHeight;
       const sr = S.getBoundingClientRect();
@@ -127,7 +132,8 @@ async function main() {
             runs.push({
               text: t, color: pcs.color, size: px(pcs.fontSize), bold: parseInt(pcs.fontWeight, 10) >= 600,
               italic: pcs.fontStyle === "italic", underline: /underline/.test(pcs.textDecorationLine),
-              serif: /Times/.test(pcs.fontFamily), spacing: pcs.letterSpacing === "normal" ? 0 : px(pcs.letterSpacing),
+              serif: /Instrument Serif|Times/.test(pcs.fontFamily),
+              family: pcs.fontFamily.split(",")[0].replace(/[\"']/g, "").trim(), weight: parseInt(pcs.fontWeight,10), spacing: pcs.letterSpacing === "normal" ? 0 : px(pcs.letterSpacing),
             });
           }
           n = walker.nextNode();
@@ -140,11 +146,16 @@ async function main() {
         // line boxes as Chrome laid them out
         const range = document.createRange();
         range.selectNodeContents(el);
-        const tops = new Set();
-        for (const cr of range.getClientRects()) if (cr.width > 0.5) tops.add(Math.round(cr.top));
+        // a rect starts a new line only when its middle is below the current line (a smaller inline span, such as the
+        // sans arrow inside a serif number, has its own top but sits on the same line)
+        const rects = [...range.getClientRects()].filter((cr) => cr.width > 0.5).sort((a, b) => a.top - b.top);
+        let lines = 0, lineBottom = -Infinity;
+        for (const cr of rects) {
+          if ((cr.top + cr.bottom) / 2 > lineBottom) { lines++; lineBottom = cr.bottom; } else lineBottom = Math.max(lineBottom, cr.bottom);
+        }
         const lh = cs.lineHeight === "normal" ? px(cs.fontSize) * 1.15 : px(cs.lineHeight);
         const valign = (el.tagName === "TD" || el.tagName === "TH") ? cs.verticalAlign : "top";  // cells stretch to the row
-        const item = { tag: el.tagName, ...content, align: cs.textAlign, valign, lineHeight: lh, lines: tops.size, runs };
+        const item = { tag: el.tagName, ...content, align: cs.textAlign, valign, lineHeight: lh, lines, runs };
         if (el.tagName === "LI") {
           const ul = el.parentElement;
           item.bullet = cs.listStyleType !== "none";
@@ -153,7 +164,7 @@ async function main() {
         out.texts.push(item);
       }
       return out;
-    });
+    }, congressFonts);
     await page.screenshot({ path: path.join(outDir, `${id}.png`) });
     for (const s of data.svgs) {
       const handle = await page.$(`svg[data-svg-index="${s.index}"]`);

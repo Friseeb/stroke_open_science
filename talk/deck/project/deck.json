@@ -9,40 +9,42 @@
   "order": [
     "cover",
     "disclosure",
-    "spark",
+    "hybrid",
+    "purpose",
     "crisis",
-    "crisis-now",
-    "stroke-crisis",
+    "ninds",
+    "access",
+    "value",
     "method",
     "oa-trend",
     "oa-type",
-    "who-pays",
-    "countries",
     "flat",
     "das",
     "equity",
     "commitment",
     "mandates",
     "future",
-    "close",
-    "refs-1",
-    "refs-2"
+    "close"
   ],
   "sections": {
     "story": {
-      "description": "Open imaging, definitions, replication evidence and transparency in stroke",
+      "description": "Where I come from: stroke as a hybrid of neuroscience, neurology and cardiology",
       "start": "cover"
     },
+    "purpose": {
+      "description": "Why open science: reproducibility (one case from each neighbour, the NINDS rt-PA data), access (readers, imaging tools), value (waste, reuse)",
+      "start": "purpose"
+    },
     "measure": {
-      "description": "What we measured and how",
+      "description": "What the living benchmark measures and how",
       "start": "method"
     },
     "findings": {
-      "description": "Stroke access routes, funding associations, detected sharing and inspectable data",
+      "description": "Ten years of stroke publishing: open access rose, everything else stayed flat; what statements say; who shares",
       "start": "oa-trend"
     },
     "next": {
-      "description": "Access after a journal rule; proposed WSO action; collaborate; references",
+      "description": "Why mandates alone failed; a task force, open toolkits and a prize; collaborate",
       "start": "mandates"
     }
   },
@@ -50,6 +52,10 @@
     "instrument-sans": {
       "family": "Instrument Sans",
       "href": "https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap"
+    },
+    "instrument-serif": {
+      "family": "Instrument Serif",
+      "href": "https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap"
     }
   },
   "designSystems": []

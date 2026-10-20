@@ -50,3 +50,6 @@ talk/outputs/das_audit/tables/das_audit_statements.csv
 
 # Office lock files
 ~$*
+
+# Offline reading bundle: third-party papers and abstracts, kept local only
+talk/offline/

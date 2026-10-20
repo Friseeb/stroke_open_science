@@ -509,15 +509,261 @@ def render_preview(extract, out_dir: Path, bg_title: Path | None, skip=frozenset
         t.save(out_dir / "01-title.png")
 
 
+def rebuild_existing_package(source, extract_dir, destination, animate=False):
+    """Rebuild slide contents while retaining the existing congress package and masters."""
+    from io import BytesIO
+    import hashlib
+    import zipfile
+    from lxml import etree as E
+    SOURCE, OUT = source, destination
+    layout = json.loads((extract_dir / "slides.json").read_text())
+    P='http://schemas.openxmlformats.org/presentationml/2006/main'
+    A='http://schemas.openxmlformats.org/drawingml/2006/main'
+    R='http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    REL='http://schemas.openxmlformats.org/package/2006/relationships'
+    NS={'p':P,'a':A,'r':R}
+    EMU=9144000/1920
+    def tag(ns,name):return '{'+ns+'}'+name
+    def sub(parent,ns,element_name,**attrs):return E.SubElement(parent,tag(ns,element_name),{k:str(v) for k,v in attrs.items()})
+    def val(x):return max(1,round(x*EMU))
+    def xy(x):return round(x*EMU)
+    def color(css):
+        if not css or css in ('none','transparent'):return None
+        if css.startswith('#'):return css.lstrip('#').upper()
+        nums=re.findall(r'[\d.]+',css)
+        return ''.join(f'{int(float(n)):02X}' for n in nums[:3]) if len(nums)>=3 else None
+    def solid(parent,css):
+        c=color(css)
+        if c:sub(sub(parent,A,'solidFill'),A,'srgbClr',val=c)
+        else:sub(parent,A,'noFill')
+    def xfrm(parent,x,y,w,h):
+        xf=sub(parent,A,'xfrm');sub(xf,A,'off',x=xy(x),y=xy(y));sub(xf,A,'ext',cx=val(w),cy=val(h))
+    def base_shape(tree,idx,name,x,y,w,h,geometry='rect',fill=None):
+        sp=sub(tree,P,'sp');nv=sub(sp,P,'nvSpPr');sub(nv,P,'cNvPr',id=idx,name=name)
+        sub(nv,P,'cNvSpPr',txBox='1' if geometry=='textbox' else '0');sub(nv,P,'nvPr')
+        pr=sub(sp,P,'spPr');xfrm(pr,x,y,w,h)
+        geom=sub(pr,A,'prstGeom',prst='rect' if geometry=='textbox' else geometry);sub(geom,A,'avLst')
+        solid(pr,fill);sub(sub(pr,A,'ln'),A,'noFill')
+        return sp
+    def text(tree,idx,item,name=None):
+        w=item['w']+8
+        x=item['x']-(8 if item.get('align') in ('right','end') else 4 if item.get('align')=='center' else 0)
+        sp=base_shape(tree,idx,name or 'Text '+str(idx),x,item['y'],w,item['h']+4,'textbox')
+        # a line Chrome laid out on one line never wraps in PowerPoint (its metrics can run slightly wider and would
+        # break a tight word such as "Value" across two lines)
+        body=sub(sp,P,'txBody');sub(body,A,'bodyPr',wrap='none' if item.get('lines',1)==1 else 'square',lIns=0,rIns=0,tIns=0,bIns=0,anchor='t');sub(body,A,'lstStyle')
+        p=sub(body,A,'p');pr=sub(p,A,'pPr',algn={'center':'ctr','right':'r','end':'r'}.get(item.get('align'),'l'))
+        sub(sub(pr,A,'lnSpc'),A,'spcPts',val=round(item['lineHeight']*37.5))
+        sub(sub(pr,A,'spcBef'),A,'spcPts',val=0);sub(sub(pr,A,'spcAft'),A,'spcPts',val=0)
+        sub(pr,A,'buNone')
+        for q in item['runs']:
+            if q.get('br'):sub(p,A,'br');continue
+            r=sub(p,A,'r');rp=sub(r,A,'rPr',lang='en-US',sz=round(q['size']*37.5),b='1' if q.get('bold') else '0',i='1' if q.get('italic') else '0',spc=round(q.get('spacing',0)*37.5))
+            if q.get('underline'):rp.set('u','sng')
+            solid(rp,q.get('color') or '#000000')
+            face=q.get('family') or ('Instrument Serif' if q.get('serif') else 'Instrument Sans')
+            if face == 'Instrument Sans':
+                weight=q.get('weight',400)
+                face={400:'Instrument Sans',500:'Instrument Sans Medium',600:'Instrument Sans SemiBold',700:'Instrument Sans Bold'}.get(weight,'Instrument Sans')
+                rp.set('b','0')
+            for family in ('latin','ea','cs'):sub(rp,A,family,typeface=face)
+            t=sub(r,A,'t');t.text=q['text'];t.set('{http://www.w3.org/XML/1998/namespace}space','preserve')
+        sub(p,A,'endParaRPr',lang='en-US')
+        return idx+1
+    with zipfile.ZipFile(SOURCE) as z:files={n:z.read(n) for n in z.namelist()}
+    pres=E.fromstring(files['ppt/presentation.xml'])
+    rels=E.fromstring(files['ppt/_rels/presentation.xml.rels'])
+    by_rid={r.get('Id'):r.get('Target') for r in rels}
+    parts=['ppt/'+by_rid[s.get(tag(R,'id'))] for s in pres.find(tag(P,'sldIdLst'))]
+    assert len(parts)==len(layout['slides']), 'The source package and deck must have the same slide count'
+    prev_id=None
+    for part,data in zip(parts,layout['slides']):
+        roles={'title':[],'big':[],'pic':[],'foot':[]}
+        xml=E.fromstring(files[part]); xml.find('p:cSld',NS).set('name', data['id']); tree=xml.find('p:cSld/p:spTree',NS)
+        for el in list(tree):
+            if E.QName(el).localname not in ('nvGrpSpPr','grpSpPr'):tree.remove(el)
+        relname=part.replace('/slides/','/slides/_rels/')+'.rels'
+        sr=E.fromstring(files[relname])
+        for r in list(sr):
+            if r.get('Type').endswith('/image'):sr.remove(r)
+        idx=2
+        for b in data['boxes']:
+            if b.get('fill'):
+                base_shape(tree,idx,'Data mark '+str(idx),b['x'],b['y'],b['w'],b['h'],'ellipse' if b.get('round') else 'rect',b['fill']);idx+=1
+            for side,br in b.get('borders',{}).items():
+                x,y,w,h=b['x'],b['y'],b['w'],b['h'];th=br['w']
+                rect={'top':(x,y,w,th),'bottom':(x,y+h-th,w,th),'left':(x,y,th,h),'right':(x+w-th,y,th,h)}[side]
+                base_shape(tree,idx,'Rule '+str(idx),*rect,fill=br['color']);idx+=1
+        images=list(data['images'])
+        for sv in data['svgs']:
+            images.append({'src':sv['file'],'x':sv['x'],'y':sv['y'],'w':sv['w'],'h':sv['h'],'alt':sv.get('label','')})
+        for im in images:
+            path=Path(im['src'])
+            if path.suffix.lower() in ('.jpg','.jpeg'):raw=path.read_bytes()
+            else:
+                buf=BytesIO();Image.open(path).convert('RGB').save(buf,'JPEG',quality=95);raw=buf.getvalue()
+            name='wsc_fig_'+hashlib.sha256(raw).hexdigest()[:16]+'.jpg';files['ppt/media/'+name]=raw
+            rid='rIdFigure'+str(idx);sub(sr,REL,'Relationship',Id=rid,Type=R+'/image',Target='../media/'+name)
+            pic=sub(tree,P,'pic');nv=sub(pic,P,'nvPicPr');sub(nv,P,'cNvPr',id=idx,name='Illustration '+str(idx),descr=im.get('alt',''));roles['pic'].append(idx)
+            sub(sub(nv,P,'cNvPicPr'),A,'picLocks',noChangeAspect='1');sub(nv,P,'nvPr')
+            bf=sub(pic,P,'blipFill');blip=sub(bf,A,'blip');blip.set(tag(R,'embed'),rid);sub(sub(bf,A,'stretch'),A,'fillRect')
+            pr=sub(pic,P,'spPr');xfrm(pr,im['x'],im['y'],im['w'],im['h']);sub(sub(pr,A,'prstGeom',prst='rect'),A,'avLst');idx+=1
+        for item in data['texts']:
+            role,name=motion_role(item,data['id'])
+            if role:roles[role].append(idx)
+            idx=text(tree,idx,item,name)
+        for r in sr:
+            if r.get('Type').endswith('/notesSlide'):
+                target=str((Path(part).parent/r.get('Target')).as_posix());target=re.sub(r'slides/\.\./','',target)
+                nx=E.fromstring(files[target])
+                for sp in nx.findall('.//p:sp',NS):
+                    ph=sp.find('p:nvSpPr/p:nvPr/p:ph',NS)
+                    if ph is not None and ph.get('type')=='body':
+                        old=sp.find('p:txBody',NS)
+                        if old is not None:sp.remove(old)
+                        tb=sub(sp,P,'txBody');sub(tb,A,'bodyPr');sub(tb,A,'lstStyle');p=sub(tb,A,'p');r=sub(p,A,'r');sub(r,A,'t').text=data['notes']
+                files[target]=E.tostring(nx,xml_declaration=True,encoding='UTF-8',standalone=True)
+        if animate:add_motion(xml,data['id'],roles,prev_id)
+        prev_id=data['id']
+        files[part]=E.tostring(xml,xml_declaration=True,encoding='UTF-8',standalone=True)
+        files[relname]=E.tostring(sr,xml_declaration=True,encoding='UTF-8',standalone=True)
+    # Remove media orphaned by replacement; the source package remains untouched.
+    # Remove only media unreferenced by every part, including masters and layouts.
+    import posixpath
+    referenced=set()
+    for relpath, raw in files.items():
+        if not relpath.endswith('.rels'): continue
+        base=posixpath.dirname(posixpath.dirname(relpath))
+        for relation in E.fromstring(raw):
+            if relation.get('TargetMode') == 'External': continue
+            target=relation.get('Target','')
+            resolved=target.lstrip('/') if target.startswith('/') else posixpath.normpath(posixpath.join(base,target))
+            referenced.add(resolved)
+    for filename in list(files):
+        if filename.startswith('ppt/media/') and filename not in referenced: del files[filename]
+    with zipfile.ZipFile(OUT,'w',zipfile.ZIP_DEFLATED) as z:
+        for name,raw in files.items():z.writestr(name,raw)
+
+
+
+# =============================================================================================
+# motion (with --package-source --animate): Morph between slides, then automatic entrance effects
+# =============================================================================================
+PML, MCN, P159 = ("http://schemas.openxmlformats.org/presentationml/2006/main", "http://schemas.openxmlformats.org/markup-compatibility/2006",
+                  "http://schemas.microsoft.com/office/powerpoint/2015/09/main")
+STATIC_SLIDES = {"cover", "disclosure"}   # the required opening stays still
+
+
+def motion_role(item, slide_id):
+    """(role, shape name) for one extracted text item. Names starting with !! are what Morph matches across slides."""
+    size = max((r.get("size", 0) for r in item.get("runs", [])), default=0)
+    words = "".join(r.get("text", "") for r in item.get("runs", [])).strip()
+    if item["y"] < 80 and "CONGRESS" in words.upper():
+        return None, "!!wsc-header"
+    if 100 < item["y"] < 160 and size <= 26 and item.get("runs") and item["runs"][0].get("weight", 400) >= 500 and words[:2].isdigit():
+        return None, "!!eyebrow"
+    if slide_id == "purpose" and words == "Reproducibility":
+        return "big", "!!purpose-reproducibility"
+    if item["tag"] in ("H1", "H2"):
+        if slide_id == "crisis":
+            return None, "!!purpose-reproducibility"      # the big word on Purpose morphs into this title
+        return "title", None
+    if item["y"] >= 960:
+        return "foot", None
+    if size >= 64:
+        return "big", None
+    return None, None
+
+
+def add_motion(sld, slide_id, roles, prev_id):
+    """Morph transition (fade where Morph is unsupported) and, except on the opening slides, one automatic group of
+    entrance effects: the title settles from 1.3x (anchored at its lower left), big numbers fade in one after another,
+    pictures wipe in from the left, the source line fades in last. One click per slide, as before."""
+    ns = {"p": PML}
+    for old in sld.findall("p:transition", ns) + sld.findall("p:timing", ns) + sld.findall("{%s}AlternateContent" % MCN):
+        sld.remove(old)
+    alt = etree.fromstring(
+        f'<mc:AlternateContent xmlns:mc="{MCN}" xmlns:p="{PML}"><mc:Choice xmlns:p159="{P159}" Requires="p159">'
+        '<p:transition spd="med"><p159:morph option="byObject"/></p:transition></mc:Choice>'
+        '<mc:Fallback><p:transition spd="med"><p:fade/></p:transition></mc:Fallback></mc:AlternateContent>')
+    anchor = sld.find("p:clrMapOvr", ns)
+    if anchor is None:
+        anchor = sld.find("p:cSld", ns)
+    anchor.addnext(alt)
+    if slide_id in STATIC_SLIDES or not any(roles.values()):
+        return
+    effects, n = [], [4]
+
+    def cid():
+        n[0] += 1
+        return n[0]
+
+    def visible(spid):
+        return (f'<p:set><p:cBhvr><p:cTn id="{cid()}" dur="1" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn>'
+                f'<p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>'
+                '<p:to><p:strVal val="visible"/></p:to></p:set>')
+
+    def effect(spid, delay, preset, subtype, body):
+        head = f'<p:par><p:cTn id="{cid()}" presetID="{preset}" presetClass="entr" presetSubtype="{subtype}" fill="hold" grpId="0" nodeType="withEffect">'
+        effects.append(head + f'<p:stCondLst><p:cond delay="{delay}"/></p:stCondLst><p:childTnLst>{visible(spid)}{body}</p:childTnLst></p:cTn></p:par>')
+
+    def fade(spid, delay, dur):
+        effect(spid, delay, 10, 0, f'<p:animEffect transition="in" filter="fade"><p:cBhvr><p:cTn id="{cid()}" dur="{dur}"/>'
+                                    f'<p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl></p:cBhvr></p:animEffect>')
+
+    def anim(spid, attr, start, end, dur):
+        return (f'<p:anim calcmode="lin" valueType="num"><p:cBhvr><p:cTn id="{cid()}" dur="{dur}" fill="hold"/>'
+                f'<p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl><p:attrNameLst><p:attrName>{attr}</p:attrName></p:attrNameLst></p:cBhvr>'
+                f'<p:tavLst><p:tav tm="0"><p:val><p:strVal val="{start}"/></p:val></p:tav>'
+                f'<p:tav tm="100000"><p:val><p:strVal val="{end}"/></p:val></p:tav></p:tavLst></p:anim>')
+
+    for spid in roles["title"]:   # zoom in from 1.3x, lower-left edge held
+        body = (anim(spid, "ppt_w", "#ppt_w*1.3", "#ppt_w", 700) + anim(spid, "ppt_h", "#ppt_h*1.3", "#ppt_h", 700)
+                + anim(spid, "ppt_x", "#ppt_x+#ppt_w*0.15", "#ppt_x", 700) + anim(spid, "ppt_y", "#ppt_y-#ppt_h*0.15", "#ppt_y", 700)
+                + f'<p:animEffect transition="in" filter="fade"><p:cBhvr><p:cTn id="{cid()}" dur="450"/>'
+                  f'<p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl></p:cBhvr></p:animEffect>')
+        effect(spid, 0, 53, 16, body)
+    last = 200
+    for k, spid in enumerate(roles["big"]):
+        last = 250 + k * 110
+        fade(spid, last, 450)
+    for spid in roles["pic"]:
+        effect(spid, 300, 22, 8, f'<p:animEffect transition="in" filter="wipe(left)"><p:cBhvr><p:cTn id="{cid()}" dur="900"/>'
+                                  f'<p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl></p:cBhvr></p:animEffect>')
+        last = max(last, 700)
+    for spid in roles["foot"]:
+        fade(spid, last + 300, 500)
+    text_ids = roles["title"] + roles["big"] + roles["foot"]
+    timing = (f'<p:timing xmlns:p="{PML}"><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst>'
+              '<p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>'
+              '<p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/><p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond></p:stCondLst><p:childTnLst>'
+              '<p:par><p:cTn id="4" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>'
+              + "".join(effects) +
+              '</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn>'
+              '<p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst>'
+              '<p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq>'
+              '</p:childTnLst></p:cTn></p:par></p:tnLst>'
+              + ("<p:bldLst>" + "".join(f'<p:bldP spid="{s}" grpId="0"/>' for s in text_ids) + "</p:bldLst>" if text_ids else "")
+              + '</p:timing>')
+    alt.addnext(etree.fromstring(timing))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--package-source", type=Path, help="retain this existing congress PPTX package and rebuild its slide contents")
     ap.add_argument("--template", type=Path, help="optional: open with the official WSC title and disclosure slides")
     ap.add_argument("--extract", type=Path, required=True, help="output folder of extract_slides.js (slides.json)")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--media", type=Path, help="JPG cache (default: <out dir>/media)")
     ap.add_argument("--preview-dir", type=Path)
     ap.add_argument("--bg-title", type=Path, help="PNG render of the template's title background (preview only)")
+    ap.add_argument("--animate", action="store_true", help="with --package-source: add the subtle motion (Morph between slides, titles settle, numbers fade in, charts wipe)")
     args = ap.parse_args()
+
+    if args.package_source:
+        rebuild_existing_package(args.package_source, args.extract, args.out, animate=args.animate)
+        print("wrote", args.out)
+        return
 
     extract = json.loads((args.extract / "slides.json").read_text())
     skip = TEMPLATE_IDS if args.template else frozenset()

@@ -309,11 +309,5 @@
   "vancouver": "Miske O, Abatayo AL, Daley M, et al. Investigating the reproducibility of the social and behavioural sciences. Nature. 2026;652(8108):126-34. doi:10.1038/s41586-026-10203-5",
   "doi": "10.1038/s41586-026-10203-5",
   "url": "https://doi.org/10.1038/s41586-026-10203-5"
- },
- "nas2019": {
-  "vancouver": "National Academies of Sciences, Engineering, and Medicine. Reproducibility and Replicability in Science. Washington, DC: The National Academies Press; 2019. doi:10.17226/25303",
-  "doi": "10.17226/25303",
-  "url": "https://www.nationalacademies.org/read/25303/chapter/2",
-  "short": "National Academies. Reproducibility and Replicability in Science. 2019"
  }
 }

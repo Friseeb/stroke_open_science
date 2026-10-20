@@ -1,54 +1,84 @@
-# Deck files
+# WSC presentation
 
-`make_slides.py` generates the talk deck. `project/deck.json` is its index and
-`project/slides/<id>.html` its slides. Speaker notes live in `speaker_notes.json` and references
-in `references.json`. Run `.venv/bin/python talk/deck/make_slides.py` after source edits.
+The working deck is Claude's benchmark design from `0761838`, 18 slides since
+15 October 2026: the opening now runs Purpose (reproducibility, access, value),
+then one slide per purpose with the NINDS rt-PA data story, and the proposals
+are a task force, open toolkits and a prize. `project/slides/*.html` and
+`project/deck.json` are the authoritative editable sources. Evidence for the
+opening: `../evidence_reanalysis.md`, `../evidence_benefits.md`.
 
-The current revision is `congress/Fridman_WSC2026_open_science_v6.pptx`. It preserves the
-20-slide order, including disclosure and reference appendices. `preview.html` is a portable
-browser preview with all illustrations embedded. The previous PowerPoint remains available.
+- PowerPoint: `congress/Fridman_WSC2026_open_science_v8.pptx` (18 slides, static) and
+  `congress/Fridman_WSC2026_open_science_v8_animated.pptx` (same slides with Morph between
+  slides, titles that settle, numbers that fade in, charts that wipe in; all automatic, one
+  click per slide). The 17-slide `Fridman_WSC2026_open_science.pptx` is the previous version.
+- PDF with embedded fonts: `congress/Fridman_WSC2026_open_science_v8.pdf`
+- Presentation in the browser: `preview.html` (offline; fonts, figures, D3 and the
+  dashboard's `charts.js` are embedded). Keys: → / PageDown / Space next, ← / PageUp back,
+  S speaker notes with timers in a second window (allow pop-ups), O overview, F full
+  screen, B blank screen. Titles settle, numbers count up and blocks cascade (off under
+  reduced motion); five charts are the dashboard's live D3 charts (hover for values);
+  source lines link to their DOIs and findings to the same view of the public dashboard.
+  The presentation layer lives in `present/deck.js` and `present/deck.css`; the chart data
+  in `assets/live_charts.json` (refresh with `--dashboard-data`, below).
+- Notes: `speaker_notes.json`, generated from each slide's `<aside>`
 
-The opening distinguishes computational reproducibility, replication with new data, and
-transparency. Statistical power, surveys, animal-to-human translation and differences between
-trials are not pooled into one crisis statistic. Benchmark figures show defined stroke
-comparisons and retain denominator and interpretation limits in the notes.
+Instrument Sans and Instrument Serif are supplied in `assets/fonts/` with their
+SIL Open Font License files. Static PowerPoint faces are also installed in the
+local user Fonts folder. The browser preview embeds the fonts and figures.
 
-Project illustrations and the official WSC cover banner are in `assets/`. The exact prompts,
-generation mode and banner source are recorded in `assets/provenance.json`. Conceptual artwork
-is separate from empirical plots. Main slides use titles of at most seven words and no more
-than twenty body words; disclosure and reference appendices retain their required content.
-
-To re-export the figures after a data refresh (needs the preview served on port 8766 and
-puppeteer-core with the installed Chrome, as in the scratchpad `pup/` folder):
-
-```bash
-node talk/deck/export_dashboard_figures.js http://localhost:8766/ talk/outputs/figures/dashboard
-```
-
-Dashboard exports remain available for detailed comparisons. The current main deck draws
-focused evidence graphics from benchmark values, rather than embedding full dashboards.
-The QR codes on the close slide were generated with the `qrcode` Python package
-(`qrcode.image.svg.SvgPathImage`) for the dashboard and repository URLs.
-
-## Congress PowerPoint (`congress/`)
-
-The World Stroke Congress wants a .pptx whose first slide carries the speaker's name and title and whose
-second slide is its conflict-of-interest form; it allows common fonts only (Arial, Times New Roman), JPG
-pictures. The opening carries the official WSC banner at the speaker's request.
-`congress/Fridman_WSC2026_open_science.pptx` is built in two steps, with the HTML deck
-as the single source, and every slide keeps the deck's look (the speaker's choice, 2026-10-14): the cover is
-slide 1 and the `disclosure` slide reproduces the congress form (its two boxes and nine categories).
+Build the preview without changing slide layouts (add `--dashboard-data <dashboard_data.json>`
+to refresh the live-chart data from a dashboard build, e.g. the published run's):
 
 ```bash
-# 1. render every slide in Chrome with the congress fonts and record the layout (needs puppeteer-core)
-NODE_PATH=<dir>/node_modules node talk/deck/congress/extract_slides.js \
-    talk/deck/project talk/outputs/figures/dashboard /tmp/wsc_extract
-# 2. build every slide as native, editable shapes
-python talk/deck/congress/build_wsc_pptx.py --extract /tmp/wsc_extract \
-    --out talk/deck/congress/Fridman_WSC2026_open_science.pptx --preview-dir /tmp/wsc_preview
+python talk/deck/make_slides.py
 ```
 
-`--template WSC-2026-PPT_w_disclosure_16_9.pptx` (from worldstrokecongress.org, promotional toolkit; not
-committed) opens with the official title and disclosure slides instead. The builder prints `FIT` lines when a
-text box would need more lines in PowerPoint than Chrome laid out, or when anything runs past the footer band;
-fix those in the HTML slide. Figures are converted to JPG under `congress/media/`.
+The PDF is Chrome's print of `preview.html` with reduced motion emulated, so every page is the
+finished slide; the live charts print as their pictures.
+
+```bash
+NODE_PATH=<puppeteer-core node_modules> node talk/deck/print_pdf.js talk/deck/preview.html \
+  talk/deck/congress/Fridman_WSC2026_open_science_v8.pdf
+```
+
+Export using the source typefaces and an existing 17-slide package. The builder
+edits native text and rules and preserves the original dashboard figure images.
+
+```bash
+NODE_PATH=<puppeteer-core node_modules> node talk/deck/congress/extract_slides.js \
+  talk/deck/project talk/outputs/figures/dashboard build/wsc_extract
+python talk/deck/congress/build_wsc_pptx.py \
+  --package-source talk/deck/congress/Fridman_WSC2026_open_science.pptx \
+  --extract build/wsc_extract \
+  --out talk/deck/congress/Fridman_WSC2026_open_science.pptx
+```
+
+`extract_slides.js` preserves source fonts and weights by default. The optional
+fourth argument `--congress-fonts` produces a separately measured common-font
+layout when a venue requires one.
+
+The source dashboard exports live under `talk/outputs/figures/dashboard/`.
+`render_institution_figure.js` refreshes the existing dashboard dot plot using
+`dashboard/charts.js` and `talk/outputs/tables/stroke_commitment_institutions.csv`.
+`render_slide_figures.js` draws the open-access trend (published open: gold, diamond
+or hybrid), open-access route and data-statement pictures from `assets/live_charts.json`
+with the same code as the live charts, so the .pptx and PDF match the presentation.
+Run it after `make_slides.py --dashboard-data <dashboard_data.json>`, then run
+`make_slides.py` once more.
+
+When the slide count changes, `--package-source` needs a package with the new
+count. Build one fresh first, then rebuild it in the source fonts:
+
+```bash
+python talk/deck/congress/build_wsc_pptx.py --extract build/wsc_extract --out build/package.pptx
+python talk/deck/congress/build_wsc_pptx.py --package-source build/package.pptx \
+  --extract build/wsc_extract --out talk/deck/congress/Fridman_WSC2026_open_science_v8.pptx
+# the same with motion: add --animate (and a different --out)
+```
+
+The animated file has not been checked in PowerPoint by the builder; click through it once.
+Morph needs PowerPoint 2019 or Microsoft 365 and falls back to a fade elsewhere.
+
+The .pptx does not embed fonts. On a computer without Instrument Sans and
+Instrument Serif, PowerPoint substitutes fonts and line breaks move; install
+the fonts from `assets/fonts/` there, or present the PDF.

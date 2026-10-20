@@ -1,0 +1,19 @@
+design,measure,years,n,rate
+Trials,registry number in title or abstract,2015,546,0.2143
+Trials,registry number in title or abstract,2024,890,0.3461
+Trials,registry number in title or abstract,2015-2025,8217,0.3125
+Trials,registry number in title or abstract,2022-2025,3585,0.359
+Trials,own registration stated in open-access full text (sample),2015-2025,1605,0.6112
+Trials,own registration stated in open-access full text (sample),2022-2025,520,0.6808
+Systematic reviews and meta-analyses,registry number in title or abstract,2015,183,0.0437
+Systematic reviews and meta-analyses,registry number in title or abstract,2024,900,0.2156
+Systematic reviews and meta-analyses,registry number in title or abstract,2015-2025,5792,0.169
+Systematic reviews and meta-analyses,registry number in title or abstract,2022-2025,3620,0.2077
+Systematic reviews and meta-analyses,own registration stated in open-access full text (sample),2015-2025,157,0.3376
+Systematic reviews and meta-analyses,own registration stated in open-access full text (sample),2022-2025,76,0.4474
+"Other studies (observational, imaging, lab, animal)",registry number in title or abstract,2015,5274,0.008
+"Other studies (observational, imaging, lab, animal)",registry number in title or abstract,2024,10835,0.015
+"Other studies (observational, imaging, lab, animal)",registry number in title or abstract,2015-2025,92649,0.0148
+"Other studies (observational, imaging, lab, animal)",registry number in title or abstract,2022-2025,43304,0.0153
+"Other studies (observational, imaging, lab, animal)",own registration stated in open-access full text (sample),2015-2025,400,0.06
+"Other studies (observational, imaging, lab, animal)",own registration stated in open-access full text (sample),2022-2025,137,0.0657

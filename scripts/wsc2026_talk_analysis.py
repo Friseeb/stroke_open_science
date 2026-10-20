@@ -32,6 +32,8 @@ Corpus rules (documented here because they drive every number in the talk)
 * Commitment league tables (institutions, journals, funders, countries) use only verified,
   full-text signals from the audited sample: repository deposit or public-source reuse in the
   DAS, GitHub in the full text, trial registration in the full text. Minimum n audited applies.
+* Citations (``cited_by_count``, OpenAlex) of open vs closed articles, 2015-2023, compared within journal and year,
+  and within funding status (non-blank ``funders``) as well: observational, authors may open their stronger work.
 
 Usage:
   python scripts/wsc2026_talk_analysis.py --inputs stroke=data/talk/stroke/fully_enriched.csv \
@@ -598,6 +600,87 @@ def commitment_outputs(stroke: pd.DataFrame, tables: Path, figures: Path) -> Opt
     return out
 
 
+# ----------------------------------------------------------------------------- citations
+CITATION_YEARS = list(range(2015, 2024))  # 2024-2025 are too young for citation counts to mean much
+
+
+def stratified_citation_ratio(df: pd.DataFrame, exposed: str, strata: List[str]) -> Dict[str, object]:
+    """Citations of exposed vs unexposed articles within strata that hold both groups.
+
+    Citation counts are heavy-tailed, so three estimators: a Mantel-Haenszel rate ratio on citations capped at each
+    year's 99th percentile, the geometric-mean ratio of (1 + citations), and the probability that an exposed article is
+    cited more than an unexposed one from the same stratum (ties count half).
+    """
+    df = df.dropna(subset=strata)
+    num = den = auc_sum = w_sum = 0.0
+    log_diffs, weights = [], []
+    n_exposed = n_unexposed = n_strata = 0
+    for _, g in df.groupby(strata):
+        e = g[exposed].astype(bool)
+        n1, n0, n = int(e.sum()), int((~e).sum()), len(g)
+        if n1 == 0 or n0 == 0:
+            continue
+        num += g.loc[e, "cites_capped"].sum() * n0 / n
+        den += g.loc[~e, "cites_capped"].sum() * n1 / n
+        w = n1 * n0 / n
+        ranks = g["cites"].rank()
+        auc_sum += w * (ranks[e].sum() - n1 * (n1 + 1) / 2) / (n1 * n0)
+        w_sum += w
+        log_diffs.append(np.log1p(g.loc[e, "cites"]).mean() - np.log1p(g.loc[~e, "cites"]).mean())
+        weights.append(w)
+        n_exposed, n_unexposed, n_strata = n_exposed + n1, n_unexposed + n0, n_strata + 1
+    if not n_strata or not den:
+        return {}
+    return {
+        "capped_mh_ratio": round(num / den, 3),
+        "geomean_ratio": round(float(np.exp(np.average(log_diffs, weights=weights))), 3),
+        "p_exposed_cited_more": round(auc_sum / w_sum, 3),
+        "n_exposed": n_exposed, "n_unexposed": n_unexposed, "n_strata": n_strata,
+        "median_exposed": float(df.loc[df[exposed].astype(bool), "cites"].median()),
+        "median_unexposed": float(df.loc[~df[exposed].astype(bool), "cites"].median()),
+    }
+
+
+def citation_outputs(stroke: pd.DataFrame, tables: Path) -> Optional[Dict[str, object]]:
+    """Are open stroke articles cited more? Observational: compared within journal and year (and funding status)."""
+    if "cited_by_count" not in stroke.columns:
+        return None
+    df = stroke[stroke["year"].isin(CITATION_YEARS)].copy()
+    df["cites"] = pd.to_numeric(df["cited_by_count"], errors="coerce").fillna(0)
+    df["cites_capped"] = np.minimum(df["cites"], df.groupby("year")["cites"].transform(lambda s: s.quantile(0.99)))
+    df["funded"] = _clean(_col(df, "funders")).ne("")
+    journal = _clean(_col(df, "journal_norm"))
+    df["journal_norm"] = journal.mask(journal.eq(""))
+    known = df[df["oa_status"].notna()].copy()
+    known["open"] = known["oa_status"].ne("closed")
+    hybrid = known[known["oa_status"].isin(["hybrid", "closed"])].copy()
+    hybrid["hybrid"] = hybrid["oa_status"].eq("hybrid")
+    audited = df[df["das_audited"]]
+    comparisons = [
+        ("open_vs_closed", "same journal and year", known, "open", ["journal_norm", "year"]),
+        ("open_vs_closed", "same journal, year and funding", known, "open", ["journal_norm", "year", "funded"]),
+        ("hybrid_vs_closed", "same journal, year and funding", hybrid, "hybrid", ["journal_norm", "year", "funded"]),
+        ("preprint_vs_none", "same journal, year and funding", df, "has_preprint_version", ["journal_norm", "year", "funded"]),
+        ("deposit_vs_other_audited", "same journal and year", audited, "das_deposit", ["journal_norm", "year"]),
+        ("on_request_vs_other_audited", "same journal and year", audited, "das_on_request", ["journal_norm", "year"]),
+    ]
+    rows = []
+    for name, within, frame, exposed, strata in comparisons:
+        res = stratified_citation_ratio(frame, exposed, strata)
+        if res:
+            rows.append({"comparison": name, "within": within, **res})
+    if not rows:
+        return None
+    table = pd.DataFrame(rows)
+    table.to_csv(tables / "stroke_citations_by_open_practice.csv", index=False)
+    return {
+        "years": [CITATION_YEARS[0], CITATION_YEARS[-1]],
+        "funded_share_open": round(float(known.loc[known["open"], "funded"].mean()), 4),
+        "funded_share_closed": round(float(known.loc[~known["open"], "funded"].mean()), 4),
+        "comparisons": rows,
+    }
+
+
 # ----------------------------------------------------------------------------- main
 def parse_inputs(args: argparse.Namespace) -> Dict[str, Path]:
     inputs: Dict[str, Path] = {}
@@ -699,6 +782,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     commitment = commitment_outputs(stroke, tables, figures)
     if commitment:
         numbers["stroke_commitment"] = commitment
+    citations = citation_outputs(stroke, tables)
+    if citations:
+        numbers["stroke_citations"] = citations
 
     # Figures
     fig_trend_by_discipline(by_year, "oa_rate", "Open access in stroke vs comparator fields", "share of articles open access", figures, "fig01_oa_trend")
