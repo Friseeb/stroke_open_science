@@ -167,7 +167,7 @@ window.Charts = (function () {
   }
 
   // ------------------------------------------------------------------ line chart (overlay | panels | slope | gap)
-  /** o = { series:[{key,label,color,values:[v|null],ns:[n],emphasis}], xs:[years], fmt, yMax, partial, markers, layout, height } */
+  /** o = { series:[{key,label,color,values:[v|null],ns:[n],emphasis}], xs:[years], fmt, yMin, yMax, partial, markers, layout, height } */
   function lineChart(el, o) {
     const series = o.series.filter((s) => s.values.some((v) => v !== null && v !== undefined));
     if (!series.length) { empty(el); return; }
@@ -180,7 +180,7 @@ window.Charts = (function () {
     const xs = o.xs;
     const x = d3.scaleLinear().domain([xs[0] - 0.4, xs[xs.length - 1] + 0.4]).range([0, F.iw]);
     const vmax = o.yMax || Math.min(o.fmt === "int" ? Infinity : 1, Math.max(1e-9, ...series.flatMap((s) => s.values.filter((v) => v !== null))) * 1.08);
-    const y = d3.scaleLinear().domain([0, vmax]).nice(4).range([F.ih, 0]);
+    const y = d3.scaleLinear().domain([o.yMin || 0, vmax]).nice(4).range([F.ih, 0]);
     const slot = F.iw / Math.max(1, xs.length - 1);
     partialBand(F.g, o.partial, xs, x, slot, F.ih, t);
     milestones(F.g, o.markers, xs, x, slot, F.ih, F.iw, t);

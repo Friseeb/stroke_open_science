@@ -52,6 +52,7 @@ def make_frame(n: int = 120) -> pd.DataFrame:
             "first_author_country": COUNTRIES[i % 5] if i % 19 else "",
             "funders": funders,
             "registration_signal": i % 6 == 0 and i % 9 != 0,
+            "is_trial": i % 5 == 1,
             "in_article_corpus": i % 23 != 0,
             "das_available": i % 8 == 0, "das_has_statement": i % 16 == 0,
             "das_primary": "repository" if i % 16 == 0 else ("no_statement" if i % 8 == 0 else ""),
@@ -67,7 +68,7 @@ def make_frame(n: int = 120) -> pd.DataFrame:
 LEGACY_DROP = ["oa_status", "first_author_country", "funders", "registration_signal", "in_article_corpus",
                "das_available", "das_has_statement", "das_primary", "has_preprint_version", "abstract", "title",
                "das_mentions_github", "das_mentions_trial_registration", "das_mentions_supplement",
-               "first_author_income_group", "institutions"]
+               "first_author_income_group", "institutions", "is_trial"]
 
 
 def counts_dict(rows, offset):
@@ -133,7 +134,7 @@ def test_top_n_folding_journals_and_countries():
     labels = {j["key"]: j["label"] for j in agg["journals"]}
     assert labels[top2[0]] == top2[0].title() or labels[top2[0]].lower() == top2[0]
     other_idx = keys.index("Other")
-    other_n = sum(row[len(bdd.CELL_KEYS)] for row in agg["cells"] if row[2] == other_idx)
+    other_n = sum(row[len(bdd.CELL_KEYS)] for row in agg["cells"] if row[bdd.CELL_KEYS.index("journal")] == other_idx)
     assert other_n == int((~ref["journal_norm"].isin(top2)).sum())
 
     ckeys = [c["key"] for c in agg["countries"]]
@@ -141,7 +142,7 @@ def test_top_n_folding_journals_and_countries():
     country = ref["first_author_country"].fillna("").str.upper()
     top3 = country[country.ne("")].value_counts().index[:3].tolist()
     assert ckeys[:3] == top3
-    other_c = sum(row[len(bdd.CELL_KEYS)] for row in agg["cells"] if row[3] == len(ckeys) - 1)
+    other_c = sum(row[len(bdd.CELL_KEYS)] for row in agg["cells"] if row[bdd.CELL_KEYS.index("country")] == len(ckeys) - 1)
     # blank country is folded into Other too
     assert other_c == int((~country.isin(top3)).sum())
     assert agg["countries"][0]["label"] == bdd.ISO2_NAMES[top3[0]]
@@ -155,10 +156,10 @@ def test_funders_multivalued_and_no_funder_bucket():
     ref = corpus(df)
     exploded = ref["funders"].fillna("").str.split("|").explode().str.strip()
     nih_idx = agg["funders"].index("NIH")
-    nih_n = sum(row[len(bdd.FUNDER_KEYS)] for row in agg["funder_cells"] if row[2] == nih_idx)
+    nih_n = sum(row[len(bdd.FUNDER_KEYS)] for row in agg["funder_cells"] if row[bdd.FUNDER_KEYS.index("funder")] == nih_idx)
     assert nih_n == int(exploded.eq("NIH").sum())
     none_idx = agg["funders"].index("(no funder listed)")
-    none_n = sum(row[len(bdd.FUNDER_KEYS)] for row in agg["funder_cells"] if row[2] == none_idx)
+    none_n = sum(row[len(bdd.FUNDER_KEYS)] for row in agg["funder_cells"] if row[bdd.FUNDER_KEYS.index("funder")] == none_idx)
     assert none_n == int(exploded.eq("").sum())
     # a paper with two funders is counted under both, so funder n exceeds the paper total
     total_funder_n = sum(row[len(bdd.FUNDER_KEYS)] for row in agg["funder_cells"])
@@ -179,7 +180,7 @@ def test_rates_recomputed_from_counts_match_pandas(hi_only):
     off = len(bdd.CELL_KEYS)
     K = {k: i for i, k in enumerate(bdd.COUNT_KEYS)}
     for year in (2019, 2021):
-        rows = [r for r in agg["cells"] if r[0] == year and r[2] == j_idx and (r[1] == 1 or not hi_only)]
+        rows = [r for r in agg["cells"] if r[0] == year and r[bdd.CELL_KEYS.index("journal")] == j_idx and (r[1] == 1 or not hi_only)]
         n = sum(r[off + K["n"]] for r in rows)
         oa = sum(r[off + K["oa"]] for r in rows)
         reg = sum(r[off + K["reg"]] for r in rows)
@@ -402,7 +403,7 @@ def test_income_cells_partition_the_corpus():
     income_n = counts_dict(agg["income_cells"], len(bdd.INCOME_KEYS))["n"]
     assert income_n == total_n
     ref = corpus(df)
-    hi_n = sum(r[len(bdd.INCOME_KEYS)] for r in agg["income_cells"] if r[2] == 0)
+    hi_n = sum(r[len(bdd.INCOME_KEYS)] for r in agg["income_cells"] if r[bdd.INCOME_KEYS.index("income")] == 0)
     assert hi_n == int(ref["first_author_income_group"].fillna("").eq("high").sum())
 
 
@@ -416,10 +417,10 @@ def test_institution_cells_are_multivalued_with_other_and_none():
     assert all(len(r) == width for r in agg["institution_cells"])
     ref = corpus(df)
     west_idx = agg["institutions"].index("Western University")
-    west_n = sum(r[len(bdd.INSTITUTION_KEYS)] for r in agg["institution_cells"] if r[2] == west_idx)
+    west_n = sum(r[len(bdd.INSTITUTION_KEYS)] for r in agg["institution_cells"] if r[bdd.INSTITUTION_KEYS.index("institution")] == west_idx)
     assert west_n == int(ref["institutions"].fillna("").str.contains("Western University").sum())
     none_idx = agg["institutions"].index(bdd.NO_INSTITUTION_LABEL)
-    none_n = sum(r[len(bdd.INSTITUTION_KEYS)] for r in agg["institution_cells"] if r[2] == none_idx)
+    none_n = sum(r[len(bdd.INSTITUTION_KEYS)] for r in agg["institution_cells"] if r[bdd.INSTITUTION_KEYS.index("institution")] == none_idx)
     assert none_n == int(ref["institutions"].fillna("").eq("").sum())
 
 
@@ -432,7 +433,7 @@ def test_institution_aliases_merge_units_and_count_each_article_once():
     agg = bdd.aggregate_discipline(df, "stroke", top_institutions=5, institution_aliases=aliases)
     assert "Center for Stroke Research Berlin" not in agg["institutions"]
     idx = agg["institutions"].index("Charité")
-    n = sum(r[len(bdd.INSTITUTION_KEYS)] for r in agg["institution_cells"] if r[2] == idx)
+    n = sum(r[len(bdd.INSTITUTION_KEYS)] for r in agg["institution_cells"] if r[bdd.INSTITUTION_KEYS.index("institution")] == idx)
     ref = corpus(df)["institutions"].fillna("")
     expected = int((ref.str.contains("Charité") | ref.str.contains("Center for Stroke Research Berlin")).sum())
     assert n == expected   # articles listing both count once
@@ -453,9 +454,10 @@ def test_legacy_frame_has_no_income_or_institutions():
     assert c["ft_github"] == 0 and c["ft_reg"] == 0
 
 
-def test_payload_v2_carries_new_keys():
+def test_payload_carries_schema_keys():
     payload = bdd.assemble_payload([bdd.aggregate_discipline(make_frame(), "stroke")], run_date="2026-10-12")
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == bdd.SCHEMA_VERSION == 3
+    assert "trial" in payload["cell_keys"] and "description" in payload["study_design"]
     assert payload["income_order"] == bdd.INCOME_ORDER and payload["fulltext_keys"] == bdd.FULLTEXT_KEYS
     assert [s["key"] for s in payload["commitment_signals"]] == ["das_deposit", "ft_github", "ft_reg"]
     d = payload["disciplines"][0]
@@ -474,3 +476,29 @@ def test_policy_events_shipped_from_config(tmp_path):
     assert bdd.read_policy_events(tmp_path) == [{"year": 2023, "label": "x", "short": "x", "detail": "", "scope": ""}]
     payload = bdd.assemble_payload([bdd.aggregate_discipline(make_frame(), "stroke")], run_date="2026-10-12", repo_root=root)
     assert payload["policy_events"] == events
+
+
+def test_trial_column_partitions_every_table():
+    df = make_frame()
+    agg = bdd.aggregate_discipline(df, "stroke")
+    ref = corpus(df)
+    pos = bdd.CELL_KEYS.index("trial")
+    n_at = len(bdd.CELL_KEYS)
+    trial_n = sum(r[n_at] for r in agg["cells"] if r[pos] == 1)
+    other_n = sum(r[n_at] for r in agg["cells"] if r[pos] == 0)
+    assert trial_n == int(dash.to_bool_series(ref["is_trial"]).sum())
+    assert trial_n + other_n == len(ref)
+    assert agg["available"]["trial"] is True
+    for table, keys in (("income_cells", bdd.INCOME_KEYS), ("institution_cells", bdd.INSTITUTION_KEYS), ("funder_cells", bdd.FUNDER_KEYS)):
+        assert keys.index("trial") == pos
+        assert {r[pos] for r in agg[table]} <= {0, 1}
+    inc_trial = sum(r[len(bdd.INCOME_KEYS)] for r in agg["income_cells"] if r[pos] == 1)
+    assert inc_trial == trial_n
+
+
+def test_study_design_derived_for_frames_without_it():
+    df = make_frame().drop(columns=["is_trial"])
+    df.loc[df.index[:3], "title"] = ["A randomised controlled trial of X", "Meta-analysis of randomised trials", "Stroke in a cohort"]
+    out = bdd.prepare_frame(df, "stroke")
+    assert out["study_design"].iloc[:3].tolist() == ["trial", "systematic_review", "other"]
+    assert out["is_trial"].iloc[:3].tolist() == [True, False, False]
