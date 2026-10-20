@@ -8,8 +8,11 @@
 
   const DATA_URL = "dashboard_data.json";
   const MIN_N_RATE = 10;          // below this many papers a rate is not drawn (the cell still shows n)
-  const CELL_OFFSET = 4;          // [year, hi, journal, country, ...counts]
-  const DIM_OFFSET = 3;           // [year, hi, <dim>, ...counts] for funder / income / institution tables
+  // Row layout, read from DATA.cell_keys / income_keys at boot: [year, hi, trial, journal, country, ...counts] and
+  // [year, hi, trial, <dim>, ...counts] for the funder / income / institution tables (no trial column before schema 3).
+  let CELL_OFFSET = 4;
+  let DIM_OFFSET = 3;
+  let POS = { trial: -1, journal: 2, country: 3, dim: 2 };
 
   const VIEWS = [
     ["s1", "Indicators"], ["s2", "Trends"], ["s3", "Data statements"],
@@ -71,7 +74,7 @@
   const state = {
     view: "s1",
     disciplines: [], focus: null, yearMin: null, yearMax: null,
-    slice: { kind: "", key: "" }, hi: false,
+    slice: { kind: "", key: "" }, hi: false, design: "all",
     metric: "oa", trendShow: "rate", trendLayout: "overlay", metricIncome: "oa",
     oaGrouping: "route", dasGrouping: "five", dasDenominator: "audited",
     eqSignal: "route", cmEntity: "institutions", cmMin: 50, cmTop: 15, cmSignals: ["das_deposit", "ft_github", "ft_reg"],
@@ -170,10 +173,18 @@
     return null;
   }
   function tableFor(disc, kind) {
-    if (kind === "funder") return { rows: disc.funder_cells, offset: DIM_OFFSET, pos: 2 };
-    if (kind === "income") return { rows: disc.income_cells || [], offset: DIM_OFFSET, pos: 2 };
-    if (kind === "institution") return { rows: disc.institution_cells || [], offset: DIM_OFFSET, pos: 2 };
-    return { rows: disc.cells, offset: CELL_OFFSET, pos: kind === "country" ? 3 : 2 };
+    if (kind === "funder") return { rows: disc.funder_cells, offset: DIM_OFFSET, pos: POS.dim };
+    if (kind === "income") return { rows: disc.income_cells || [], offset: DIM_OFFSET, pos: POS.dim };
+    if (kind === "institution") return { rows: disc.institution_cells || [], offset: DIM_OFFSET, pos: POS.dim };
+    return { rows: disc.cells, offset: CELL_OFFSET, pos: kind === "country" ? POS.country : POS.journal };
+  }
+  const hasDesign = () => POS.trial >= 0;
+  /** The filters every table shares: year range, high-impact subset and study design (trials or other studies). */
+  function keepRow(row) {
+    if (row[0] < state.yearMin || row[0] > state.yearMax) return false;
+    if (state.hi && row[1] !== 1) return false;
+    if (state.design !== "all" && hasDesign() && row[POS.trial] !== (state.design === "trial" ? 1 : 0)) return false;
+    return true;
   }
   /** Aggregate counts by year for one discipline under the current selection. */
   function aggregateDiscipline(disc) {
@@ -185,8 +196,7 @@
     const t = tableFor(disc, kind || "journal");
     for (const row of t.rows) {
       const year = row[0];
-      if (year < state.yearMin || year > state.yearMax) continue;
-      if (state.hi && row[1] !== 1) continue;
+      if (!keepRow(row)) continue;
       if (idx !== null && row[t.pos] !== idx) continue;
       let acc = byYear.get(year);
       if (!acc) { acc = emptyCounts(); byYear.set(year, acc); }
@@ -202,12 +212,11 @@
     const t = tableFor(disc, dim);
     const sameTable = (dim === "journal" || dim === "country") && (state.slice.kind === "journal" || state.slice.kind === "country") && state.slice.kind !== dim;
     const idx = sameTable ? sliceIndex(disc) : null;
-    const slicePos = state.slice.kind === "country" ? 3 : 2;
+    const slicePos = state.slice.kind === "country" ? POS.country : POS.journal;
     if (idx === -1) return groups;
     for (const row of t.rows) {
       const year = row[0];
-      if (year < state.yearMin || year > state.yearMax) continue;
-      if (state.hi && row[1] !== 1) continue;
+      if (!keepRow(row)) continue;
       if (idx !== null && row[slicePos] !== idx) continue;
       let acc = groups.get(row[t.pos]);
       if (!acc) { acc = emptyCounts(); groups.set(row[t.pos], acc); }
@@ -219,8 +228,7 @@
   function baselineCounts(disc) {
     const total = emptyCounts();
     for (const row of disc.cells) {
-      if (row[0] < state.yearMin || row[0] > state.yearMax) continue;
-      if (state.hi && row[1] !== 1) continue;
+      if (!keepRow(row)) continue;
       addRow(total, row, CELL_OFFSET);
     }
     return total;
@@ -231,12 +239,11 @@
     const t = tableFor(disc, dim);
     const sameTable = (dim === "journal" || dim === "country") && (state.slice.kind === "journal" || state.slice.kind === "country") && state.slice.kind !== dim;
     const idx = sameTable ? sliceIndex(disc) : null;
-    const slicePos = state.slice.kind === "country" ? 3 : 2;
+    const slicePos = state.slice.kind === "country" ? POS.country : POS.journal;
     if (idx === -1) return groups;
     for (const row of t.rows) {
       const year = row[0];
-      if (year < state.yearMin || year > state.yearMax) continue;
-      if (state.hi && row[1] !== 1) continue;
+      if (!keepRow(row)) continue;
       if (idx !== null && row[slicePos] !== idx) continue;
       let byYear = groups.get(row[t.pos]);
       if (!byYear) { byYear = new Map(); groups.set(row[t.pos], byYear); }
@@ -271,7 +278,7 @@
   }
 
   // ------------------------------------------------------------------ URL state
-  const HASH_KEYS = ["view", "focus", "hi", "metric", "trendShow", "trendLayout", "metricIncome", "oaGrouping", "dasGrouping", "dasDenominator",
+  const HASH_KEYS = ["view", "focus", "hi", "design", "metric", "trendShow", "trendLayout", "metricIncome", "oaGrouping", "dasGrouping", "dasDenominator",
     "eqSignal", "cmEntity", "cmMin", "cmTop", "journalMetric", "journalMin", "journalTop", "markers"].concat(FORM_KEYS);
   function writeHash() {
     const p = new URLSearchParams();
@@ -295,6 +302,7 @@
     const yrs = (p.get("years") || "").split("-").map(Number);
     if (yrs.length === 2 && yrs.every((y) => DATA.years.includes(y)) && yrs[0] <= yrs[1]) { state.yearMin = yrs[0]; state.yearMax = yrs[1]; }
     if (p.get("hi") === "true") state.hi = true;
+    if (["trial", "other"].includes(p.get("design"))) state.design = p.get("design");
     if (p.get("markers") === "false") state.markers = false;
     const slice = (p.get("slice") || "").split(":");
     if (slice.length >= 2 && ["journal", "country", "funder", "income"].includes(slice[0])) state.slice = { kind: slice[0], key: slice.slice(1).join(":") };
@@ -314,7 +322,7 @@
     state.focus = state.disciplines.includes("stroke") ? "stroke" : state.disciplines[0];
     const dflt = Array.isArray(DATA.default_year_range) && DATA.default_year_range.length === 2 ? DATA.default_year_range : DATA.years;
     state.yearMin = dflt[0]; state.yearMax = dflt[dflt.length - 1];
-    state.slice = { kind: "", key: "" }; state.hi = false;
+    state.slice = { kind: "", key: "" }; state.hi = false; state.design = "all";
     state.metric = "oa"; state.trendShow = "rate"; state.trendLayout = "overlay"; state.metricIncome = "oa";
     state.oaGrouping = "route"; state.dasGrouping = "five"; state.dasDenominator = "audited"; state.eqSignal = "route";
     state.cmEntity = "institutions"; state.cmMin = 50; state.cmTop = 15; state.cmSignals = ["das_deposit", "ft_github", "ft_reg"];
@@ -354,6 +362,7 @@
     syncPillGroup("disc-pills", (v) => state.disciplines.includes(v));
     syncPillGroup("cm-signals", (v) => state.cmSignals.includes(v));
     syncPillGroup("hi-pills", (v) => (v === "hi") === state.hi);
+    syncPillGroup("design-pills", (v) => v === state.design);
     syncYears();
   }
 
@@ -391,6 +400,10 @@
     if (!document.querySelector(".range-fill")) yMin.parentElement.append(el("span", { class: "range-fill", "aria-hidden": "true" }));
     // Papers
     pills("hi-pills", [{ value: "all", label: "All" }, { value: "hi", label: "High-impact" }], (v) => (v === "hi") === state.hi, (v) => { state.hi = v === "hi"; renderAll(); });
+    // Study design: trial reports (and their secondary analyses) or every other paper
+    $("design-group").hidden = !hasDesign();
+    pills("design-pills", [{ value: "all", label: "All" }, { value: "trial", label: "Trials", title: (DATA.study_design || {}).description || null },
+      { value: "other", label: "Other studies" }], (v) => v === state.design, (v) => { state.design = v; renderAll(); });
     // Disciplines (multi)
     pills("disc-pills", DATA.disciplines.map((d) => ({ value: d.key, label: d.label, color: discColor(d) })), (v) => state.disciplines.includes(v), (v) => {
       const next = DATA.disciplines.map((x) => x.key).filter((k) => (k === v ? !state.disciplines.includes(k) : state.disciplines.includes(k)));
@@ -464,7 +477,8 @@
     return s.key;
   }
   function selectionLabel() {
-    const parts = [state.hi ? "high-impact papers" : "all papers"];
+    const what = state.design === "trial" ? "trials" : state.design === "other" ? "non-trial papers" : "papers";
+    const parts = [(state.hi ? "high-impact " : "all ") + what];
     if (state.slice.kind) parts.push(sliceLabel());
     parts.push(state.yearMin === state.yearMax ? String(state.yearMin) : state.yearMin + "–" + state.yearMax);
     return parts.join(", ");
@@ -769,7 +783,7 @@
         if (idx < 0) return;
         const byYear = new Map();
         for (const row of d.income_cells || []) {
-          if (row[0] < state.yearMin || row[0] > state.yearMax || (state.hi && row[1] !== 1) || row[2] !== idx) continue;
+          if (!keepRow(row) || row[POS.dim] !== idx) continue;
           let acc = byYear.get(row[0]); if (!acc) { acc = emptyCounts(); byYear.set(row[0], acc); }
           addRow(acc, row, DIM_OFFSET);
         }
@@ -1214,7 +1228,7 @@
   // ------------------------------------------------------------------ CSV + link
   function downloadCsv() {
     const years = yearsInRange();
-    const header = ["discipline", "year", "subset", "slice"].concat(DATA.count_keys).concat(METRICS.map((m) => m.key + "_rate"));
+    const header = ["discipline", "year", "subset", "design", "slice"].concat(DATA.count_keys).concat(METRICS.map((m) => m.key + "_rate"));
     const lines = [header.join(",")];
     const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
     for (const d of selectedDiscs()) {
@@ -1224,7 +1238,7 @@
         const c = agg.byYear.get(y);
         if (!c) continue;
         const rates = METRICS.map((m) => { const dn = denom(c, m); return dn ? (numer(c, m) / dn).toFixed(4) : ""; });
-        lines.push([d.key, y, state.hi ? "high_impact" : "all", q(state.slice.kind ? state.slice.kind + ":" + state.slice.key : "all")].concat(c).concat(rates).join(","));
+        lines.push([d.key, y, state.hi ? "high_impact" : "all", state.design, q(state.slice.kind ? state.slice.kind + ":" + state.slice.key : "all")].concat(c).concat(rates).join(","));
       }
     }
     const blob = new Blob([lines.join("\n") + "\n"], { type: "text/csv;charset=utf-8" });
@@ -1248,6 +1262,7 @@
     const block = (title, node) => { body.append(el("h4", { text: title }), el("div", { class: "mbody" }, node)); };
     const dl = el("dl");
     for (const m of METRICS) dl.append(el("dt", { text: m.label }), el("dd", { text: m.definition }));
+    if (DATA.study_design) dl.append(el("dt", { text: "Trials" }), el("dd", { text: DATA.study_design.description }));
     dl.append(el("dt", { text: "OA route" }), el("dd", { text: "Free to author = OpenAlex diamond or green; APC paid = gold or hybrid; bronze = free to read without a licence; closed. Shares use papers with a known status as the denominator." }));
     dl.append(el("dt", { text: "Audited sample" }), el("dd", { text: "The data-availability audit covers a per-year sample of open-access articles with full text in Europe PMC, so every full-text rate is optimistic relative to the whole corpus and refers to audited papers only. Groups with fewer than " + MIN_N_RATE + " audited papers are not drawn." }));
     dl.append(el("dt", { text: "Statement classes" }), el("dd", { text: "Five ordered classes for the chart: deposited or public source (repository, public_source); controlled or restricted; on request; in article or supplement; not available or unclear (not_available_or_na, other_or_unclear); plus no statement. The eight underlying categories are available as small multiples and in every table." }));
@@ -1316,6 +1331,9 @@
       return;
     }
     DATA = payload;
+    const ck = DATA.cell_keys || ["year", "hi", "journal", "country"], dk = DATA.income_keys || ["year", "hi", "income"];
+    CELL_OFFSET = ck.length; DIM_OFFSET = dk.length;
+    POS = { trial: ck.indexOf("trial"), journal: ck.indexOf("journal"), country: ck.indexOf("country"), dim: dk.length - 1 };
     DATA.count_keys.forEach((k, i) => { K[k] = i; });
     if (!DATA.disciplines.length) { $("error").hidden = false; $("error").textContent = "No disciplines in the data file."; return; }
     buildMetrics();

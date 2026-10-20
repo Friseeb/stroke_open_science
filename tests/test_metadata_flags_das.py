@@ -870,3 +870,41 @@ def test_high_impact_flags_are_recomputed_not_carried_over():
     assert set(subset["doi_norm"]) == {"10.1/star", "10.1/x17"}
     stale = full[full["doi_norm"] == "10.1/stale"].iloc[0]
     assert bool(stale["high_impact_flag"]) is False and stale["high_impact_reason"] == ""
+
+
+@pytest.mark.parametrize("title,abstract,work_type,expected", [
+    ("Intravenous tenecteplase in acute stroke: a randomized controlled trial", "", "article", "trial"),
+    ("Post hoc analysis of the ESCAPE-NA1 trial", "", "article", "trial"),
+    ("Safety of a new neuroprotectant: phase 2b study", "", "article", "trial"),
+    ("Remote ischaemic conditioning after stroke", "Patients were randomly assigned to conditioning or sham.", "article", "trial"),
+    ("Thrombectomy beyond 24 hours", "Placebo-controlled, double-blind design.", "article", "trial"),
+    ("Tenecteplase versus alteplase: a systematic review and meta-analysis of randomised trials", "", "article", "systematic_review"),
+    ("Network meta-analysis of antiplatelet regimens", "", "article", "systematic_review"),
+    ("Trials in acute stroke: an update", "", "review", "other"),
+    ("Outcomes after stroke in a national registry", "Randomized trials have shown benefit; we studied a registry. NCT01234567.", "article", "other"),
+    ("Lesion network mapping of post-stroke depression", "", "article", "other"),
+])
+def test_study_design_from_title_and_abstract(title, abstract, work_type, expected):
+    df = pipeline.apply_study_design_flags(pd.DataFrame([{"title": title, "abstract": abstract, "work_type": work_type}]))
+    assert df.loc[0, "study_design"] == expected
+    assert bool(df.loc[0, "is_trial"]) == (expected == "trial")
+
+
+def test_study_design_unions_pubmed_trial_types_with_the_text():
+    df = pd.DataFrame([
+        {"doi": "10.1/A", "title": "Outcomes after thrombectomy", "abstract": "", "work_type": "article"},          # PubMed only
+        {"doi": "10.1/b", "title": "A pilot randomised controlled trial of X", "abstract": "", "work_type": "article"},  # text only
+        {"doi": "", "title": "Stroke in a registry", "abstract": "", "work_type": "article"},
+    ])
+    out = pipeline.apply_study_design_flags(df.copy(), ["https://doi.org/10.1/a"])
+    assert out["pubmed_trial"].tolist() == [True, False, False]
+    assert out["is_trial"].tolist() == [True, True, False]
+    assert out["study_design"].tolist() == ["trial", "trial", "other"]
+    assert "pubmed_trial" not in pipeline.apply_study_design_flags(df.copy()).columns
+
+
+def test_pubmed_trial_query_restricts_title_terms_types_and_year():
+    q = pipeline.pubmed_trial_query(["stroke", "transient ischemic attack"], 2021)
+    assert '"stroke"[Title] OR "transient ischemic attack"[Title]' in q
+    assert '"Randomized Controlled Trial"[Publication Type]' in q and '"Clinical Trial Protocol"[Publication Type]' in q
+    assert '"2021/01/01"[Date - Publication] : "2021/12/31"[Date - Publication]' in q

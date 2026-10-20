@@ -43,7 +43,7 @@ import build_discipline_dashboard as dash  # noqa: E402  (sibling module)
 # Constants
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 OA_STATUS_ORDER = list(dash.OA_STATUS_ORDER)
 DAS_ORDER = list(dash.DAS_ORDER)
@@ -57,10 +57,11 @@ COUNT_KEYS: List[str] = (
     + [f"das_{c}" for c in DAS_ORDER]
     + FULLTEXT_KEYS
 )
-CELL_KEYS = ["year", "hi", "journal", "country"]
-FUNDER_KEYS = ["year", "hi", "funder"]
-INCOME_KEYS = ["year", "hi", "income"]
-INSTITUTION_KEYS = ["year", "hi", "institution"]
+# Schema 3 adds ``trial`` (1 = trial report or secondary analysis of a trial) after ``hi`` in every table.
+CELL_KEYS = ["year", "hi", "trial", "journal", "country"]
+FUNDER_KEYS = ["year", "hi", "trial", "funder"]
+INCOME_KEYS = ["year", "hi", "trial", "income"]
+INSTITUTION_KEYS = ["year", "hi", "trial", "institution"]
 
 # World Bank income group of the first author's country (pipeline column first_author_income_group).
 INCOME_ORDER = ["high", "upper_middle", "lower_middle", "low"]
@@ -111,7 +112,7 @@ NEEDED_COLS = {
     "high_impact_flag", "high_impact_reason", "abstract", "title",
     "work_type", "oa_status", "primary_source_type", "has_preprint_version",
     "first_author_country", "countries", "funders",
-    "registration_signal", "registered_any", "in_article_corpus", "corpus_rule",
+    "registration_signal", "registered_any", "in_article_corpus", "corpus_rule", "study_design", "is_trial", "pubmed_trial",
     "das_available", "das_has_statement", "das_primary",
     "das_mentions_github", "das_mentions_trial_registration", "das_mentions_supplement",
     "first_author_income_group", "institutions",
@@ -316,6 +317,35 @@ def apply_enrichment_metadata(df: pd.DataFrame, enrichment_csv: Path) -> pd.Data
     return df
 
 
+def study_design_description() -> str:
+    try:
+        import search_stroke_dois as pipeline
+        return pipeline.STUDY_DESIGN_DESCRIPTION
+    except Exception:  # pragma: no cover - defensive
+        return "Trials = reports of prospective interventional trials and their secondary analyses, from the title and abstract."
+
+
+def derive_study_design(df: pd.DataFrame, source_dir: Optional[Path] = None) -> pd.DataFrame:
+    """When the CSV predates the study-design stage, classify trials exactly as the pipeline would
+    (``apply_study_design_flags``), with the PubMed trial DOIs from ``<source_dir>/pubmed_trial_dois.json``
+    when that file exists (otherwise from title + abstract only)."""
+    if "is_trial" in df.columns:
+        return df
+    if "abstract" not in df.columns and "title" not in df.columns:
+        return df
+    try:
+        import search_stroke_dois as pipeline
+        dois = None
+        if source_dir is not None and (Path(source_dir) / pipeline.PUBMED_TRIAL_DOIS_FILE).exists():
+            dois = pipeline.load_pubmed_trial_dois(Path(source_dir) / pipeline.PUBMED_TRIAL_DOIS_FILE)
+            logging.info("Using %d PubMed trial DOIs from %s.", len(dois or []), source_dir)
+        df = pipeline.apply_study_design_flags(df, dois)
+        logging.info("Derived study design from title+abstract for %d rows.", len(df))
+    except Exception as exc:  # pragma: no cover - defensive
+        logging.warning("Could not derive study design (%s).", exc)
+    return df
+
+
 def derive_registration_flags(df: pd.DataFrame) -> pd.DataFrame:
     """When the CSV predates the regex registration stage but has title/abstract text, compute the
     same flags the pipeline would (``apply_registration_flags``)."""
@@ -359,6 +389,7 @@ def row_flags(df: pd.DataFrame, discipline: str) -> Dict[str, Any]:
     flags["year"] = out["year"]
     flags["n"] = 1
     flags["hi"] = dash.to_bool_series(_series(out, "high_impact_flag")).astype(int)
+    flags["trial"] = dash.to_bool_series(_series(out, "is_trial")).astype(int)
     flags["oa"] = dash.derive_open_access(out).astype(int)
 
     oa_status = _clean_text(_series(out, "oa_status")).str.lower()
@@ -438,6 +469,7 @@ def row_flags(df: pd.DataFrame, discipline: str) -> Dict[str, Any]:
         "country": bool(country_available),
         "funders": bool(funders_available),
         "high_impact": bool(flags["hi"].any()),
+        "trial": "is_trial" in out.columns,
         "income": bool(income_available),
         "institutions": bool(institutions_available),
         "fulltext": bool(audited.any()),
@@ -513,7 +545,7 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
         if len(known):
             country_income = known.groupby("country")["income"].agg(lambda s: s.value_counts().idxmax()).to_dict()
 
-    key_frame = flags[["year", "hi"] + COUNT_KEYS].copy()
+    key_frame = flags[["year", "hi", "trial"] + COUNT_KEYS].copy()
     key_frame["journal"] = journal_folded.astype(int)
     key_frame["country"] = country_folded.astype(int)
     cells = key_frame.groupby(CELL_KEYS, as_index=False)[COUNT_KEYS].sum().sort_values(CELL_KEYS)
@@ -523,7 +555,7 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
     funder_rows: List[List[int]] = []
     funder_list: List[str] = []
     if prepared["available"]["funders"]:
-        exploded = flags[["year", "hi", "funders"] + COUNT_KEYS].copy()
+        exploded = flags[["year", "hi", "trial", "funders"] + COUNT_KEYS].copy()
         exploded["funder"] = exploded["funders"].str.split("|")
         exploded = exploded.explode("funder")
         exploded["funder"] = _clean_text(exploded["funder"])
@@ -541,7 +573,7 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
     income_rows: List[List[int]] = []
     if prepared["available"]["income"]:
         income_index = {g: i for i, g in enumerate(income_list)}
-        inc = flags[["year", "hi", "income"] + COUNT_KEYS].copy()
+        inc = flags[["year", "hi", "trial", "income"] + COUNT_KEYS].copy()
         inc["income"] = inc["income"].map(income_index).astype(int)
         grouped = inc.groupby(INCOME_KEYS, as_index=False)[COUNT_KEYS].sum().sort_values(INCOME_KEYS)
         income_rows = _rows_from_grouped(grouped, INCOME_KEYS)
@@ -550,7 +582,7 @@ def aggregate_discipline(df: pd.DataFrame, discipline: str, *, top_journals: int
     institution_rows: List[List[int]] = []
     institution_list: List[str] = []
     if prepared["available"]["institutions"]:
-        exploded = flags[["year", "hi", "institutions"] + COUNT_KEYS].copy()
+        exploded = flags[["year", "hi", "trial", "institutions"] + COUNT_KEYS].copy()
         exploded["institution"] = exploded["institutions"].str.split("|")
         exploded = exploded.explode("institution")
         exploded["institution"] = _clean_text(exploded["institution"])
@@ -697,6 +729,7 @@ def assemble_payload(aggregates: List[Dict[str, Any]], *, run_date: Optional[str
         "default_year_range": default_year_range,
         "top_n": top_n or {"journals": 40, "countries": 25, "funders": 25, "institutions": 60},
         "high_impact": {"settings": hi_settings, "description": dash.high_impact_description(hi_settings)},
+        "study_design": {"description": study_design_description()},
         "corpus_rule": {a["discipline"]: a["corpus_rule"] for a in ordered},
         "citation": citation,
         "policy_events": read_policy_events(repo_root),
@@ -758,7 +791,7 @@ def build_from_inputs(inputs: Dict[str, Path], *, enrichment_dir: Optional[Path]
             continue
         logging.info("Loading %s: %s", discipline, path)
         df = load_discipline_csv(path)
-        df = prepare_frame(df, discipline, enrichment_dir=enrichment_dir)
+        df = prepare_frame(df, discipline, enrichment_dir=enrichment_dir, source_dir=path.parent)
         agg = aggregate_discipline(df, discipline, top_journals=top_journals,
                                    top_countries=top_countries, top_funders=top_funders)
         if not agg["cells"]:
@@ -769,7 +802,8 @@ def build_from_inputs(inputs: Dict[str, Path], *, enrichment_dir: Optional[Path]
                             top_n={"journals": top_journals, "countries": top_countries, "funders": top_funders, "institutions": 60})
 
 
-def prepare_frame(df: pd.DataFrame, discipline: str, *, enrichment_dir: Optional[Path] = None) -> pd.DataFrame:
+def prepare_frame(df: pd.DataFrame, discipline: str, *, enrichment_dir: Optional[Path] = None,
+                  source_dir: Optional[Path] = None) -> pd.DataFrame:
     """Optional enrichment join (only when the frame lacks the work-metadata fields) and
     registration-flag derivation for legacy frames."""
     lacks_metadata = "work_type" not in df.columns or _blank_mask(df["work_type"]).all()
@@ -780,6 +814,7 @@ def prepare_frame(df: pd.DataFrame, discipline: str, *, enrichment_dir: Optional
         else:
             df = apply_enrichment_metadata(df, path)
     df = derive_registration_flags(df)
+    df = derive_study_design(df, source_dir)
     return df
 
 

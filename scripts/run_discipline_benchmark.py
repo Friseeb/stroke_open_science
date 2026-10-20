@@ -128,6 +128,8 @@ def parse_args(script_root: Optional[Path] = None) -> argparse.Namespace:
     parser.add_argument("--fulltext-char-limit", type=int, default=12000)
     parser.add_argument("--llm-max-fulltext-fetch", type=int, default=200)
     parser.add_argument("--disable-api-enrich", action="store_true")
+    parser.add_argument("--disable-pubmed-trials", action="store_true",
+                        help="Classify trials from title and abstract only (no PubMed publication-type lookup).")
     parser.add_argument("--disable-dataset-search", action="store_true",
                         help="Skip DataCite/Dryad/Figshare dataset repository search")
     parser.add_argument("--backfill-openalex-metadata", action="store_true",
@@ -351,6 +353,8 @@ def main() -> int:
 
         if args.disable_api_enrich:
             cmd.append("--disable-api-enrich")
+        if args.disable_pubmed_trials:
+            cmd.append("--disable-pubmed-trials")
         if args.disable_dataset_search:
             cmd.append("--disable-dataset-search")
         if args.backfill_openalex_metadata:

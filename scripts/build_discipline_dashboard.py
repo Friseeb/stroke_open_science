@@ -1822,7 +1822,7 @@ def main() -> int:
         if site_builder is not None:
             # Optional enrichment join / derived flags, shared by both outputs so they agree; then aggregate
             # for the interactive site while the frame is in memory (counts only, small).
-            df = site_builder.prepare_frame(df, discipline, enrichment_dir=enrichment_dir)
+            df = site_builder.prepare_frame(df, discipline, enrichment_dir=enrichment_dir, source_dir=path.parent)
             aggregate = site_builder.aggregate_discipline(df, discipline)
             if aggregate["cells"]:
                 site_aggregates.append(aggregate)

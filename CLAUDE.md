@@ -64,9 +64,9 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
 - `build_discipline_dashboard.py` writes the static single-file report (`discipline_dashboard.html`) and,
   unless `--skip-site`, calls `build_dashboard_data.py` on each loaded frame to write `dashboard_data.json`
   and copy `dashboard/` (index.html, app.js, styles.css) + the JSON + `legacy.html` into `<out-dir>/site/`.
-- `dashboard_data.json` (schema v2) stores **counts only** (`COUNT_KEYS`: n, oa, oa_<status>×6, code, data, material,
-  preprint, reg, n_abs, das_audited, das_stmt, das_<category>×8, ft_github, ft_reg, ft_supp) at the grain year × high_impact × journal
-  (top 40 + Other) × first-author country (top 25 + Other) per discipline, plus year × high_impact × funder
+- `dashboard_data.json` (schema v3) stores **counts only** (`COUNT_KEYS`: n, oa, oa_<status>×6, code, data, material,
+  preprint, reg, n_abs, das_audited, das_stmt, das_<category>×8, ft_github, ft_reg, ft_supp) at the grain year × high_impact × trial × journal
+  (top 40 + Other) × first-author country (top 25 + Other) per discipline, plus year × high_impact × trial × funder
   (top 25 + Other + no-funder; multi-valued, so funder n's exceed paper totals). Rows are flat int lists; the
   browser sums and divides. Legacy CSVs without the new columns get `available.*=false` and the page hides
   those charts. `--enrichment-dir` left-joins `<discipline>_work_metadata.csv` by `doi_norm` (fills blank /
@@ -74,16 +74,20 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
   derived from title+abstract via `apply_registration_flags` when missing). Because the join is by DOI,
   release rows without a DOI (e.g. the DOI-less ISC conference abstracts in *Stroke*) get no metadata and
   are out of corpus (`corpus_rule` = `openalex_type_doi_only`); they are never counted as closed articles.
-- Besides the journal × country cells, v2 ships three more count tables per discipline: `funder_cells`
-  (year × hi × funder, multi-valued), `income_cells` (year × hi × first-author World Bank income group) and
-  `institution_cells` (year × hi × institution, multi-valued, top 60 by audited papers; units of one institution that OpenAlex lists
+- Schema v3 (2026-10-20) added `trial` (1 = trial report or secondary analysis of a trial, from `is_trial`) right after
+  `hi` in every table; the site reads the row layout from `cell_keys` / `income_keys`, so v2 files still load (the Design
+  filter is then hidden). Frames without `is_trial` get it from `apply_study_design_flags`, with the PubMed trial DOIs
+  from `pubmed_trial_dois.json` next to the input CSV when present.
+- Besides the journal × country cells, the payload ships three more count tables per discipline: `funder_cells`
+  (year × hi × trial × funder, multi-valued), `income_cells` (year × hi × trial × first-author World Bank income group) and
+  `institution_cells` (year × hi × trial × institution, multi-valued, top 60 by audited papers; units of one institution that OpenAlex lists
   separately are merged through `configs/institution_aliases.csv`, e.g. the Center for Stroke Research Berlin and the Berlin
   Institute of Health into Charité, and an article listing two units counts once). The full-text flags
   (`ft_*`) and the DAS categories use `das_audited` as denominator; `METRICS[*].denominator` says which.
 - The site (`dashboard/index.html`, `app.js`, `charts.js`, `styles.css`, no build step) is an **audit report card** (form chosen
   by the user on 2026-10-12 over an annotated chart essay and a ledger): one scrolling page, a sticky top bar (wordmark,
   section nav, current-selection readout, theme, "Download CSV" block), a full-height typographic hero, one selection
-  line (pill toggles for years / papers / disciplines, inline selects for focus and "within" slice, custom year
+  line (pill toggles for years / papers / design (all, trials, other studies) / disciplines, inline selects for focus and "within" slice, custom year
   range, reset / copy link), then six numbered sections with plain-noun titles: 01 *Indicators* (the centrepiece: an
   indicator × discipline matrix, hairline grid, big serif rate per cell with its year sparkline and numerator of
   denominator; the focus column carries the accent; clicking a row name picks the indicator drawn in Trends),
@@ -178,6 +182,20 @@ python -m http.server 8000 --directory data/benchmarks/dashboard/site   # previe
    filters on the flag. `first_author_income_group` (`high` / `upper_middle` / `lower_middle` / `low`, blank if
    unknown) comes from `first_author_country` via `configs/country_income_groups.csv` (World Bank API
    classification fetched 2026-10-11, plus Taiwan, Jersey and the French overseas departments GF/GP/MQ/RE added by hand as `high`; override with `--country-income-csv`).
+   Study design (`apply_study_design_flags`): `study_design` (`trial` / `systematic_review` / `other`), `is_trial` and
+   `pubmed_trial`. A paper is a trial when PubMed indexes it with a trial publication type (`PUBMED_TRIAL_PUBTYPES`:
+   randomized controlled trial, clinical trial and its phases, controlled / pragmatic / equivalence / adaptive trial,
+   trial protocol) or its title and abstract describe one (`STUDY_DESIGN_PATTERNS`: randomised, trial, phase,
+   placebo- or sham-controlled, blinded, randomly assigned, secondary analysis of a named trial); systematic reviews,
+   meta-analyses, OpenAlex reviews, letters and animal studies are not. The PubMed side is one esearch per year on the
+   discipline's title terms restricted to those types, plus esummary pages for the DOIs (a few thousand records per field;
+   written to `pubmed_trial_dois.json` in the output dir and reused when the lookup is skipped: `--disable-pubmed-trials`,
+   implied by `--disable-api-enrich`). The two sources disagree in both directions (PubMed misses pilot trials and recent
+   secondary analyses; text misses secondary analyses that never name the trial), so the union is used. Registry
+   numbers are not used, so registration rates by design are not circular. Check on stroke 2015-2019 (38,418 articles
+   matched to PubMed): the text rule alone agreed with PubMed's trial types at kappa 0.59 (sensitivity 61%, PPV 63%),
+   and about half of a sample of rule-only "trials" were trials PubMed had not tagged. 2026-10-13 run, 2015-2025:
+   trials are 6.8% of stroke (9,501; 5,485 PubMed-typed), 3.6% of neurology, 5.8% of cardiology, 1.7% of neuroscience.
 7. **API enrichment** — async Unpaywall/Zenodo/OSF/GitHub lookups with resumable JSON cache
 8. **Dataset repo search** — DataCite → Dryad → Figshare API chain, async with rate limiting
 9. **Embedding ranking** (optional) — SentenceTransformer cosine similarity to an open-science concept vector
@@ -313,6 +331,9 @@ pipeline needs the previous run's frames; it needs the caches.
 | `is_retracted` / `has_fulltext` | boolean | OpenAlex flags |
 | `reg_trial_registry` / `reg_prospero` / `reg_preregistration_wording` | boolean | Regex registration signals over title+abstract |
 | `registered_any` / `registration_signal` | boolean | Any regex registration signal (identical) |
+| `study_design` | str | `trial`, `systematic_review` or `other` (PubMed trial publication types ∪ title/abstract rule) |
+| `is_trial` | boolean | Trial report or secondary analysis of a trial (the dashboard's Design filter) |
+| `pubmed_trial` | boolean | DOI is among PubMed's trial-type records for the discipline's title terms (NA when the lookup was skipped and no `pubmed_trial_dois.json` exists) |
 | `in_article_corpus` | boolean | Journal article/review with a DOI and OpenAlex metadata (type article/review + journal source); rows without metadata/DOI are out. Journal-name fallback only for frames with no metadata at all |
 | `corpus_rule` | str | `openalex_type_doi_only` or `source_name_fallback` (one value per frame) |
 | `das_pmcid` | str | Europe PMC PMCID used for the DAS audit |

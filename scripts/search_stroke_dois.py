@@ -29,7 +29,7 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import quote
 
 import pandas as pd
@@ -223,6 +223,58 @@ REGISTRY_PATTERNS: Dict[str, "re.Pattern[str]"] = {
     ),
 }
 REGISTRATION_FLAG_COLS = [f"reg_{name}" for name in REGISTRY_PATTERNS] + ["registered_any", "registration_signal"]
+
+# Study design from title + abstract, so every indicator can be split into trials and other studies. A trial is
+# a report of a prospective interventional trial or a secondary analysis of one (protocols included). Systematic
+# reviews and meta-analyses are classed first, so a meta-analysis of randomised trials is not a trial, and
+# OpenAlex reviews are never trials. Registry numbers are deliberately not used, so registration rates by design
+# are not circular.
+STUDY_DESIGN_PATTERNS: Dict[str, "re.Pattern[str]"] = {
+    "systematic_review_title": re.compile(
+        r"systematic (?:literature )?review|meta-?analy|meta-?regression|umbrella review|scoping review|"
+        r"pooled analysis of (?:\w+ ){0,3}trials|individual (?:patient|participant)[- ]data",
+        re.IGNORECASE,
+    ),
+    "trial_title": re.compile(
+        r"\brandomi[sz]ed\b|\btrial\b|\bRCTs?\b|\bphase\s?(?:I{1,3}|IV|[1-4])[ab]?\b|placebo[- ]controlled|"
+        r"double[- ]blind|single[- ]blind|open[- ]label|sham[- ]controlled|\bsecondary analysis of\b",
+        re.IGNORECASE,
+    ),
+    "trial_abstract": re.compile(
+        r"\b(?:were|was|been|are|is) randomly (?:assigned|allocated)|\brandomly (?:assigned|allocated) (?:to|in|into|\d)|"
+        r"\b(?:were|was|been) randomi[sz]ed\b|\bwe randomi[sz]ed\b|\bunderwent randomi[sz]ation\b|"
+        r"\bplacebo[- ]controlled\b|\bsham[- ]controlled\b|\bdouble[- ]blind(?:ed)?\b|"
+        r"\bwill be randomi[sz]ed\b|\bwill be randomly (?:assigned|allocated)|"
+        # secondary analyses: the data come from a named trial
+        r"\b(?:secondary|post[- ]hoc|ancillary|exploratory|pre-?specified|subgroup) (?:analysis|analyses|study) (?:of|from|in|within|using)"
+        r"(?: \S+){0,8} (?:randomi[sz]ed |controlled |clinical )*trials?\b|"
+        r"\b(?:patients|participants|subjects|data|individuals) (?:from|enrolled in|randomi[sz]ed in|included in|in) (?:the |a |two |three )?"
+        r"(?:\S+ ){0,5}(?:randomi[sz]ed |controlled |clinical )*trials?\b",
+        re.IGNORECASE,
+    ),
+    # not trials whatever they say: correspondence about a trial, and animal studies
+    "not_trial_title": re.compile(
+        r"^(?:letter|response|reply|authors?['’]? reply|in reply|comment|correspondence|re:)\b|"
+        r"\b(?:rats?|mice|mouse|murine|rodents?|rabbits?|canine|porcine|swine|primates?|zebrafish)\b",
+        re.IGNORECASE,
+    ),
+}
+STUDY_DESIGN_COLS = ["study_design", "is_trial", "pubmed_trial"]
+# PubMed publication types that make a record a trial; the pipeline asks PubMed for the discipline's title terms
+# restricted to these types, one query per year, and keeps the DOIs (pubmed_trial_dois.json in the output dir).
+PUBMED_TRIAL_PUBTYPES = [
+    "Randomized Controlled Trial", "Clinical Trial", "Clinical Trial, Phase I", "Clinical Trial, Phase II",
+    "Clinical Trial, Phase III", "Clinical Trial, Phase IV", "Controlled Clinical Trial", "Pragmatic Clinical Trial",
+    "Equivalence Trial", "Adaptive Clinical Trial", "Clinical Trial Protocol",
+]
+PUBMED_TRIAL_DOIS_FILE = "pubmed_trial_dois.json"
+STUDY_DESIGN_DESCRIPTION = (
+    "Trials = reports of interventional trials and their secondary analyses: PubMed indexes the paper as a trial "
+    "(randomized controlled trial, clinical trial, any phase, or trial protocol), or its title and abstract describe "
+    "one (randomised, trial, phase, placebo- or sham-controlled, blinded, participants randomly assigned, an analysis "
+    "of a named trial). Systematic reviews, meta-analyses, OpenAlex reviews, letters and animal studies are not "
+    "trials. Registry numbers are not used, so registration rates by design are not circular."
+)
 
 # Article corpus: OpenAlex journal articles / reviews with a DOI (metadata is joined by DOI, so rows
 # without metadata are excluded). The source-name pattern is used only for legacy frames that carry no
@@ -498,6 +550,7 @@ class PipelineConfig:
     das_audit_refetch_empty: bool = False
     country_income_csv: str = ""
     openalex_search_field: str = "title"   # title.search (benchmark) or title_and_abstract.search (sensitivity)
+    disable_pubmed_trials: bool = False   # skip the PubMed trial-publication-type lookup (study design from text only)
 
 
 def parse_dotenv_file(path: Path) -> Dict[str, str]:
@@ -677,6 +730,12 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
     )
 
     parser.add_argument("--disable-api-enrich", action="store_true")
+    parser.add_argument(
+        "--disable-pubmed-trials",
+        action="store_true",
+        help="Do not ask PubMed which records are trials (trials are then classified from title and abstract only; "
+        "an existing pubmed_trial_dois.json in the output dir is still used). Implied by --disable-api-enrich.",
+    )
     parser.add_argument("--disable-dataset-search", action="store_true",
                         help="Skip dataset repository API enrichment (DataCite, Dryad, Figshare)")
     parser.add_argument("--api-concurrency", type=int, default=12)
@@ -807,6 +866,7 @@ def parse_args(script_root: Optional[Path] = None) -> Tuple[PipelineConfig, Pipe
         unpaywall_snapshot=resolve_snapshot_source(args.unpaywall_snapshot, script_root),
         crossref_relations=resolve_snapshot_source(args.crossref_relations, script_root),
         disable_api_enrich=args.disable_api_enrich,
+        disable_pubmed_trials=args.disable_pubmed_trials,
         disable_dataset_search=args.disable_dataset_search,
         api_concurrency=max(1, args.api_concurrency),
         api_delay_seconds=max(0.0, args.api_delay_seconds),
@@ -3094,6 +3154,99 @@ def apply_registration_flags(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def apply_study_design_flags(df: pd.DataFrame, pubmed_trial_dois: Optional[Iterable[str]] = None) -> pd.DataFrame:
+    """Study design: ``study_design`` (``trial``, ``systematic_review`` or ``other``), ``is_trial`` and, when the
+    PubMed trial DOIs are given, ``pubmed_trial``. A paper is a trial when PubMed indexes it as one or its title
+    and abstract describe one (``STUDY_DESIGN_PATTERNS``); the two disagree in both directions (PubMed misses
+    many pilot trials and recent secondary analyses, the text misses secondary analyses that never name the trial),
+    so their union is used."""
+    if df.empty:
+        for col in STUDY_DESIGN_COLS:
+            if col not in df.columns:
+                df[col] = pd.Series(dtype="object" if col == "study_design" else "boolean")
+        return df
+    title = df.get("title", pd.Series("", index=df.index)).fillna("").astype(str)
+    abstract = df.get("abstract", pd.Series("", index=df.index)).fillna("").astype(str)
+    work_type = df.get("work_type", pd.Series("", index=df.index)).fillna("").astype(str).str.lower()
+    review = title.str.contains(STUDY_DESIGN_PATTERNS["systematic_review_title"], na=False)
+    trial = (
+        ~review
+        & work_type.ne("review")
+        & ~title.str.contains(STUDY_DESIGN_PATTERNS["not_trial_title"], na=False)
+        & (title.str.contains(STUDY_DESIGN_PATTERNS["trial_title"], na=False)
+           | abstract.str.contains(STUDY_DESIGN_PATTERNS["trial_abstract"], na=False))
+    )
+    if pubmed_trial_dois is not None:
+        wanted = {normalize_doi(d) for d in pubmed_trial_dois} - {""}
+        doi = df.get("doi", pd.Series("", index=df.index)).map(normalize_doi)
+        pubmed = doi.isin(wanted) & doi.ne("")
+        df["pubmed_trial"] = pubmed
+        trial = trial | pubmed
+    design = pd.Series("other", index=df.index, dtype="object")
+    design[review] = "systematic_review"
+    design[trial] = "trial"
+    df["study_design"] = design
+    df["is_trial"] = trial
+    return df
+
+
+def pubmed_trial_query(terms: Sequence[str], year: int) -> str:
+    title = " OR ".join(f'"{WS_RE.sub(" ", str(t).replace(chr(34), " ")).strip()}"[Title]' for t in terms if str(t).strip())
+    types = " OR ".join(f'"{t}"[Publication Type]' for t in PUBMED_TRIAL_PUBTYPES)
+    return f'({title}) AND ({types}) AND ("{year}/01/01"[Date - Publication] : "{year}/12/31"[Date - Publication])'
+
+
+def fetch_pubmed_trial_dois(cfg: "PipelineConfig", session: requests.Session, out_path: Path) -> Optional[List[str]]:
+    """DOIs of the PubMed records that match the discipline's title terms and carry a trial publication type,
+    one esearch + paged esummary per year. Cheap (trials are a few percent of a field). Writes ``out_path``
+    (JSON: query, per-year counts, DOIs); returns None if any year failed, so a partial set is never used."""
+    base = ncbi_common_params(cfg.pubmed_email, cfg.pubmed_api_key, cfg.pubmed_tool)
+    eutils = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
+    dois: set = set()
+    per_year: Dict[str, Dict[str, int]] = {}
+    for year in cfg.years:
+        query = pubmed_trial_query(cfg.terms, year)
+        found = safe_get_json(session, eutils + "esearch.fcgi", params={**base, "db": "pubmed", "term": query, "retmode": "json",
+                              "retmax": 0, "usehistory": "y"}, timeout=cfg.pubmed_timeout_seconds,
+                              max_attempts=cfg.pubmed_max_attempts, max_retry_after_seconds=60.0,
+                              request_label=f"PubMed trials {cfg.discipline} {year} esearch")
+        result = (found or {}).get("esearchresult") or {}
+        if "count" not in result:
+            logging.warning("PubMed trial lookup failed for %s %d; trials are classified from text only.", cfg.discipline, year)
+            return None
+        count, with_doi = int(result.get("count") or 0), 0
+        for start in range(0, count, 500):
+            summary = safe_get_json(session, eutils + "esummary.fcgi", params={**base, "db": "pubmed", "retmode": "json",
+                                    "query_key": result.get("querykey"), "WebEnv": result.get("webenv"),
+                                    "retstart": start, "retmax": 500}, timeout=cfg.pubmed_timeout_seconds,
+                                    max_attempts=cfg.pubmed_max_attempts, max_retry_after_seconds=60.0,
+                                    request_label=f"PubMed trials {cfg.discipline} {year} esummary {start}")
+            records = (summary or {}).get("result")
+            if not records:
+                logging.warning("PubMed trial summaries failed for %s %d; trials are classified from text only.", cfg.discipline, year)
+                return None
+            for uid in records.get("uids", []):
+                doi = next((normalize_doi(a.get("value")) for a in records.get(uid, {}).get("articleids", []) if a.get("idtype") == "doi"), "")
+                if doi:
+                    dois.add(doi)
+                    with_doi += 1
+            time.sleep(cfg.pubmed_delay_seconds)
+        per_year[str(year)] = {"records": count, "with_doi": with_doi}
+        logging.info("PubMed trials %s %d: %d records, %d with a DOI", cfg.discipline, year, count, with_doi)
+        time.sleep(cfg.pubmed_delay_seconds)
+    out_path.write_text(json.dumps({"generated": dt.date.today().isoformat(), "discipline": cfg.discipline,
+                                    "terms": list(cfg.terms), "publication_types": PUBMED_TRIAL_PUBTYPES,
+                                    "years": per_year, "dois": sorted(dois)}, indent=1) + "\n")
+    return sorted(dois)
+
+
+def load_pubmed_trial_dois(path: Path) -> Optional[List[str]]:
+    try:
+        return list(json.loads(Path(path).read_text()).get("dois") or [])
+    except Exception:
+        return None
+
+
 def apply_metadata_preprint_flag(df: pd.DataFrame) -> pd.DataFrame:
     """When the LLM did not fill ``preprint`` for a row, set it from the OpenAlex preprint
     location (``has_preprint_version``): the preprint server names, or a generic marker."""
@@ -5072,6 +5225,13 @@ def main() -> int:
     df = normalize_open_access_fields(df)
     df = apply_regex_extraction(df)
     df = apply_registration_flags(df)
+    trial_dois_path = paths.output_dir / PUBMED_TRIAL_DOIS_FILE
+    pubmed_trials = None
+    if not (cfg.disable_pubmed_trials or cfg.disable_api_enrich):
+        pubmed_trials = fetch_pubmed_trial_dois(cfg, session, trial_dois_path)
+    if pubmed_trials is None and trial_dois_path.exists():
+        pubmed_trials = load_pubmed_trial_dois(trial_dois_path)
+    df = apply_study_design_flags(df, pubmed_trials)
     df = apply_corpus_flag(df)
     df = apply_country_income_group(df, load_country_income_groups(cfg.country_income_csv))
 
