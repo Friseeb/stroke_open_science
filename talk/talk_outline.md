@@ -126,4 +126,4 @@ Figure: QR code: benchmark
 
 Figure: QR code: code
 
-Say, do not show: we measured ourselves; the numbers are not flattering, but they can improve. One line, then stop. Leave the links and the QR codes up during questions. Thank the session chairs.
+Say, do not show: we measured ourselves; the numbers are not flattering, but they can improve. One line, then stop. Leave the links and the QR codes up during questions. Thank the session chairs. Close with 감사합니다, gam-sa-ham-ni-da (thank you, formal).
